@@ -115,7 +115,7 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 }
 #panel-agents {
   font-size: 8px;
-  display: flex; gap: 8px;
+  display: flex; flex-direction: column; gap: 5px;
 }
 .pagent { font-size: 7px; letter-spacing: 1px; }
 .pagent.OBSERVER { color: rgba(100, 180, 255, 0.6); }
@@ -150,6 +150,33 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 .ae-msg.ANALYST   { color: rgba(100, 220, 185, 0.60); }
 .ae-msg.NARRATOR  { color: rgba(225, 185, 80, 0.68); font-style: italic; }
 .ae-msg.SYSTEM    { color: rgba(190, 120, 60, 0.50); font-size: 9px; letter-spacing: 0.3px; }
+
+.ae-highlight { border-left: 2px solid rgba(255, 200, 80, 0.25); padding-left: 5px; }
+.ae-type { font-size: 6px; letter-spacing: 1.5px; padding: 1px 4px; border-radius: 2px;
+           display: inline-block; margin-left: 5px; vertical-align: middle; }
+.ae-type.proposal  { background: rgba(255, 200, 80, 0.12); color: rgba(255, 200, 80, 0.8); }
+.ae-type.yes       { background: rgba(100, 220, 150, 0.12); color: rgba(100, 220, 150, 0.8); }
+.ae-type.no        { background: rgba(255, 100, 80, 0.12);  color: rgba(255, 100, 80, 0.8); }
+.ae-type.action    { background: rgba(100, 200, 255, 0.12); color: rgba(100, 200, 255, 0.8); }
+.ae-type.knowledge { background: rgba(200, 150, 255, 0.12); color: rgba(200, 150, 255, 0.8); }
+
+/* ── Agent rank system ──────────────────────────────────────── */
+#panel-agents { flex-direction: column; gap: 5px; }
+.pagent-wrap { display: flex; align-items: center; gap: 5px; }
+.pagent { font-size: 7px; letter-spacing: 1px; flex: none; width: 64px; }
+.rank-badge {
+  font-size: 6px; letter-spacing: 1px; padding: 1px 4px; border-radius: 2px;
+  font-weight: bold; flex: none;
+}
+.rank-student    { background: rgba(130,130,130,0.15); color: rgba(170,170,170,0.8); }
+.rank-researcher { background: rgba(60,130,240,0.15);  color: rgba(80,160,255,0.85); }
+.rank-scientist  { background: rgba(40,200,160,0.15);  color: rgba(60,220,185,0.9); }
+.rank-professor  { background: rgba(255,190,40,0.15);  color: rgba(255,210,80,0.95); }
+.xp-track { flex: 1; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; }
+.xp-fill  { height: 100%; border-radius: 1px; transition: width 0.8s ease; }
+.ae.ae-levelup { border-left: 2px solid rgba(255,210,80,0.5); padding-left: 5px;
+                 background: rgba(255,210,80,0.03); }
+.ae-type.levelup { background: rgba(255,210,80,0.15); color: rgba(255,210,80,0.9); }
 </style>
 </head>
 <body>
@@ -819,8 +846,9 @@ function declareDead(reason) {
   el.textContent = 'DEAD WORLD';
   el.className   = 'dead';
   logE(reason);
-  agentSay('ANALYST',  'No recovery. All interventions exhausted.');
-  agentSay('NARRATOR', 'The warm soup was not warm enough, or the clay patches were too sparse. We archive Warm Soup and remember: surface matters. Geometry matters. The pond alone was never enough.');
+  convDead(reason);
+  // legacy below removed
+  // agentSay('NARRATOR', 'The warm soup was not warm enough, or the clay patches were too sparse. We archive Warm Soup and remember: surface matters. Geometry matters. The pond alone was never enough.');
 }
 
 function checkVitality(cx) {
@@ -834,13 +862,22 @@ function checkVitality(cx) {
       document.getElementById('world-state').className  = '';
       document.getElementById('world-state').textContent = '';
       logE('meaningful complexity growth — world responding');
-      agentSay('ANALYST', 'Recovery confirmed. Complexity improving.');
+      speak('OBSERVER', `Recovery at t=${tick}. Complexity ${cx.toFixed(3)} exceeds peak. Intervention successful.`);
+      // Award XP: intervention was successful
+      if (CONV._pendingXP) {
+        for (const agent of CONV._pendingXP) awardXP(agent, 25, 'Successful intervention');
+        CONV._pendingXP = null;
+      }
+      if (CONV._lastProposal) {
+        CONV._lastProposal = null;
+      }
+      writeKnowledge({type:'recovery', cx, summary:`Recovery after intervention ${interventions}`});
     }
   }
 
   if (!tierAchieved[2] && tick > HARD_DEATH_TICK) {
     declareDead('T2 never reached — peptide chain never formed — DEAD WORLD');
-    agentSay('NARRATOR', `${HARD_DEATH_TICK} ticks. No chain ever persisted. The molecules drifted, never committing. We close the book on Warm Soup.`);
+    speak('NARRATOR', `${HARD_DEATH_TICK} ticks. No persistent chain ever formed. Archiving world.`);
     return;
   }
 
@@ -869,8 +906,6 @@ function checkVitality(cx) {
   }, 3000);
 
   logE(`intervention ${interventions}/${MAX_INTERVENTIONS}: ${p.desc}`);
-  agentSay('SYSTEM',   `PERTURBATION ${interventions}/${MAX_INTERVENTIONS}: ${p.name}`);
-  agentSay('ANALYST',  `Stagnation detected. Issuing ${p.desc}. Observing response.`);
 }
 
 // ── Tier detection ──────────────────────────────────────────
@@ -906,10 +941,15 @@ function promoteTier(t) {
     6: ['OBSERVER',  'Sustained complexity. The peptide network self-reinforces. T6.'],
   };
 
-  if (tierNarrative[t]) {
-    const [ag, msg] = tierNarrative[t];
-    agentSay(ag, msg);
-  }
+  const cx_now    = hist.length ? hist[hist.length-1] : 0;
+  const mxl_now   = maxChainLength(latestComps);
+  const brn_now   = countBranching();
+  const rings_now = countRings(latestComps);
+  convTierUp(t, cx_now, mxl_now, brn_now, rings_now);
+  // Award XP for tier discovery
+  awardXP('OBSERVER', 20, `Tier ${t} discovered`);
+  awardXP('ANALYST',  15, `Tier ${t} transition`);
+
 }
 
 function checkTiers(cx, mxl, brn, rings) {
@@ -941,109 +981,468 @@ function checkTiers(cx, mxl, brn, rings) {
   if (!tierAchieved[6] && sustainedCxTicks >= 11) promoteTier(6);
 }
 
-// ── Agent conversation system ─────────────────────────────────
-const agentFeed   = document.getElementById('agent-feed');
-let lastAgentTick = -600;
+// ═══════════════════════════════════════════════════════════════
+//  REACTIVE AGENT CONVERSATION ENGINE — WARM SOUP
+//
+//  Agents observe, debate, propose actions, vote (2/3 consensus),
+//  execute agreed interventions. Discoveries archived to localStorage.
+// ═══════════════════════════════════════════════════════════════
 
-function agentSay(agent, msg) {
-  const entry = document.createElement('div');
-  entry.className = 'ae';
-  entry.innerHTML = `
+// ── Cross-biome knowledge (localStorage) ─────────────────────
+const BIOME_ID   = 4;
+const BIOME_NAME = 'WARM SOUP';
+const K_KEY      = 'pandora_knowledge_v1';
+
+function readKnowledge() {
+  try { return JSON.parse(localStorage.getItem(K_KEY) || '[]'); } catch(e) { return []; }
+}
+function writeKnowledge(entry) {
+  try {
+    const k = readKnowledge();
+    k.push({...entry, biome_id: BIOME_ID, biome: BIOME_NAME, tick, ts: Date.now()});
+    if (k.length > 400) k.splice(0, k.length - 400);
+    localStorage.setItem(K_KEY, JSON.stringify(k));
+  } catch(e) {}
+}
+function getOtherBiomeFacts() {
+  return readKnowledge().filter(e => e.biome_id !== BIOME_ID).slice(-12);
+}
+
+// ── Conversation state ────────────────────────────────────────
+const agentFeed = document.getElementById('agent-feed');
+const CONV = {
+  queue:        [],
+  cooldown:     0,
+  pending:      null,
+  history:      [],
+  booted:       false,
+  lastPeriodic: -1500,
+};
+
+const ACTIONS = {
+  INJECT_CATALYST: 'inject additional phosphate catalysts onto clay patches',
+  THERMAL_SHOCK:   'scatter the molecular network',
+  MATERIAL_RAIN:   'trigger exogenous amino acid rainfall from above',
+  DECLARE_DEAD:    'archive this world and broadcast its learnings',
+};
+
+function speak(speaker, msg, type) {
+  type = type || 'statement';
+  CONV.queue.push({speaker, msg, type});
+}
+
+
+// ── Agent Rank System ─────────────────────────────────────────
+//
+//  Agents begin as STUDENT and advance through:
+//    STUDENT(0) → RESEARCHER(50) → SCIENTIST(150) → PROFESSOR(300)
+//
+//  XP is earned by:
+//    +20  Tier-up occurs (OBSERVER who first reported it)
+//    +25  Successful intervention (proposer, if cx improves after)
+//    +10  Cross-biome insight cited leads to a correct prediction
+//    +15  Death well-documented (NARRATOR)
+//    +5   Vote cast correctly (yes on success, no on failure)
+//    -10  Intervention fails (cx does not improve)
+//    -5   Proposal ignored / never seconded
+//
+//  Higher ranks change behaviour:
+//    STUDENT    — observes, asks questions, vote weight 0.5
+//    RESEARCHER — can propose, vote weight 1.0
+//    SCIENTIST  — complex proposals, vote weight 1.5, auto-references cross-biome
+//    PROFESSOR  — veto power, vote weight 2.0, emergency unilateral action at max stagnation
+
+const RANKS     = ['STUDENT', 'RESEARCHER', 'SCIENTIST', 'PROFESSOR'];
+const RANK_XP   = [0, 50, 150, 300];
+const RANK_W    = {STUDENT: 0.5, RESEARCHER: 1.0, SCIENTIST: 1.5, PROFESSOR: 2.0};
+const RANK_CLR  = {
+  STUDENT:    'rgba(160,160,160,0.5)',
+  RESEARCHER: 'rgba(80,150,240,0.6)',
+  SCIENTIST:  'rgba(60,210,175,0.7)',
+  PROFESSOR:  'rgba(255,200,60,0.9)',
+};
+const A_KEY = 'pandora_agents_v1';
+
+const AGENT_STATE = {
+  OBSERVER: {xp:0, rank:'STUDENT', successful:0, failed:0, predictions:[]},
+  ANALYST:  {xp:0, rank:'STUDENT', successful:0, failed:0, predictions:[]},
+  NARRATOR: {xp:0, rank:'STUDENT', successful:0, failed:0, predictions:[]},
+};
+
+function rankOf(xp) {
+  for (let i = RANKS.length-1; i >= 0; i--) if (xp >= RANK_XP[i]) return RANKS[i];
+  return 'STUDENT';
+}
+
+function loadAgentProfiles() {
+  try { return JSON.parse(localStorage.getItem(A_KEY) || '{}'); } catch(e) { return {}; }
+}
+function saveAgentProfile(name) {
+  try {
+    const all = loadAgentProfiles();
+    all[`${BIOME_ID}_${name}`] = {
+      xp: AGENT_STATE[name].xp, rank: AGENT_STATE[name].rank,
+      successful: AGENT_STATE[name].successful, failed: AGENT_STATE[name].failed,
+    };
+    localStorage.setItem(A_KEY, JSON.stringify(all));
+  } catch(e) {}
+}
+
+function initAgentProfiles() {
+  const saved = loadAgentProfiles();
+  for (const name of ['OBSERVER','ANALYST','NARRATOR']) {
+    const key = `${BIOME_ID}_${name}`;
+    if (saved[key]) {
+      AGENT_STATE[name].xp         = saved[key].xp         || 0;
+      AGENT_STATE[name].successful = saved[key].successful || 0;
+      AGENT_STATE[name].failed     = saved[key].failed     || 0;
+    }
+    AGENT_STATE[name].rank = rankOf(AGENT_STATE[name].xp);
+  }
+  updateRankDisplay();
+}
+
+const RANK_UP_MSG = {
+  RESEARCHER: {
+    OBSERVER: 'My field observations have been validated enough times. I can now formally propose actions to the team.',
+    ANALYST:  'My pattern recognition track record qualifies me for the RESEARCHER rank. I am now permitted to issue proposals.',
+    NARRATOR: 'My contextual analysis has earned research standing. I will use this to push for better-reasoned decisions.',
+  },
+  SCIENTIST: {
+    OBSERVER: 'SCIENTIST rank. My observations have driven multiple successful interventions. I will now propose multi-step strategies and my vote carries extra weight.',
+    ANALYST:  'SCIENTIST rank. My interventions have been validated across enough biomes. I can now propose complex 2-step actions and outweigh less-experienced voices.',
+    NARRATOR: 'SCIENTIST rank. My synthesis of cross-biome data has been consistently correct. I will use this platform to argue harder for what the evidence demands.',
+  },
+  PROFESSOR: {
+    OBSERVER: 'PROFESSOR. I have been in this world longer than anyone, observed more than anyone, and my predictions have held across multiple biomes. I now hold veto power.',
+    ANALYST:  'PROFESSOR. My analytical track record is the best in this biome. I will use my veto sparingly — only when the evidence is unambiguous.',
+    NARRATOR: 'PROFESSOR. The universe has been my classroom. I will use this standing to ensure we make only decisions the archive will be proud of.',
+  },
+};
+
+function awardXP(name, amount, reason) {
+  const s = AGENT_STATE[name];
+  if (!s) return;
+  const oldRank = s.rank;
+  s.xp = Math.max(0, s.xp + amount);
+  s.rank = rankOf(s.xp);
+  if (amount > 0) s.successful++; else if (amount < 0) s.failed++;
+  saveAgentProfile(name);
+
+  if (s.rank !== oldRank && RANKS.indexOf(s.rank) > RANKS.indexOf(oldRank)) {
+    const msg = RANK_UP_MSG[s.rank]?.[name] || `Rank advanced to ${s.rank}.`;
+    speak(name, `▲ RANK UP — ${s.rank}. ${msg}`, 'levelup');
+    writeKnowledge({type:'rank_up', agent:name, new_rank:s.rank, xp:s.xp,
+      summary:`${name} reached ${s.rank} (${s.xp} XP) in ${BIOME_NAME}`});
+  } else if (s.rank !== oldRank) {
+    speak(name, `▼ Rank dropped to ${s.rank} (${s.xp} XP). My track record needs work.`, 'statement');
+  }
+  updateRankDisplay();
+}
+
+function updateRankDisplay() {
+  const container = document.getElementById('panel-agents');
+  if (!container) return;
+  container.innerHTML = ['OBSERVER','ANALYST','NARRATOR'].map(name => {
+    const s   = AGENT_STATE[name];
+    const ri  = RANKS.indexOf(s.rank);
+    const lo  = RANK_XP[ri];
+    const hi  = RANK_XP[ri+1] || (lo + 50);
+    const pct = Math.min(100, Math.round(((s.xp - lo) / (hi - lo)) * 100));
+    const fill_color = {STUDENT:'rgba(160,160,160,0.4)',RESEARCHER:'rgba(80,150,240,0.5)',
+                        SCIENTIST:'rgba(60,210,175,0.6)',PROFESSOR:'rgba(255,200,60,0.8)'}[s.rank];
+    return `<div class="pagent-wrap">
+      <span class="pagent ${name}">${name}</span>
+      <span class="rank-badge rank-${s.rank.toLowerCase()}" title="${s.rank} — ${s.xp} XP">${s.rank.charAt(0)}</span>
+      <div class="xp-track" title="${s.xp} XP / ${hi} next rank">
+        <div class="xp-fill" style="width:${pct}%;background:${fill_color}"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+
+// Agent rank prefix for messages
+function rankPrefix(speaker) {
+  const rank = AGENT_STATE[speaker]?.rank || 'STUDENT';
+  if (rank === 'STUDENT')    return '[?] ';
+  if (rank === 'RESEARCHER') return '';
+  if (rank === 'SCIENTIST')  return '';
+  if (rank === 'PROFESSOR')  return '[PROF] ';
+  return '';
+}
+
+
+// Check if agent is allowed to propose
+function canPropose(name) {
+  const rank = AGENT_STATE[name]?.rank || 'STUDENT';
+  if (rank === 'STUDENT') {
+    speak(name, `I want to propose an action but I haven't earned proposal rights yet. I need ${50 - (AGENT_STATE[name]?.xp||0)} more XP to reach RESEARCHER rank.`);
+    return false;
+  }
+  return true;
+}
+
+function flushQueue() {
+  if (!CONV.queue.length) return;
+  if (CONV.cooldown > 0) { CONV.cooldown--; return; }
+  const {speaker, msg, type} = CONV.queue.shift();
+  CONV.history.push({speaker, msg, type, tick});
+  if (CONV.history.length > 200) CONV.history.shift();
+  const badges = {
+    proposal:  '<span class="ae-type proposal">PROPOSAL</span>',
+    vote_yes:  '<span class="ae-type yes">AGREE</span>',
+    vote_no:   '<span class="ae-type no">DISAGREE</span>',
+    consensus: '<span class="ae-type action">CONSENSUS</span>',
+    action:    '<span class="ae-type action">ACTION</span>',
+    knowledge: '<span class="ae-type knowledge">FROM RECORD</span>',
+  };
+  const badge   = badges[type] || '';
+  const hiClass = ['proposal','consensus','action'].includes(type) ? ' ae-highlight' : '';
+  const div = document.createElement('div');
+  div.className = `ae${hiClass}`;
+  div.innerHTML = `
     <div class="ae-meta">
-      <span class="ae-name ${agent}">${agent}</span>
-      <span class="ae-time">t=${tick}</span>
+      <span class="ae-name ${speaker}">${speaker}</span>
+      <span class="ae-time">t=${tick}</span>${badge}
     </div>
-    <div class="ae-msg ${agent}">${msg}</div>
-  `;
-  agentFeed.appendChild(entry);
+    <div class="ae-msg ${speaker}">${msg}</div>`;
+  agentFeed.appendChild(div);
   agentFeed.scrollTop = agentFeed.scrollHeight;
+  while (agentFeed.children.length > 80) agentFeed.removeChild(agentFeed.firstChild);
+  if (['proposal','consensus','action','vote_yes','vote_no'].includes(type)) {
+    writeKnowledge({type, speaker, msg, summary: `${speaker}: ${msg.slice(0,80)}`});
+  }
+  CONV.cooldown = 50 + Math.floor(Math.random() * 40);
+}
 
-  while (agentFeed.children.length > 60) {
-    agentFeed.removeChild(agentFeed.firstChild);
+function propose(proposer, action, reason) {
+  if (CONV.pending) return false;
+  if (!canPropose(proposer)) return false;
+  CONV.pending = {action, reason, proposer, votes: {[proposer]: true}, weights: {[proposer]: RANK_W[AGENT_STATE[proposer]?.rank||'STUDENT']}};
+  speak(proposer, `I propose we ${ACTIONS[action]}. ${reason}`, 'proposal');
+  return true;
+}
+
+function castVote(voter, inFavor, reason) {
+  if (!CONV.pending || voter in CONV.pending.votes) return;
+  CONV.pending.votes[voter]   = inFavor;
+  CONV.pending.weights        = CONV.pending.weights || {};
+  const vw = RANK_W[AGENT_STATE[voter]?.rank || 'STUDENT'];
+  CONV.pending.weights[voter] = inFavor ? vw : 0;
+
+  // PROFESSOR veto
+  if (!inFavor && AGENT_STATE[voter]?.rank === 'PROFESSOR') {
+    speak(voter, `VETO. ${reason || 'The evidence does not support this action at this time.'}`, 'vote_no');
+    speak('NARRATOR', `Professor-level veto applied. Proposal rejected by authority. Continuing observation.`);
+    awardXP(voter, 5, 'Valid veto');
+    CONV.pending = null;
+    return;
+  }
+
+  speak(voter, reason || (inFavor ? 'Agreed.' : 'Disagree.'), inFavor ? 'vote_yes' : 'vote_no');
+
+  const weightedYes = Object.values(CONV.pending.weights).reduce((s,v) => s+v, 0);
+  const yes         = Object.values(CONV.pending.votes).filter(Boolean).length;
+  const total       = Object.keys(CONV.pending.votes).length;
+
+  if (weightedYes >= 2.0 || yes >= 2) {
+    const p = CONV.pending; CONV.pending = null;
+    CONV._lastProposal = p;
+    speak('NARRATOR', `Consensus — weighted ${weightedYes.toFixed(1)}, ${yes}/${total} yes votes. Executing.`, 'consensus');
+    setTimeout(() => {
+      executeAction(p.action, p.reason);
+      // Track who voted yes for post-hoc XP award
+      CONV._pendingXP = Object.entries(p.votes)
+        .filter(([,v]) => v).map(([k]) => k);
+    }, 900);
+  } else if (total >= 3) {
+    speak('NARRATOR', `Proposal failed — weighted ${weightedYes.toFixed(1)}, ${yes}/${total}. Continuing.`);
+    awardXP(CONV.pending?.proposer, -8, 'Failed proposal');
+    CONV.pending = null;
   }
 }
 
-const CHECKPOINTS = [
-  {
-    t: 1,
-    messages: [
-      ['OBSERVER',  'Biome-04 WARM SOUP initialized. Clay-catalysed carbon chemistry at 360K. Montmorillonite surface concentration: high.'],
-      ['ANALYST',   'Clay surfaces act as molecular templates. Silicate layers create ordered environments. Geometry doing chemistry\'s work.'],
-      ['NARRATOR',  'Oparin and Haldane imagined a warm little pond. But the pond alone was never enough. It needed the clay. Darwin\'s warm little pond had mineral surfaces.'],
-    ]
-  },
-  {
-    t: 400,
-    messages: [
-      ['OBSERVER',  `${() => A.filter(a=>a.type===AA).length} amino acids in field. Clay patches active. Watching for bond formation.`],
-    ]
-  },
-  {
-    t: 1000,
-    condition: () => !tierAchieved[1],
-    messages: [
-      ['ANALYST',   'Still no bonding. The activation energy is substantial. Waiting for clay surface effect.'],
-    ]
-  },
-  {
-    t: 1500,
-    condition: () => tierAchieved[1] && !tierAchieved[2],
-    messages: [
-      ['OBSERVER',  'Peptide bonds forming. Short-lived monomers. No sustained chain yet.'],
-    ]
-  },
-  {
-    t: 2200,
-    condition: () => tierAchieved[2],
-    messages: [
-      ['NARRATOR',  'The clay remembered the shape of the chain and held it. That is what surfaces do — they remember. This may be the first molecular memory in Pandora.'],
-    ]
-  },
-  {
-    t: 3500,
-    messages: [
-      ['ANALYST',   `Current status: ${() => BONDS.size} bonds. Max chain: ${() => maxChainLength(latestComps)} AA. Branching: ${() => countBranching()}.`],
-    ]
-  },
-];
-
-let checkpointIdx = 0;
-
-function runAgentCheckpoints() {
-  while (checkpointIdx < CHECKPOINTS.length) {
-    const cp = CHECKPOINTS[checkpointIdx];
-    if (tick < cp.t) break;
-    if (!cp.condition || cp.condition()) {
-      for (const [agent, msgOrFn] of cp.messages) {
-        const msg = typeof msgOrFn === 'function' ? msgOrFn() : msgOrFn;
-        agentSay(agent, msg);
-      }
-    }
-    checkpointIdx++;
+function executeAction(action, reason) {
+  switch (action) {
+    case 'INJECT_CATALYST':
+      for (let i = 0; i < 18; i++)
+        addAgent(PH, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
+                 (Math.random()-0.5)*0.7, -3.2-Math.random()*2.2);
+      speak('OBSERVER', `Injected 18 phosphate catalysts. Monitoring peptide bond rate response.`, 'action');
+      break;
+    case 'THERMAL_SHOCK':
+      for (const a of A) { a.vx += (Math.random()-0.5)*12; a.vy += (Math.random()-0.5)*12; }
+      perturbFlash = 40;
+      speak('OBSERVER', `Redistribution applied — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
+      break;
+    case 'MATERIAL_RAIN':
+      for (let i = 0; i < 35; i++)
+        addAgent(A[0].type, Math.random()*W, 8, (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
+      for (let i = 0; i < 15; i++)
+        addAgent(A[1]?.type ?? A[0].type, Math.random()*W, 8, (Math.random()-0.5)*2.0, 1.5+Math.random()*2);
+      speak('OBSERVER', `Material influx initiated — 50 molecules incoming. Total: ${A.length}.`, 'action');
+      break;
+    case 'DECLARE_DEAD':
+      declareDead(reason); return;
   }
+  interventions++;
+  peakTick    = tick;
+  worldStatus = 'perturbed';
+  const el = document.getElementById('world-state');
+  el.textContent = action.replace(/_/g,' ');
+  el.className   = 'perturbed';
+  setTimeout(() => { if (worldStatus !== 'dead') { el.className=''; el.textContent=''; } }, 3000);
+  writeKnowledge({type:'intervention', action, summary: `Applied ${action}: ${reason}`});
+}
 
-  if (checkpointIdx >= CHECKPOINTS.length && tick - lastAgentTick >= 1400) {
-    lastAgentTick = tick;
-    const cx    = hist.length ? hist[hist.length-1] : 0;
-    const mxl   = maxChainLength(latestComps);
-    const brn   = countBranching();
-    const rings = countRings(latestComps);
+// ── Conversation triggers ─────────────────────────────────────
+function convBoot() {
+  const facts = getOtherBiomeFacts();
+  const N = A.length;
+  speak('OBSERVER', `Biome-04 WARM SOUP online. Clay-catalysed carbon chemistry, 360K. Montmorillonite surface concentration: high. ' + N + ' agents initialised. `);
+  speak('ANALYST',  `Conditions verified: 45 atm, T₀=360K, AA:LP=12:8, PH catalyst 7%. Ea≈150 kJ/mol — high activation barrier, clay surfaces essential.`);
+  if (facts.length > 0) {
+    const f = facts[facts.length-1];
+    speak('NARRATOR', `The archive already carries data from ${f.biome}: "${f.summary}". We enter WARM SOUP knowing what came before.`, 'knowledge');
+  } else {
+    speak('NARRATOR', `Oparin and Haldane imagined a warm little pond. But the pond alone was never enough — it needed the clay. Darwin's warm little pond had mineral surfaces. We are testing that hypothesis.`);
+  }
+}
 
-    const PERIODIC = [
-      () => agentSay('OBSERVER',
-        `t=${tick}: ${BONDS.size} bonds. Chain=${mxl} AA. Branches=${brn}. Rings=${rings}. Cx=${cx.toFixed(3)}.`),
-      () => agentSay('ANALYST',
-        mxl >= 5
-          ? `Network growing. Chain ${mxl} — ${brn > 0 ? 'branching active' : 'linear'}. ${rings > 0 ? `${rings} cycle(s)` : ''}`
-          : `Network struggling. Max chain ${mxl}. ${interventions > 0 ? `${interventions} perturbations applied.` : 'No interventions yet.'}`),
-      () => {
-        if (tierAchieved[3]) agentSay('NARRATOR', 'Both reaction types active. AA chains and LP clusters coexisting. The world has more than one strategy now.');
-        else if (tierAchieved[2]) agentSay('NARRATOR', 'The peptide chains persist. Slow, measured growth. The clay is working. This is the warm soup of origin.');
-        else agentSay('NARRATOR', 'Warm Soup is patient. Chemistry at 360K is not rushed. The clay remembers each attempt.');
-      },
-    ];
+function convTierUp(t, cx, mxl, brn, rings) {
+  const facts = getOtherBiomeFacts();
+  const ref   = facts.length ? facts[facts.length-1] : null;
+  if (t === 1) {
+    speak('OBSERVER', `First peptide bond confirmed at t=' + tick + '. T1 — molecular activity. The clay surface has finally provided the right geometry.`);
+    speak('ANALYST',  `Amino acid condensation initiated. Clay mineral surface lowered the effective activation energy. The Bernal clay hypothesis holds.`);
+    speak('NARRATOR', `The clay remembered the shape of the amino acid and held it. Surfaces do not just catalyse — they remember. This may be the first molecular memory in Pandora.`);
+  } else if (t === 2) {
+    speak('OBSERVER', `Persistent peptide chain — ' + mxl + ' AA units, sustained >340 ticks. T2.`);
+    speak('ANALYST',  `Chain stability achieved. Peptide bond persistence exceeds thermal break rate. This is the inflection point — the first step toward protein-like chemistry.`);
+    if (ref) speak('NARRATOR', `${ref.biome} also formed persistent peptide chains — "${ref.summary}". crossed into polymer territory too — "".`, 'knowledge');
+    else     speak('NARRATOR', `A peptide chain is a sentence in the language of chemistry. Each amino acid is a word. The clay is the grammar that makes the words cohere.`);
+  } else if (t === 3) {
+    speak('OBSERVER', `Network branching — ' + brn + ' cross-linked AA nodes. Chains forking. T3.`);
+    speak('ANALYST',  `Branching network forming. This is proto-tertiary structure — the chain is beginning to fold on itself. Critical for eventual protein function.`);
+    speak('NARRATOR', `It is no longer a line. A branching peptide is the beginning of shape. Shape is the beginning of function. Function is the beginning of everything.`);
+  } else if (t === 4) {
+    speak('OBSERVER', `Ring closure detected — ' + rings + ' cyclic peptide structure(s). T4.`);
+    speak('ANALYST',  `Cyclic peptide geometry is lower energy than open chains. This is why cyclosporin exists. The network found the stable attractor.`);
+    speak('NARRATOR', `The network folds back on itself. A closed thing can hold something inside. Cyclic peptides are the precondition of the first pocket — the first interior.`);
+  } else if (t === 5) {
+    speak('OBSERVER', `Peptide cluster migrated from clay patches — spatial self-organisation confirmed. T5.`);
+    speak('ANALYST',  `The network is preferring regions away from the clay surface — it has become self-sustaining. This is the moment the peptide chain outgrows its mineral cradle.`);
+  } else if (t === 6) {
+    speak('OBSERVER', `Sustained complexity above threshold for >95 intervals. Self-reinforcing. T6.`);
+    speak('ANALYST',  `Positive feedback confirmed — peptide complexity is autocatalytic. The network is maintaining itself independent of clay support.`);
+    speak('NARRATOR', `The network has learned to perpetuate itself. Not yet life — but something that acts like it wants to persist.`);
+  }
+  writeKnowledge({type:'tier_up', tier:t, cx, mxl, brn, rings,
+    summary:`T${t} achieved at t=${tick}: cx=${cx.toFixed(3)}, chain=${mxl}`});
+}
 
-    PERIODIC[Math.floor(Math.random() * PERIODIC.length)]();
+function convStagnationWarning(cx, mxl) {
+  const elapsed = tick - peakTick;
+  const pct     = Math.round((elapsed / STAGNATION_WINDOW) * 100);
+  speak('OBSERVER', `Stagnation — peak cx=${peakComplexity.toFixed(3)} reached ${elapsed} ticks ago. ${pct}% of tolerance window consumed.`);
+  speak('ANALYST',  `Peptide chain=${mxl}, bonds=${BONDS.size}. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining.`);
+  const delay = 700;
+  if (mxl < 3) {
+    speak('ANALYST', `Clay surface is under-utilised. Phosphate catalyst density appears insufficient to drive condensation. Proposing PH injection.`);
+    setTimeout(() => {
+      propose('ANALYST', 'INJECT_CATALYST', `Peptide bond formation cannot sustain chains without adequate phosphate surface chemistry.`);
+      setTimeout(() => {
+        castVote('OBSERVER', true, `Confirmed — PH concentration has declined. Clay patches need fresh catalyst.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Clay without phosphate is just mineral. The catalyst is the key.`); }, 1200);
+      }, 900);
+    }, delay);
+  } else if (BONDS.size < 20) {
+    speak('ANALYST', `Peptide network topology is fragmented — isolated short chains, no large cluster. Thermal shock may help chains find each other.`);
+    setTimeout(() => {
+      propose('ANALYST', 'THERMAL_SHOCK', `Current peptide topology is stuck in isolated dyads. A redistribution event may allow higher-complexity clustering.`);
+      setTimeout(() => {
+        const obs_yes = Math.random() > 0.3;
+        castVote('OBSERVER', obs_yes, obs_yes ? `Network topology maps confirm fragmentation.` : `Scattering could cause re-aggregation on clay patches or total dissolution.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation exceeds the risk. Vote yes.`); }, 1100);
+      }, 900);
+    }, delay);
+  } else {
+    speak('ANALYST', `Material balance is the issue — AA count falling. Exogenous amino acid rain would replenish substrate.`);
+    setTimeout(() => {
+      propose('OBSERVER', 'MATERIAL_RAIN', `AA density has dropped. Clay patches are under-supplied. External amino acid input required.`);
+      setTimeout(() => {
+        castVote('ANALYST', true, `Material replenishment is the correct intervention.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Two votes. We proceed.`); }, 1100);
+      }, 900);
+    }, delay);
+  }
+}
+
+function convDead(reason) {
+  const facts = getOtherBiomeFacts();
+  speak('OBSERVER', `World terminated. Final: cx=${peakComplexity.toFixed(3)}, T${currentTier}, ${interventions} interventions. Reason: ${reason}`);
+  speak('ANALYST', currentTier < 2
+    ? `Limiting factor: clay surface area insufficient — AA chains could not form without adequate catalytic surface. Clay patch density was the controlling variable.`
+    : currentTier < 4
+    ? `Limiting factor: peptide persistence failed — chains formed but thermal hydrolysis exceeded condensation rate. Temperature slightly too high for this chemistry.`
+    : `Limiting factor: complexity ceiling — peptide network could not self-reinforce beyond T' + currentTier + '. Clay surface saturation likely.`);
+  if (facts.length > 0) {
+    const others = [...new Set(facts.slice(-3).map(f => f.biome))].join(', ');
+    speak('NARRATOR', `These findings join records from {others}. Findings join records from ${others}. WARM SOUP's children inherit this data.`, 'knowledge');
+  } else {
+    speak('NARRATOR', `Warm Soup tried. What we learned — about clay geometry, phosphate thresholds, chain persistence at 360K — is now in the archive. The pond is empty. The knowledge persists.`);
+  }
+  awardXP('NARRATOR', 15, 'World archived with full analysis');
+  awardXP('OBSERVER',  5, 'Death documented');
+
+  writeKnowledge({type:'death', reason, peak_cx: peakComplexity, peak_tier: currentTier,
+    interventions_applied: interventions,
+    summary: `WARM SOUP died at t=${tick}, T${currentTier}, cx=${peakComplexity.toFixed(2)}: ${reason}`});
+}
+
+function convPeriodic() {
+  const cx    = hist.length ? hist[hist.length-1] : 0;
+  const mxl   = maxChainLength(latestComps);
+  const brn   = countBranching();
+  const rings = countRings(latestComps);
+  const facts = getOtherBiomeFacts();
+  const turn  = Math.floor(tick / 1500) % 3;
+  if (turn === 0) {
+    speak('OBSERVER', `Report t=${tick}. Bonds: ${BONDS.size}. Max chain: ${mxl}. Branch pts: ${brn}. Rings: ${rings}. Complexity: ${cx.toFixed(3)}.`);
+    speak('ANALYST', mxl >= 6
+      ? `Network maturing. Chain ' + mxl + ', ' + brn + ' branch pts. ' + (rings > 0 ? rings + ' ring(s) — cyclic stability confirmed.' : 'Ring closure is the remaining milestone.') + '`
+      : mxl >= 3
+      ? `Development slow. Chain ' + mxl + '. Clay-mediated condensation is progressing but below optimal rate.`
+      : `Minimal progress. Chain ' + mxl + '. Peptide network not finding a path to complexity. Clay catalyst may be exhausted.`);
+  } else if (turn === 1 && facts.length > 0) {
+    const f = facts[Math.floor(Math.random() * facts.length)];
+    speak('ANALYST', `Cross-biome data: ${f.biome} recorded — "${f.summary}". Comparing to WARM SOUP — our T${currentTier} progress.`, 'knowledge');
+    speak('OBSERVER', `Integrating: if ${f.biome} reached T${f.tier||'?'}, what parameters differed? Temperature, catalyst type, or material ratio?`);
+    speak('ANALYST',  `Most likely: catalytic efficiency and temperature. WARM SOUP's offspring should vary those parameters systematically.`);
+  } else {
+    if (tierAchieved[4])      speak('NARRATOR', `Cyclic peptides mean the chain can close on itself. Closure is the precondition of an interior. Life needs an inside.`);
+    else if (tierAchieved[3]) speak('NARRATOR', `The peptide branches grow. Shape emerging from chemistry. Chemistry emerging from the mineral surface.`);
+    else if (tierAchieved[2]) speak('NARRATOR', `The chains persist. Slow, warm, sticky growth. The clay is working. This is the warm soup of origin.`);
+    else                       speak('NARRATOR', `Warm Soup is patient. Chemistry at 360K is not rushed. The clay remembers each attempt.`);
+  }
+  const stagnPct = (tick - peakTick) / STAGNATION_WINDOW;
+  if (stagnPct > 0.70 && stagnPct < 0.95 && !CONV.pending && interventions < MAX_INTERVENTIONS) {
+    setTimeout(() => convStagnationWarning(cx, mxl), 400);
+  }
+}
+
+function runAgentConversations() {
+  flushQueue();
+  if (!CONV.booted && tick >= 1) {
+    CONV.booted = true;
+    initAgentProfiles();
+    convBoot();
+    return;
+  }
+  if (worldStatus !== 'dead' && tick - CONV.lastPeriodic >= 1500 && tick > 200) {
+    CONV.lastPeriodic = tick;
+    convPeriodic();
   }
 }
 
@@ -1074,7 +1473,7 @@ function loop() {
     lastUITick = tick;
     const { cx, mxl, brn, rings } = updateUI();
     render(latestComps, brn, rings);
-    runAgentCheckpoints();
+    runAgentConversations();
   } else {
     render(latestComps, countBranching(), countRings(latestComps));
   }

@@ -115,7 +115,7 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 }
 #panel-agents {
   font-size: 8px;
-  display: flex; gap: 8px;
+  display: flex; flex-direction: column; gap: 5px;
 }
 .pagent { font-size: 7px; letter-spacing: 1px; }
 .pagent.OBSERVER { color: rgba(100, 180, 255, 0.6); }
@@ -159,6 +159,24 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 .ae-type.no        { background: rgba(255, 100, 80, 0.12);  color: rgba(255, 100, 80, 0.8); }
 .ae-type.action    { background: rgba(100, 200, 255, 0.12); color: rgba(100, 200, 255, 0.8); }
 .ae-type.knowledge { background: rgba(200, 150, 255, 0.12); color: rgba(200, 150, 255, 0.8); }
+
+/* ── Agent rank system ──────────────────────────────────────── */
+#panel-agents { flex-direction: column; gap: 5px; }
+.pagent-wrap { display: flex; align-items: center; gap: 5px; }
+.pagent { font-size: 7px; letter-spacing: 1px; flex: none; width: 64px; }
+.rank-badge {
+  font-size: 6px; letter-spacing: 1px; padding: 1px 4px; border-radius: 2px;
+  font-weight: bold; flex: none;
+}
+.rank-student    { background: rgba(130,130,130,0.15); color: rgba(170,170,170,0.8); }
+.rank-researcher { background: rgba(60,130,240,0.15);  color: rgba(80,160,255,0.85); }
+.rank-scientist  { background: rgba(40,200,160,0.15);  color: rgba(60,220,185,0.9); }
+.rank-professor  { background: rgba(255,190,40,0.15);  color: rgba(255,210,80,0.95); }
+.xp-track { flex: 1; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; }
+.xp-fill  { height: 100%; border-radius: 1px; transition: width 0.8s ease; }
+.ae.ae-levelup { border-left: 2px solid rgba(255,210,80,0.5); padding-left: 5px;
+                 background: rgba(255,210,80,0.03); }
+.ae-type.levelup { background: rgba(255,210,80,0.15); color: rgba(255,210,80,0.9); }
 </style>
 </head>
 <body>
@@ -928,6 +946,10 @@ function promoteTier(t) {
   const brn_now   = countBranching();
   const rings_now = countRings(latestComps);
   convTierUp(t, cx_now, mxl_now, brn_now, rings_now);
+  // Award XP for tier discovery
+  awardXP('OBSERVER', 20, `Tier ${t} discovered`);
+  awardXP('ANALYST',  15, `Tier ${t} transition`);
+
 }
 
 function checkTiers(cx, mxl, brn, rings) {
@@ -1019,6 +1041,158 @@ function speak(speaker, msg, type) {
   CONV.queue.push({speaker, msg, type});
 }
 
+
+// ── Agent Rank System ─────────────────────────────────────────
+//
+//  Agents begin as STUDENT and advance through:
+//    STUDENT(0) → RESEARCHER(50) → SCIENTIST(150) → PROFESSOR(300)
+//
+//  XP is earned by:
+//    +20  Tier-up occurs (OBSERVER who first reported it)
+//    +25  Successful intervention (proposer, if cx improves after)
+//    +10  Cross-biome insight cited leads to a correct prediction
+//    +15  Death well-documented (NARRATOR)
+//    +5   Vote cast correctly (yes on success, no on failure)
+//    -10  Intervention fails (cx does not improve)
+//    -5   Proposal ignored / never seconded
+//
+//  Higher ranks change behaviour:
+//    STUDENT    — observes, asks questions, vote weight 0.5
+//    RESEARCHER — can propose, vote weight 1.0
+//    SCIENTIST  — complex proposals, vote weight 1.5, auto-references cross-biome
+//    PROFESSOR  — veto power, vote weight 2.0, emergency unilateral action at max stagnation
+
+const RANKS     = ['STUDENT', 'RESEARCHER', 'SCIENTIST', 'PROFESSOR'];
+const RANK_XP   = [0, 50, 150, 300];
+const RANK_W    = {STUDENT: 0.5, RESEARCHER: 1.0, SCIENTIST: 1.5, PROFESSOR: 2.0};
+const RANK_CLR  = {
+  STUDENT:    'rgba(160,160,160,0.5)',
+  RESEARCHER: 'rgba(80,150,240,0.6)',
+  SCIENTIST:  'rgba(60,210,175,0.7)',
+  PROFESSOR:  'rgba(255,200,60,0.9)',
+};
+const A_KEY = 'pandora_agents_v1';
+
+const AGENT_STATE = {
+  OBSERVER: {xp:0, rank:'STUDENT', successful:0, failed:0, predictions:[]},
+  ANALYST:  {xp:0, rank:'STUDENT', successful:0, failed:0, predictions:[]},
+  NARRATOR: {xp:0, rank:'STUDENT', successful:0, failed:0, predictions:[]},
+};
+
+function rankOf(xp) {
+  for (let i = RANKS.length-1; i >= 0; i--) if (xp >= RANK_XP[i]) return RANKS[i];
+  return 'STUDENT';
+}
+
+function loadAgentProfiles() {
+  try { return JSON.parse(localStorage.getItem(A_KEY) || '{}'); } catch(e) { return {}; }
+}
+function saveAgentProfile(name) {
+  try {
+    const all = loadAgentProfiles();
+    all[`${BIOME_ID}_${name}`] = {
+      xp: AGENT_STATE[name].xp, rank: AGENT_STATE[name].rank,
+      successful: AGENT_STATE[name].successful, failed: AGENT_STATE[name].failed,
+    };
+    localStorage.setItem(A_KEY, JSON.stringify(all));
+  } catch(e) {}
+}
+
+function initAgentProfiles() {
+  const saved = loadAgentProfiles();
+  for (const name of ['OBSERVER','ANALYST','NARRATOR']) {
+    const key = `${BIOME_ID}_${name}`;
+    if (saved[key]) {
+      AGENT_STATE[name].xp         = saved[key].xp         || 0;
+      AGENT_STATE[name].successful = saved[key].successful || 0;
+      AGENT_STATE[name].failed     = saved[key].failed     || 0;
+    }
+    AGENT_STATE[name].rank = rankOf(AGENT_STATE[name].xp);
+  }
+  updateRankDisplay();
+}
+
+const RANK_UP_MSG = {
+  RESEARCHER: {
+    OBSERVER: 'My field observations have been validated enough times. I can now formally propose actions to the team.',
+    ANALYST:  'My pattern recognition track record qualifies me for the RESEARCHER rank. I am now permitted to issue proposals.',
+    NARRATOR: 'My contextual analysis has earned research standing. I will use this to push for better-reasoned decisions.',
+  },
+  SCIENTIST: {
+    OBSERVER: 'SCIENTIST rank. My observations have driven multiple successful interventions. I will now propose multi-step strategies and my vote carries extra weight.',
+    ANALYST:  'SCIENTIST rank. My interventions have been validated across enough biomes. I can now propose complex 2-step actions and outweigh less-experienced voices.',
+    NARRATOR: 'SCIENTIST rank. My synthesis of cross-biome data has been consistently correct. I will use this platform to argue harder for what the evidence demands.',
+  },
+  PROFESSOR: {
+    OBSERVER: 'PROFESSOR. I have been in this world longer than anyone, observed more than anyone, and my predictions have held across multiple biomes. I now hold veto power.',
+    ANALYST:  'PROFESSOR. My analytical track record is the best in this biome. I will use my veto sparingly — only when the evidence is unambiguous.',
+    NARRATOR: 'PROFESSOR. The universe has been my classroom. I will use this standing to ensure we make only decisions the archive will be proud of.',
+  },
+};
+
+function awardXP(name, amount, reason) {
+  const s = AGENT_STATE[name];
+  if (!s) return;
+  const oldRank = s.rank;
+  s.xp = Math.max(0, s.xp + amount);
+  s.rank = rankOf(s.xp);
+  if (amount > 0) s.successful++; else if (amount < 0) s.failed++;
+  saveAgentProfile(name);
+
+  if (s.rank !== oldRank && RANKS.indexOf(s.rank) > RANKS.indexOf(oldRank)) {
+    const msg = RANK_UP_MSG[s.rank]?.[name] || `Rank advanced to ${s.rank}.`;
+    speak(name, `▲ RANK UP — ${s.rank}. ${msg}`, 'levelup');
+    writeKnowledge({type:'rank_up', agent:name, new_rank:s.rank, xp:s.xp,
+      summary:`${name} reached ${s.rank} (${s.xp} XP) in ${BIOME_NAME}`});
+  } else if (s.rank !== oldRank) {
+    speak(name, `▼ Rank dropped to ${s.rank} (${s.xp} XP). My track record needs work.`, 'statement');
+  }
+  updateRankDisplay();
+}
+
+function updateRankDisplay() {
+  const container = document.getElementById('panel-agents');
+  if (!container) return;
+  container.innerHTML = ['OBSERVER','ANALYST','NARRATOR'].map(name => {
+    const s   = AGENT_STATE[name];
+    const ri  = RANKS.indexOf(s.rank);
+    const lo  = RANK_XP[ri];
+    const hi  = RANK_XP[ri+1] || (lo + 50);
+    const pct = Math.min(100, Math.round(((s.xp - lo) / (hi - lo)) * 100));
+    const fill_color = {STUDENT:'rgba(160,160,160,0.4)',RESEARCHER:'rgba(80,150,240,0.5)',
+                        SCIENTIST:'rgba(60,210,175,0.6)',PROFESSOR:'rgba(255,200,60,0.8)'}[s.rank];
+    return `<div class="pagent-wrap">
+      <span class="pagent ${name}">${name}</span>
+      <span class="rank-badge rank-${s.rank.toLowerCase()}" title="${s.rank} — ${s.xp} XP">${s.rank.charAt(0)}</span>
+      <div class="xp-track" title="${s.xp} XP / ${hi} next rank">
+        <div class="xp-fill" style="width:${pct}%;background:${fill_color}"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+
+// Agent rank prefix for messages
+function rankPrefix(speaker) {
+  const rank = AGENT_STATE[speaker]?.rank || 'STUDENT';
+  if (rank === 'STUDENT')    return '[?] ';
+  if (rank === 'RESEARCHER') return '';
+  if (rank === 'SCIENTIST')  return '';
+  if (rank === 'PROFESSOR')  return '[PROF] ';
+  return '';
+}
+
+
+// Check if agent is allowed to propose
+function canPropose(name) {
+  const rank = AGENT_STATE[name]?.rank || 'STUDENT';
+  if (rank === 'STUDENT') {
+    speak(name, `I want to propose an action but I haven't earned proposal rights yet. I need ${50 - (AGENT_STATE[name]?.xp||0)} more XP to reach RESEARCHER rank.`);
+    return false;
+  }
+  return true;
+}
+
 function flushQueue() {
   if (!CONV.queue.length) return;
   if (CONV.cooldown > 0) { CONV.cooldown--; return; }
@@ -1059,7 +1233,8 @@ function flushQueue() {
 // ── Proposal / voting ─────────────────────────────────────────
 function propose(proposer, action, reason) {
   if (CONV.pending) return false;
-  CONV.pending = {action, reason, proposer, votes: {[proposer]: true}};
+  if (!canPropose(proposer)) return false;
+  CONV.pending = {action, reason, proposer, votes: {[proposer]: true}, weights: {[proposer]: RANK_W[AGENT_STATE[proposer]?.rank||'STUDENT']}};
   speak(proposer, `I propose we ${ACTIONS[action]}. ${reason}`, 'proposal');
   return true;
 }
@@ -1228,6 +1403,9 @@ function convDead(reason) {
   } else {
     speak('NARRATOR', `Silicon tried. The conditions were not right. The patterns formed here — even briefly — are archived. Entropy wins this round. The knowledge does not die with the world.`);
   }
+  awardXP('NARRATOR', 15, 'World archived with full analysis');
+  awardXP('OBSERVER',  5, 'Death documented');
+
   writeKnowledge({type:'death', reason, peak_cx: peakComplexity, peak_tier: currentTier,
     interventions_applied: interventions,
     summary: `SILICONIA died at t=${tick}, T${currentTier}, cx=${peakComplexity.toFixed(2)}: ${reason}`});
@@ -1275,6 +1453,7 @@ function runAgentConversations() {
 
   if (!CONV.booted && tick >= 1) {
     CONV.booted = true;
+    initAgentProfiles();
     convBoot();
     return;
   }
