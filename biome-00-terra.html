@@ -330,6 +330,37 @@ function logE(msg) {
 // ── Physics update ────────────────────────────────────────────
 const toBreak = [];
 
+// ── Bond maintenance ─────────────────────────────────────────────────────
+//  Runs every tick, independent of the spatial grid.
+//  Enforces a physical maximum bond length (bonds snap if over-stretched)
+//  and applies a proper Hooke's-law spring to every bonded pair regardless
+//  of how far apart they have drifted.
+const BOND_MAX_D  = CELL * 1.15;   // bonds snap beyond this (≈ 37px at CELL=32)
+const BOND_MAX_D2 = BOND_MAX_D * BOND_MAX_D;
+const BOND_REST   = 14;            // natural bond length (px)
+const BOND_K      = 0.16;          // spring stiffness — strong enough to resist thermal noise
+
+function maintainBonds() {
+  const snap = [];
+  for (const key of BONDS) {
+    const c  = key.indexOf(',');
+    const i  = parseInt(key.slice(0, c));
+    const j  = parseInt(key.slice(c + 1));
+    if (!A[i] || !A[j]) { snap.push([i, j]); continue; }
+    const dx = A[j].x - A[i].x;
+    const dy = A[j].y - A[i].y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > BOND_MAX_D2) { snap.push([i, j]); continue; }  // over-stretched → snap
+    const d       = Math.sqrt(d2) + 0.001;
+    const stretch = d - BOND_REST;
+    const f       = BOND_K * stretch / d;                    // Hooke's law
+    A[i].vx += dx * f;  A[i].vy += dy * f;
+    A[j].vx -= dx * f;  A[j].vy -= dy * f;
+  }
+  for (const [i, j] of snap) rmBond(i, j);
+}
+
+
 function update() {
   tick++;
 
@@ -495,6 +526,8 @@ function update() {
       }
     }
   }
+
+  maintainBonds();
 
   while (toBreak.length) {
     const [i, j] = toBreak.pop();
