@@ -2005,19 +2005,36 @@ function startBackgroundWorker() {
             : Math.round(rawRate)+'/s';
         }
 
-        // Update biome cards with worker's live tier/complexity data
+        // Update biome cards with worker's live tier/complexity data.
+        // IMPORTANT: never downgrade a tier — Firebase is the authoritative source.
+        // Worker's simplified sim is capped lower than the real biome simulations.
         for (const [idStr, snap] of Object.entries(_workerStats)) {
           const id   = parseInt(idStr);
           const card = document.querySelector(`[data-id="${id}"]`);
           if (!card) continue;
-          const tier = snap.currentTier || 0;
-          const s2   = ts(tier);
+
+          const workerTier = snap.currentTier || 0;
+
+          // Read the current displayed tier; only allow upgrades from worker
           const tNum  = card.querySelector('.t-num');
           const tName = card.querySelector('.t-name');
-          if (tNum)  tNum.textContent  = `T${tier}`;
-          if (tName) tName.textContent = TIER_NAMES[tier] || '—';
-          const fill = card.querySelector('.tier-progress-fill');
-          if (fill) { fill.style.width=`${Math.round((tier/20)*100)}%`; fill.style.background=s2[0]; }
+          const displayedTier = tNum ? parseInt(tNum.textContent.replace('T','') || '0') : 0;
+
+          if (workerTier > displayedTier) {
+            // Worker found a higher tier than Firebase has reported — apply it
+            const s2 = ts(workerTier);
+            if (tNum)  tNum.textContent  = `T${workerTier}`;
+            if (tName) tName.textContent = TIER_NAMES[workerTier] || '—';
+            const fill = card.querySelector('.tier-progress-fill');
+            if (fill) { fill.style.width=`${Math.round((workerTier/20)*100)}%`; fill.style.background=s2[0]; }
+            const bObj = BIOMES.find(x => x.id === id);
+            if (bObj) bObj.tier = workerTier;
+          }
+          // Always update complexity bar (not tier-sensitive)
+          if (snap.complexity !== undefined) {
+            const cxFill = document.getElementById(`cxfill-${id}`);
+            if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(snap.complexity * 20))}%`;
+          }
         }
       }
     };
