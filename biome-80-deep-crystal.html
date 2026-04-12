@@ -520,17 +520,20 @@ function checkTiers(){
   if(t<7&&comps.filter(c=>c.length>=4).length>=3)                                _setTier(7);
   if(t<8&&comps.some(c=>c.length>=10&&compIsMixed(c)))                            _setTier(8);
   if(t<9&&comps.some(c=>c.length>=16&&compIsMixed(c)))                            _setTier(9);
-  if(t<10&&cl)                                                                    _setTier(10);
-  if(t<11&&comps.some(c=>c.length>=32&&compIsSpherical(c)))                       _setTier(11);
-  if(t<12&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=2)           _setTier(12);
-  if(t<13&&comps.some(c=>c.length>=55&&compIsSpherical(c)))                       _setTier(13);
-  if(t<14&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=3)           _setTier(14);
-  if(t<15&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=5)            _setTier(15);
-  if(t<16&&comps.some(c=>c.length>=80&&compIsSpherical(c)))                        _setTier(16);
-  if(t<17&&_lastTotalBd>0&&_lastTotalBd/particles.length>1.8&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=4) _setTier(17);
-  if(t<18&&comps.filter(c=>c.length>=50&&compIsSpherical(c)&&compIsMixed(c)).length>=3) _setTier(18);
-  if(t<19&&comps.filter(c=>c.length>=80&&compIsSpherical(c)&&compIsMixed(c)).length>=2) _setTier(19);
-  if(t<20&&comps.filter(c=>c.length>=100&&compIsSpherical(c)&&compIsMixed(c)).length>=2&&_sustainedHigh20>500) _setTier(20);
+  if(t<10&&cl)                                                                                       _setTier(10);
+  // T11-T20: size + count + bond-density based — compIsSpherical NOT used as a gate
+  // (LJ clusters are compact but irregular; CoV > 0.40 is normal for n>25, sphericity check blocks all progress)
+  const bd_n=particles.length>0?_lastTotalBd/particles.length:0;
+  if(t<11&&mx>=40)                                                                                   _setTier(11);
+  if(t<12&&comps.filter(c=>c.length>=20).length>=3)                                                 _setTier(12);
+  if(t<13&&mx>=70)                                                                                   _setTier(13);
+  if(t<14&&comps.filter(c=>c.length>=20&&compIsMixed(c)).length>=3)                                 _setTier(14);
+  if(t<15&&mx>=110&&comps.filter(c=>c.length>=20).length>=4)                                        _setTier(15);
+  if(t<16&&bd_n>1.4&&comps.filter(c=>c.length>=30).length>=3)                                      _setTier(16);
+  if(t<17&&mx>=160&&comps.filter(c=>c.length>=30&&compIsMixed(c)).length>=3)                        _setTier(17);
+  if(t<18&&bd_n>1.7&&comps.filter(c=>c.length>=50).length>=3&&mx>=140)                             _setTier(18);
+  if(t<19&&comps.filter(c=>c.length>=80&&compIsMixed(c)).length>=2&&bd_n>1.6)                      _setTier(19);
+  if(t<20&&mx>=200&&comps.filter(c=>c.length>=80&&compIsMixed(c)).length>=2&&bd_n>2.0&&_sustainedHigh20>800) _setTier(20);
 }
 function _setTier(t){
   if(tierAchieved[t])return;tierAchieved[t]=true;currentTier=t;
