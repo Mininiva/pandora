@@ -378,6 +378,7 @@ const _SIM_WS  = 'wss://pandora-sim-244482446708.us-central1.run.app';
 let   _wsReady   = false;
 let   _wsRetries = 0;
 let   _wsConn    = null;
+let   _lastWsMsg = 0;        // timestamp of last received frame
 
 function _connectSim() {
   const bid = String(typeof BIOME_ID !== 'undefined' ? BIOME_ID : '00').padStart(2, '0');
@@ -386,14 +387,21 @@ function _connectSim() {
 
   _wsConn.onopen = () => {
     _wsReady = true; _wsRetries = 0;
+    const bar = document.getElementById('ws-bar');
+    const pct = document.getElementById('ws-pct');
+    const lbl = document.getElementById('ws-lbl');
+    if (bar) bar.style.width = '100%';
+    if (pct) pct.textContent = '100%';
+    if (lbl) lbl.textContent = 'ENGINE READY';
     const el = document.getElementById('ws-status');
-    if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 900); }
+    if (el) { setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 900); }, 400); }
   };
 
   _wsConn.onmessage = evt => {
     try {
       const s = JSON.parse(evt.data);
       if (!s.px) return;
+      _lastWsMsg = Date.now();
       _applySimState(s);
     } catch(e) {}
   };
@@ -1901,7 +1909,7 @@ function loop() {
     // countdown text removed — button shown instead
   }
 
-  if (!_wsReady) { for (let s = 0; s < SPEED_VAL; s++) update(); }
+  if (!_wsReady || (Date.now() - _lastWsMsg > 1000)) { for (let s = 0; s < SPEED_VAL; s++) update(); }
 
   if (tick - lastUITick >= UI_INTERVAL) {
     lastUITick = tick;
@@ -1917,6 +1925,39 @@ init();
 _connectSim();
 loop();
 </script>
-  <div id='ws-status' style='position:fixed;bottom:16px;right:16px;z-index:9999;font-family:monospace;font-size:11px;letter-spacing:0.1em;color:rgba(255,255,255,0.55);pointer-events:none;transition:opacity 0.8s;'>CONNECTING TO ENGINE…</div>
+  <div id='ws-status' style='position:fixed;bottom:20px;right:20px;z-index:9999;font-family:monospace;font-size:10px;letter-spacing:0.12em;color:rgba(255,255,255,0.50);pointer-events:none;transition:opacity 1.0s;'>
+    <div id='ws-lbl' style='margin-bottom:5px;'>LOADING ENGINE</div>
+    <div style='width:220px;height:2px;background:rgba(255,255,255,0.10);border-radius:2px;overflow:hidden;'>
+      <div id='ws-bar' style='width:0%;height:100%;background:rgba(255,255,255,0.55);border-radius:2px;transition:width 0.35s ease;'></div>
+    </div>
+    <div id='ws-pct' style='margin-top:4px;text-align:right;'>0%</div>
+  </div>
+  <script>
+  (function(){
+    const stages=[
+      {to:18,label:'INITIALISING',spd:1.8},
+      {to:42,label:'CONNECTING',spd:0.9},
+      {to:68,label:'HANDSHAKE',spd:0.5},
+      {to:88,label:'RECEIVING STATE',spd:0.25},
+      {to:96,label:'CALIBRATING',spd:0.08}
+    ];
+    let p=0,si=0;
+    function tick(){
+      if(!document.getElementById('ws-bar'))return;
+      if(typeof _wsReady!=='undefined'&&_wsReady)return;
+      const st=stages[si]||stages[stages.length-1];
+      if(p<st.to){p+=st.spd*(0.6+Math.random()*0.8);}
+      else if(si<stages.length-1){si++;}
+      const bar=document.getElementById('ws-bar');
+      const pct=document.getElementById('ws-pct');
+      const lbl=document.getElementById('ws-lbl');
+      if(bar)bar.style.width=Math.min(p,96)+'%';
+      if(pct)pct.textContent=Math.round(Math.min(p,96))+'%';
+      if(lbl)lbl.textContent=stages[si]?stages[si].label:'CALIBRATING';
+      setTimeout(tick,90);
+    }
+    setTimeout(tick,120);
+  })();
+  </script>
 </body>
 </html>
