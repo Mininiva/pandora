@@ -2251,6 +2251,14 @@ setTimeout(async function _pandoraResume() {
         _generation = 1;
       } else {
         _generation = _urlG;
+        // Always confirm currentGeneration to Firebase when loading from URL.
+        // This ensures the homepage always knows the correct generation even if
+        // the original write during rebirth failed.
+        try {
+          await fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).transaction(cur => {
+            return (!cur || cur < _generation) ? _generation : cur;
+          });
+        } catch(e) { /* non-critical */ }
       }
       _updateGenDisplay();
 
