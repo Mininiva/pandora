@@ -686,7 +686,7 @@ function makeCard(b) {
   div.setAttribute('data-id', b.id);
   div.style.borderColor = s[3];
 
-  const pct = Math.round((b.tier / 12) * 100);
+  const pct = Math.round((b.tier / 20) * 100);
 
   div.innerHTML = `
     <div class="card-strip" style="background:${b.status!=='dead'?s[0]:'#2a0808'}"></div>
@@ -746,28 +746,40 @@ function buildHero() {
   document.getElementById('s-peak').textContent     = `T${peak} · ${topB.name}`;
   document.getElementById('hero-enter').onclick     = () => openModal(topB.id);
 
-  // Tier bar
+  rebuildTierBar();
+}
+
+// Standalone — called by buildHero() AND by the Firebase child_changed listener
+function rebuildTierBar() {
   const track  = document.getElementById('tier-bar-track');
   const labels = document.getElementById('tier-bar-labels');
+  if (!track || !labels) return;
   track.innerHTML = labels.innerHTML = '';
-  for(let t=0; t<=12; t++) {
-    const count = BIOMES.filter(b=>b.tier===t).length;
+  for (let t = 0; t <= 20; t++) {
+    const count = BIOMES.filter(b => b.tier === t).length;
+    const s = ts(t);
     const seg = document.createElement('div');
     seg.className = 'tier-seg';
-    seg.style.background = TS[t][0];
+    seg.style.background = s[0];
     seg.title = `T${t}: ${count} worlds`;
     track.appendChild(seg);
-
-    if(count > 0) {
+    if (count > 0) {
       const chip = document.createElement('div');
       chip.className = 'tier-chip';
-      chip.style.borderColor = TS[t][3];
-      chip.style.color = TS[t][2];
-      chip.style.background = TS[t][1];
+      chip.style.borderColor = s[3];
+      chip.style.color = s[2];
+      chip.style.background = s[1];
       chip.textContent = `T${t} ×${count}`;
-      chip.onclick = () => { setFilter('all'); };
+      chip.onclick = () => setFilter('all');
       labels.appendChild(chip);
     }
+  }
+  // Also keep s-peak in sync
+  const maxT = Math.max(...BIOMES.map(b => b.tier));
+  const topB = BIOMES.find(b => b.tier === maxT);
+  if (topB && maxT > 0) {
+    const sPeak = document.getElementById('s-peak');
+    if (sPeak) sPeak.textContent = `T${maxT} · ${topB.name}`;
   }
 }
 
@@ -1895,7 +1907,7 @@ function initIndexFirebase() {
       // Update tier progress fill
       const fill = card.querySelector('.tier-progress-fill');
       if (fill) {
-        fill.style.width      = `${Math.round((tier / 12) * 100)}%`;
+        fill.style.width      = `${Math.round((tier / 20) * 100)}%`;
         fill.style.background = s[0];
       }
 
@@ -1917,7 +1929,7 @@ function initIndexFirebase() {
         if (stLbl) { stLbl.textContent = 'DEAD'; stLbl.style.color = s[2]; }
       }
 
-      // Update BIOMES array and re-sort grid
+      // Update BIOMES array, re-sort grid, rebuild tier distribution
       const bObj = BIOMES.find(x => x.id === id);
       if (bObj && tier > 0) bObj.tier = tier;
       const liveGrid = document.getElementById('biome-grid');
@@ -1930,6 +1942,8 @@ function initIndexFirebase() {
         });
         cards.forEach(c => liveGrid.appendChild(c));
       }
+      // Rebuild tier distribution bar + peak ticker from latest BIOMES data
+      rebuildTierBar();
     });
 
   } catch(e) { console.warn('[Pandora Firebase] index init failed:', e); }
