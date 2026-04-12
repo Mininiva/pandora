@@ -1679,27 +1679,44 @@ function initIndexFirebase() {
     // Increment all-time visitor counter
     db.ref('pandora/stats/totalVisitors').transaction(n => (n || 0) + 1).catch(() => {});
 
-    // ── Live observer count ───────────────────────────────────
+    // ── Live observer + worker count ──────────────────────────
     db.ref('pandora/presence').on('value', snap => {
       const liveEl = document.getElementById('s-live');
       const rateEl = document.getElementById('s-rate');
       if (!snap.exists()) {
         if (liveEl) liveEl.textContent = '0';
-        if (rateEl) rateEl.textContent = '0/s';
         return;
       }
-      const count = snap.numChildren();
-      if (liveEl) liveEl.textContent = count;
-
-      // Sum ticksPerSec across all active biome sessions
+      if (liveEl) liveEl.textContent = snap.numChildren();
+      // Sum ticks/s from open biome pages (workers handle their own rate display)
       let totalRate = 0;
-      snap.forEach(child => {
-        totalRate += (child.val().ticksPerSec || 0);
-      });
-      if (rateEl) {
-        if (totalRate >= 1000) rateEl.textContent = (totalRate / 1000).toFixed(1) + 'K/s';
-        else                   rateEl.textContent = Math.round(totalRate) + '/s';
+      snap.forEach(child => { totalRate += (child.val().ticksPerSec || 0); });
+      if (rateEl && totalRate > 0) {
+        rateEl._liveVisitorOverride = true;
+        rateEl.textContent = totalRate >= 1000
+          ? (totalRate/1000).toFixed(1)+'K/s'
+          : Math.round(totalRate)+'/s';
+      } else if (rateEl) {
+        rateEl._liveVisitorOverride = false;
       }
+    });
+
+    // ── Active background worker count ────────────────────────
+    db.ref('pandora/workers').on('value', snap => {
+      const el = document.getElementById('s-compute');
+      if (!snap.exists()) { if (el && !_myClaimedBiomes.length) el.textContent = 'IDLE'; return; }
+      const now = Date.now();
+      let workerCount = 0, coveredBiomes = new Set();
+      snap.forEach(child => {
+        const w = child.val();
+        if (now - (w.lastHeartbeat||0) < 75000) {
+          workerCount++;
+          for (const bid of (w.assignedBiomes||[])) coveredBiomes.add(bid);
+        }
+      });
+      if (el) el.textContent = workerCount > 0
+        ? `${workerCount} CPU · ${coveredBiomes.size} WORLDS`
+        : 'IDLE';
     });
 
     // ── All-time visitor count ────────────────────────────────
@@ -1782,71 +1799,86 @@ setTimeout(initIndexFirebase, 500);
 // The worker runs the real particle physics in a background thread,
 // reads from and writes to Firebase, and skips any biome that already
 // has a dedicated visitor running it (no conflicts).
-let _bgWorker = null;
+let _bgWorker   = null;
 let _workerStats = {};
+let _myClaimedBiomes = [];
+
+function _updateComputeDisplay(claimed, total) {
+  const el = document.getElementById('s-compute');
+  if (!el) return;
+  const covered = claimed.length;
+  if (covered === 0) el.textContent = 'IDLE';
+  else               el.textContent = `${covered}/${total} WORLDS`;
+}
 
 function startBackgroundWorker() {
-  if (typeof Worker === 'undefined') return; // not supported
+  if (typeof Worker === 'undefined') return;
   try {
     _bgWorker = new Worker('pandora-worker.js');
     _bgWorker.postMessage({ type: 'start' });
 
     _bgWorker.onmessage = function(e) {
-      const { type, stats, biomes } = e.data;
+      const { type, stats, claimed, gained, lost, total, workerId } = e.data;
 
       if (type === 'ready') {
-        const el = document.getElementById('s-compute');
-        if (el) el.textContent = `${biomes.length} WORLDS`;
-        console.log(`[Pandora Worker] Running background simulation for ${biomes.length} biomes.`);
+        _myClaimedBiomes = claimed || [];
+        _updateComputeDisplay(_myClaimedBiomes, total || 6);
+        console.log(`[Pandora ${workerId}] Claimed ${_myClaimedBiomes.length}/${total} biomes:`, _myClaimedBiomes);
+      }
+
+      if (type === 'claims') {
+        // Worker reclaimed or released biomes
+        _myClaimedBiomes = claimed || [];
+        _updateComputeDisplay(_myClaimedBiomes, 6);
+        if (gained && gained.length) console.log(`[Pandora Worker] Gained biomes:`, gained);
+        if (lost  && lost.length)   console.log(`[Pandora Worker] Released biomes:`, lost);
       }
 
       if (type === 'stats') {
-        _workerStats = stats;
-        // Update live rate display from background worker (when no active visitors)
-        let totalRate = 0;
-        for (const s of Object.values(stats)) {
-          totalRate += 8 * 20; // TICK_BATCH * WORKER_HZ≈20
-        }
-        const rateEl = document.getElementById('s-rate');
-        if (rateEl && !rateEl._hasLiveVisitor) {
-          if (totalRate >= 1000) rateEl.textContent = (totalRate/1000).toFixed(1)+'K/s';
-          else rateEl.textContent = Math.round(totalRate)+'/s';
+        _workerStats = stats || {};
+
+        // Ticks/s from background worker
+        const claimed_ = Object.keys(_workerStats).length;
+        const rawRate  = claimed_ * 8 * 20; // TICK_BATCH(8) × ~20 intervals/s
+        const rateEl   = document.getElementById('s-rate');
+        if (rateEl && !rateEl._liveVisitorOverride) {
+          rateEl.textContent = rawRate >= 1000
+            ? (rawRate/1000).toFixed(1)+'K/s'
+            : Math.round(rawRate)+'/s';
         }
 
-        // Update biome cards with worker's live stats
-        for (const [idStr, snap] of Object.entries(stats)) {
-          const id = parseInt(idStr);
+        // Update biome cards with worker's live tier/complexity data
+        for (const [idStr, snap] of Object.entries(_workerStats)) {
+          const id   = parseInt(idStr);
           const card = document.querySelector(`[data-id="${id}"]`);
           if (!card) continue;
           const tier = snap.currentTier || 0;
-          const s2 = ts(tier);
+          const s2   = ts(tier);
           const tNum  = card.querySelector('.t-num');
           const tName = card.querySelector('.t-name');
           if (tNum)  tNum.textContent  = `T${tier}`;
           if (tName) tName.textContent = TIER_NAMES[tier] || '—';
           const fill = card.querySelector('.tier-progress-fill');
-          if (fill) {
-            fill.style.width      = `${Math.round((tier/12)*100)}%`;
-            fill.style.background = s2[0];
-          }
+          if (fill) { fill.style.width=`${Math.round((tier/12)*100)}%`; fill.style.background=s2[0]; }
         }
       }
     };
 
     _bgWorker.onerror = function(e) {
       console.warn('[Pandora Worker] Error:', e.message);
+      const el = document.getElementById('s-compute');
+      if (el) el.textContent = 'OFFLINE';
     };
 
-    // Clean up when page unloads
     window.addEventListener('beforeunload', () => {
-      if (_bgWorker) { _bgWorker.postMessage({ type: 'stop' }); _bgWorker.terminate(); }
+      if (_bgWorker) { _bgWorker.postMessage({ type:'stop' }); _bgWorker.terminate(); }
     });
   } catch(e) {
-    console.warn('[Pandora Worker] Could not start background simulation:', e);
+    console.warn('[Pandora Worker] Could not start:', e);
   }
 }
 
-// Start background worker 2s after page load (let Firebase init first)
+// Start 2s after page load so Firebase init finishes first
 setTimeout(startBackgroundWorker, 2000);
 </script>
 
