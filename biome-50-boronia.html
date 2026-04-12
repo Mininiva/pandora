@@ -1369,6 +1369,12 @@ let sustainedT13Ticks = 0;  // hyper-branching
 let sustainedT15Ticks = 0;  // ultra-complexity
 let sustainedT19Ticks = 0;  // hypercomplexity
 let sustainedGradTicks = 0;  // evolutionary graduation counter
+// ── Chemical Intervention State ────────────────────────────────
+let _intStagnTicks = 0;   // ticks stuck at current tier
+let _lastIntTier   = -1;  // tier at last stagnation reset
+let _intActive     = false;
+let _intIdx        = 0;   // which intervention to try next
+let _intGenomeSave = {};  // genome backup before intervention
 
 function promoteTier(t) {
   if (tierAchieved[t]) return;
@@ -1512,7 +1518,64 @@ function checkTiers(cx, mxl, brn, rings) {
     setTimeout(() => _runDeathCycle(`evolutionary graduation — T${currentTier} sustained — ascending to generation ${_generation + 1}`), 3000);
   }
 
+  _checkIntervention();
 }
+// ═══════════════════════════════════════════════════════════════
+//  CHEMICAL INTERVENTION SYSTEM
+//  When worlds stagnate at T8+ for 500+ ticks, the research team
+//  injects specific reagents to push past the closed-compartment
+//  phase toward proto-division and higher complexity.
+// ═══════════════════════════════════════════════════════════════
+const _INTERVENTIONS = [
+  { name: 'Ca²⁺ Ion Flush',
+    desc: 'Calcium ions bridge phosphate head-groups, destabilising closed membranes and inducing proto-fission.',
+    fn: g => { g.n2 = Math.min(g.n2 * 0.74, 2.5); } },
+  { name: 'Fatty Acid Injection',
+    desc: 'Surplus amphiphilic molecules increase membrane curvature energy, promoting bilayer budding.',
+    fn: g => { g.n1 = Math.min(g.n1 * 1.22, 2.5); } },
+  { name: 'Osmotic Shock',
+    desc: 'Hypotonic influx stretches membranes beyond elastic limit, forcing structural reorganisation.',
+    fn: g => { g.n3 = Math.min(g.n3 * 1.38, 2.5); } },
+  { name: 'pH Alkaline Shift (9.2)',
+    desc: 'Elevated pH deprotonates lipid heads, reducing repulsion and enabling tighter amphiphilic packing.',
+    fn: g => { g.n2 = Math.min(g.n2 * 1.28, 2.5); } },
+  { name: 'Nucleotide Seeding',
+    desc: 'AMP/GMP precursors catalyse template-directed polymerisation inside proto-compartments.',
+    fn: g => { g.n1 = Math.min(g.n1 * 1.18, 2.5); g.n3 = Math.max(g.n3 * 0.82, 0.4); } },
+];
+
+function _checkIntervention() {
+  if (worldStatus !== 'active' || _intActive) return;
+  if (currentTier !== _lastIntTier) { _lastIntTier = currentTier; _intStagnTicks = 0; return; }
+  if (currentTier < 8) return;
+  if (++_intStagnTicks < 500) return;
+  if (_intIdx >= _INTERVENTIONS.length * 3) return; // give up after exhausting options
+  _triggerIntervention(_intIdx % _INTERVENTIONS.length);
+  _intIdx++;
+}
+
+function _triggerIntervention(idx) {
+  const iv = _INTERVENTIONS[idx];
+  _intGenomeSave = { n1: _genome.n1, n2: _genome.n2, n3: _genome.n3, noiseScale: _genome.noiseScale };
+  iv.fn(_genome);
+  _intActive     = true;
+  _intStagnTicks = 0;
+  speak('ANALYST', `T${currentTier} stagnation detected (${_intIdx * 500} ticks). Initiating ${iv.name}. ${iv.desc}`);
+  const ws = document.getElementById('world-state');
+  if (ws) {
+    ws.textContent = '⚗ ' + iv.name.toUpperCase();
+    ws.className   = 'perturbed';
+    setTimeout(() => { if (ws.className === 'perturbed') { ws.textContent = ''; ws.className = ''; } }, 4000);
+  }
+  setTimeout(_endIntervention, 300 * 17); // ~5 seconds
+}
+
+function _endIntervention() {
+  if (!_intActive) return;
+  Object.assign(_genome, _intGenomeSave);
+  _intActive = false;
+}
+
 
 // ═══════════════════════════════════════════════════════════════
 //  REACTIVE AGENT CONVERSATION ENGINE — BORONIA

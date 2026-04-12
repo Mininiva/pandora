@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pandora — Primordial Ocean</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#030a12; overflow:hidden; font-family:'Courier New',monospace; }
+#world-state {
+  position:fixed; top:50%; left:calc(50% - 160px);
+  transform:translate(-50%,-50%);
+  font-size:22px; letter-spacing:8px;
+  pointer-events:none; z-index:20; opacity:0; transition:opacity 1.5s;
+}
+#world-state.dead { color:rgba(100,180,230,0.75); text-shadow:0 0 40px rgba(60,140,200,0.4); opacity:1; }
+#world-state.flash { color:rgba(160,230,255,0.9); text-shadow:0 0 30px rgba(80,180,230,0.6); opacity:1; }
+#hud {
+  position:fixed; top:24px; left:24px; z-index:10;
+  font-size:13px; line-height:2.1;
+  color:rgba(110,185,220,0.88);
+}
+.hk { color:rgba(60,120,160,0.8); display:inline-block; width:116px; }
+.hv { color:rgba(160,215,245,0.92); }
+#title { position:fixed; top:24px; right:330px; z-index:10; font-size:13px; letter-spacing:5px; color:rgba(110,185,220,0.75); }
+#subtitle { position:fixed; top:45px; right:330px; z-index:10; font-size:11px; letter-spacing:3px; color:rgba(70,140,180,0.65); }
+/* Structure Key */
+#structure-key {
+  position:fixed; bottom:24px; left:24px; z-index:10;
+  width:285px; max-height:320px; overflow-y:auto;
+  background:rgba(2,8,18,0.88); border:1px solid rgba(50,100,140,0.22);
+  border-radius:6px; padding:12px 14px;
+}
+#structure-key::-webkit-scrollbar { width:3px; }
+#structure-key::-webkit-scrollbar-thumb { background:rgba(60,120,160,0.4); }
+.key-title { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(70,140,180,0.65); border-bottom:1px solid rgba(50,100,140,0.18); padding-bottom:7px; margin-bottom:8px; }
+.key-entry { display:flex; align-items:flex-start; gap:9px; padding:5px 0; border-bottom:1px solid rgba(30,70,100,0.12); font-size:11px; }
+.key-icon { font-size:20px; width:28px; text-align:center; flex-shrink:0; line-height:1.2; margin-top:2px; }
+.key-name { font-weight:700; font-size:11px; }
+.key-desc { color:rgba(100,160,195,0.7); font-size:10px; margin-top:1px; line-height:1.5; }
+.key-when { color:rgba(55,110,145,0.6); font-size:9px; margin-top:2px; }
+#key-empty { color:rgba(50,100,130,0.5); font-size:10px; font-style:italic; }
+/* Intervention overlay */
+#int-panel {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(2,12,22,0.96); border:1px solid rgba(60,200,150,0.35);
+  border-radius:8px; padding:22px 30px; z-index:30; text-align:center; min-width:360px;
+}
+.int-label { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:rgba(60,200,150,0.65); margin-bottom:10px; }
+.int-name  { font-size:15px; color:rgba(140,240,200,0.95); letter-spacing:.07em; margin-bottom:7px; }
+.int-desc  { font-size:11px; color:rgba(90,170,145,0.8); line-height:1.75; max-width:300px; }
+.int-bar   { margin-top:14px; height:3px; background:rgba(30,80,65,0.5); border-radius:2px; overflow:hidden; }
+.int-fill  { height:100%; background:rgba(60,200,150,0.7); transition:width .4s; }
+/* Agent panel */
+#agent-panel {
+  position:fixed; top:0; right:0; width:270px; height:100vh;
+  background:rgba(2,8,18,0.93); border-left:1px solid rgba(50,100,140,0.18);
+  z-index:10; padding:20px 16px; display:flex; flex-direction:column; gap:10px;
+  overflow-y:auto;
+}
+#agent-panel::-webkit-scrollbar { width:3px; }
+#agent-panel::-webkit-scrollbar-thumb { background:rgba(60,120,160,0.3); }
+.a-title { font-size:10px; letter-spacing:.15em; text-transform:uppercase; color:rgba(55,110,150,0.65); border-bottom:1px solid rgba(50,100,140,0.14); padding-bottom:7px; }
+.a-msg { font-size:10.5px; line-height:1.75; color:rgba(120,185,215,0.8); padding:8px 10px; background:rgba(8,18,32,0.7); border-radius:4px; border-left:2px solid rgba(50,120,165,0.3); }
+.a-name { font-size:9.5px; color:rgba(65,130,175,0.65); margin-bottom:3px; letter-spacing:.07em; }
+/* Graph + elog */
+#graph-box { position:fixed; bottom:24px; right:24px; z-index:10; }
+#gl { font-size:10px; letter-spacing:3px; color:rgba(65,130,175,0.65); margin-bottom:5px; }
+#gc { display:block; border:1px solid rgba(50,100,140,0.14); }
+#elog { position:fixed; bottom:24px; left:312px; z-index:10; font-size:11px; line-height:1.85; color:rgba(110,185,220,0.75); width:290px; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div><span class="hk">BIOME</span><span class="hv">PRIMORDIAL OCEAN</span></div>
+  <div><span class="hk">TIER</span><span class="hv" id="v-tier">T0 — Void</span></div>
+  <div><span class="hk">GENERATION</span><span class="hv" id="v-gen">GEN 1</span></div>
+  <div><span class="hk">TICK</span><span class="hv" id="v-tick">0</span></div>
+  <div><span class="hk">PARTICLES</span><span class="hv" id="v-np">—</span></div>
+  <div><span class="hk">BONDS</span><span class="hv" id="v-nb">—</span></div>
+  <div><span class="hk">MAX CLUSTER</span><span class="hv" id="v-mx">—</span></div>
+</div>
+<div id="title">PANDORA</div>
+<div id="subtitle">PRIMORDIAL OCEAN · 3D</div>
+<div id="world-state"></div>
+<div id="structure-key">
+  <div class="key-title">◈ Structural Discovery Log</div>
+  <div id="key-entries"><div id="key-empty">No structures detected yet…</div></div>
+</div>
+<div id="elog"></div>
+<div id="graph-box"><div id="gl">TIER HISTORY</div><canvas id="gc" width="200" height="60"></canvas></div>
+<div id="agent-panel"><div class="a-title">◈ Research Team</div><div id="agent-msgs"></div></div>
+<div id="int-panel" style="display:none">
+  <div class="int-label">⚗ Scientific Intervention</div>
+  <div class="int-name" id="int-name">—</div>
+  <div class="int-desc" id="int-desc">—</div>
+  <div class="int-bar"><div class="int-fill" id="int-fill" style="width:100%"></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+'use strict';
+// ================================================================
+//  PANDORA · PRIMORDIAL OCEAN (biome-03) · Three.js 3D
+// ================================================================
+
+const BIOME_ID   = '03';
+const BIOME_NAME = 'Primordial Ocean';
+const TIER_NAMES = [
+  'Void','First Chemistry','Molecular Drift','Chain Formation',
+  'Branched Network','Ring Closure','Dense Assembly','Reaction Cascade',
+  'Amphiphilic Order','Core-Shell Phase','Closed Compartment',
+  'Proto-Division','Inherited State','Cooperative Colony',
+  'Differentiation','Chemical Signalling','Adaptive Memory',
+  'Symbiosis','Layered Metabolism','Directed Motion','✦ Sentience',
+];
+
+// ── WORLD ────────────────────────────────────────────────────────
+const WORLD_R      = 155;
+const N_BASE       = 185;
+const LJ_EPS       = 0.016;
+const LJ_SIG       = 8.5;
+const BOND_CUT     = 11.5;
+const BOND_SPRING  = 0.11;
+const BOND_REST    = 9.0;
+const BOND_BREAK   = 22.0;
+const WALL_K       = 0.09;
+
+// ── PARTICLE TYPES ───────────────────────────────────────────────
+// 0=LH lipid-head  1=LT lipid-tail  2=AA amino-acid  3=PH phosphate
+const T_LH=0, T_LT=1, T_AA=2, T_PH=3;
+const TYPE_CLR  = [0xe8a030, 0xf5df55, 0x48c87a, 0xe04858];
+const TYPE_R    = [3.8, 3.1, 3.4, 2.7];
+const MAX_BD    = [3,   2,   4,   3  ];
+// Affinity [from][to]
+const AFF = [
+  [0.25, 0.90, 0.35, 0.40],
+  [0.90, 0.75, 0.07, 0.07],
+  [0.35, 0.07, 0.55, 0.65],
+  [0.40, 0.07, 0.65, 0.20],
+];
+
+// ── GENOME ───────────────────────────────────────────────────────
+function defGenome(){ return { n1:1.0, n2:1.0, n3:1.0, noiseScale:1.0, lipidFrac:0.45, aaFrac:0.33 }; }
+let _genome = defGenome();
+function _clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+function _evolveGenome(archives, g){
+  const ng = {...g};
+  if(!archives||!archives.length) return ng;
+  const maxH = Math.max(...archives.map(a=>a.maxTier||0));
+  const last = archives[archives.length-1];
+  const ms   = (last.maxTier>=maxH && last.maxTier>=8) ? 0.015 : 0.08;
+  const mu   = ()=>1+(Math.random()-0.5)*2*ms;
+  ['n1','n2','n3','noiseScale'].forEach(k=>{ ng[k]=_clamp(ng[k]*mu(),0.4,2.2); });
+  ng.lipidFrac = _clamp((ng.lipidFrac||0.45)*mu(), 0.22, 0.68);
+  ng.aaFrac    = _clamp((ng.aaFrac||0.33)*mu(),    0.12, 0.55);
+  const avg = archives.reduce((s,a)=>s+(a.maxTier||0),0)/archives.length;
+  if(avg<8)       ng.n1=_clamp(ng.n1*1.04,0.4,2.2);
+  else if(avg<13){ ng.n1=_clamp(ng.n1*1.03,0.4,2.2); ng.lipidFrac=_clamp(ng.lipidFrac*1.02,0.22,0.68); }
+  else            ng.noiseScale=_clamp(ng.noiseScale*0.97,0.4,2.2);
+  return ng;
+}
+
+// ── FIREBASE ─────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:'AIzaSyANFCI2Uyehrezru2TxZ8jOP_V9lVSYkGA',
+  authDomain:'pandora-68637.firebaseapp.com',
+  databaseURL:'https://pandora-68637-default-rtdb.firebaseio.com',
+  projectId:'pandora-68637',
+  storageBucket:'pandora-68637.firebasestorage.app',
+  messagingSenderId:'244482446708',
+  appId:'1:244482446708:web:7bec4962611f8c4a224821',
+});
+const db   = firebase.database();
+const ROOT = `pandora/biomes/${BIOME_ID}`;
+
+// ── THREE.JS SCENE ────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+Object.assign(renderer.domElement.style,{
+  position:'fixed',top:'0',left:'0',width:'100%',height:'100%',zIndex:'0'
+});
+document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x020810);
+scene.fog = new THREE.FogExp2(0x020810, 0.0022);
+
+const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.5, 2000);
+camera.position.set(0, 55, 330);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.04;
+controls.minDistance=80; controls.maxDistance=720;
+controls.autoRotate=true; controls.autoRotateSpeed=0.35;
+
+// Lights
+scene.add(new THREE.AmbientLight(0x0d2030, 1.5));
+const sun = new THREE.DirectionalLight(0x60b0d8, 1.9);
+sun.position.set(110,200,160); scene.add(sun);
+const fill = new THREE.DirectionalLight(0x203050, 0.55);
+fill.position.set(-100,-80,-130); scene.add(fill);
+
+// Boundary wireframe
+scene.add(new THREE.Mesh(
+  new THREE.SphereGeometry(WORLD_R,32,24),
+  new THREE.MeshBasicMaterial({color:0x1a4060,wireframe:true,transparent:true,opacity:0.07})
+));
+
+// Bond lines (single LineSegments updated each frame)
+const MAX_BL = 1000;
+const bPos   = new Float32Array(MAX_BL*6);
+const bGeo   = new THREE.BufferGeometry();
+bGeo.setAttribute('position', new THREE.BufferAttribute(bPos,3));
+bGeo.setDrawRange(0,0);
+const bLines = new THREE.LineSegments(bGeo, new THREE.LineBasicMaterial({color:0x2a5878,transparent:true,opacity:0.5}));
+scene.add(bLines);
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+// Sphere geometry cache per type
+const sGeos = TYPE_R.map(r=>new THREE.SphereGeometry(r,10,8));
+const sMats = TYPE_CLR.map(c=>new THREE.MeshPhongMaterial({
+  color:c, emissive:new THREE.Color(c).multiplyScalar(0.14), shininess:55
+}));
+
+// ── PARTICLE STATE ────────────────────────────────────────────────
+let particles     = [];
+let _tick         = 0;
+let uiTick        = 0;
+let currentTier   = 0;
+let currentGen    = 1;
+let tierAchieved  = new Array(21).fill(false);
+let tierHistory   = [];
+let _isDead       = false;
+let _deathRunning = false;
+
+// Persistent structure state across frames
+let _lastComps    = [];
+let _lastMaxClus  = 0;
+let _lastTotalBd  = 0;
+let _lastClosed   = false;
+
+// Structure discovery
+let discoveredStructures = new Map(); // name → {tick,gen,tier}
+
+// ── INIT PARTICLES ────────────────────────────────────────────────
+function init(g){
+  particles.forEach(p=>scene.remove(p.mesh));
+  particles=[];
+  const n   = Math.round(N_BASE*(0.8+0.4*Math.random()));
+  const lf  = _clamp(g.lipidFrac||0.45,0.2,0.7);
+  const aaf = _clamp(g.aaFrac||0.33,0.1,0.6);
+  const pf  = Math.max(0.05,1-lf-aaf);
+  const cnt = [Math.round(lf/2*n), Math.round(lf/2*n), Math.round(aaf*n), Math.round(pf*n)];
+  cnt[0] = n - cnt[1] - cnt[2] - cnt[3];
+  for(let ti=0;ti<4;ti++){
+    for(let k=0;k<cnt[ti];k++){
+      const phi=Math.acos(2*Math.random()-1), th=Math.random()*Math.PI*2;
+      const r=WORLD_R*0.82*Math.cbrt(Math.random());
+      const x=r*Math.sin(phi)*Math.cos(th), y=r*Math.sin(phi)*Math.sin(th), z=r*Math.cos(phi);
+      const sp=0.28*Math.sqrt(g.n3||1);
+      const mesh=new THREE.Mesh(sGeos[ti],sMats[ti]);
+      mesh.position.set(x,y,z); scene.add(mesh);
+      particles.push({x,y,z,vx:(Math.random()-0.5)*sp,vy:(Math.random()-0.5)*sp,vz:(Math.random()-0.5)*sp,type:ti,mesh,bonds:new Set(),id:particles.length});
+    }
+  }
+  _tick=0; uiTick=0; tierHistory=[]; _stagnTicks=0; _lastTierVal=0;
+  _intActive=false; _intTick=0; _intIdx=0;
+  document.getElementById('int-panel').style.display='none';
+}
+
+// ── PHYSICS ───────────────────────────────────────────────────────
+function physicsStep(g){
+  const n=particles.length, dt=0.5;
+  const eps=LJ_EPS*(g.n2||1), ns=0.055*(g.noiseScale||1);
+  const fx=new Float32Array(n), fy=new Float32Array(n), fz=new Float32Array(n);
+
+  for(let i=0;i<n-1;i++){
+    const pi=particles[i];
+    for(let j=i+1;j<n;j++){
+      const pj=particles[j];
+      if(pi.bonds.has(j)) continue;
+      const dx=pj.x-pi.x, dy=pj.y-pi.y, dz=pj.z-pi.z;
+      const r2=dx*dx+dy*dy+dz*dz; if(r2<1) continue;
+      const r=Math.sqrt(r2);
+      if(r<6){ const f=-0.35/r2; fx[i]+=f*dx;fy[i]+=f*dy;fz[i]+=f*dz;fx[j]-=f*dx;fy[j]-=f*dy;fz[j]-=f*dz; continue; }
+      if(r<30){
+        const sr6=Math.pow(LJ_SIG/r,6);
+        const f=24*eps*AFF[pi.type][pj.type]*(g.n1||1)/r2*(2*sr6*sr6-sr6);
+        fx[i]+=f*dx;fy[i]+=f*dy;fz[i]+=f*dz;fx[j]-=f*dx;fy[j]-=f*dy;fz[j]-=f*dz;
+      }
+    }
+  }
+  // Bond springs
+  for(let i=0;i<n;i++){
+    const pi=particles[i];
+    for(const j of pi.bonds){
+      if(j<=i) continue;
+      const pj=particles[j];
+      const dx=pj.x-pi.x,dy=pj.y-pi.y,dz=pj.z-pi.z;
+      const r=Math.sqrt(dx*dx+dy*dy+dz*dz); if(r<0.1) continue;
+      if(r>BOND_BREAK){ pi.bonds.delete(j); pj.bonds.delete(i); continue; }
+      const f=BOND_SPRING*(g.n2||1)*(r-BOND_REST)/r;
+      fx[i]+=f*dx;fy[i]+=f*dy;fz[i]+=f*dz;fx[j]-=f*dx;fy[j]-=f*dy;fz[j]-=f*dz;
+    }
+  }
+  // Ca2+ flush: extra LH-LH repulsion
+  if(_ca2Active){
+    for(let i=0;i<n;i++){
+      if(particles[i].type!==T_LH) continue;
+      for(const j of particles[i].bonds){
+        if(particles[j].type!==T_LH) continue;
+        const dx=particles[j].x-particles[i].x, dy=particles[j].y-particles[i].y, dz=particles[j].z-particles[i].z;
+        const r=Math.sqrt(dx*dx+dy*dy+dz*dz)+0.1, f=-0.1/r;
+        fx[i]+=f*dx;fy[i]+=f*dy;fz[i]+=f*dz;fx[j]-=f*dx;fy[j]-=f*dy;fz[j]-=f*dz;
+      }
+    }
+  }
+  // Osmotic shock burst
+  if(_osmoActive && _intTick<40){
+    for(let i=0;i<n;i++){
+      const pi=particles[i], r=Math.sqrt(pi.x*pi.x+pi.y*pi.y+pi.z*pi.z)+0.1;
+      const f=0.12*(1-r/WORLD_R)/r;
+      fx[i]+=f*pi.x; fy[i]+=f*pi.y; fz[i]+=f*pi.z;
+    }
+  }
+  // Integrate
+  for(let i=0;i<n;i++){
+    const pi=particles[i];
+    pi.vx+=(Math.random()-0.5)*ns+fx[i]*dt;
+    pi.vy+=(Math.random()-0.5)*ns+fy[i]*dt;
+    pi.vz+=(Math.random()-0.5)*ns+fz[i]*dt;
+    const damp=0.968-0.008*(g.n3||1);
+    pi.vx*=damp; pi.vy*=damp; pi.vz*=damp;
+    const spd=Math.sqrt(pi.vx*pi.vx+pi.vy*pi.vy+pi.vz*pi.vz);
+    if(spd>3.5){const s=3.5/spd;pi.vx*=s;pi.vy*=s;pi.vz*=s;}
+    pi.x+=pi.vx*dt; pi.y+=pi.vy*dt; pi.z+=pi.vz*dt;
+    // Soft wall
+    const dist=Math.sqrt(pi.x*pi.x+pi.y*pi.y+pi.z*pi.z);
+    if(dist>WORLD_R-5){ const ex=dist-(WORLD_R-5), f=WALL_K*ex/dist; pi.vx-=f*pi.x;pi.vy-=f*pi.y;pi.vz-=f*pi.z; }
+    pi.mesh.position.set(pi.x,pi.y,pi.z);
+  }
+}
+
+function updateBonds(g){
+  const n=particles.length, rate=0.0038*(g.n1||1);
+  for(let i=0;i<n-1;i++){
+    const pi=particles[i]; if(pi.bonds.size>=MAX_BD[pi.type]) continue;
+    for(let j=i+1;j<n;j++){
+      const pj=particles[j]; if(pj.bonds.size>=MAX_BD[pj.type]||pi.bonds.has(j)) continue;
+      const dx=pj.x-pi.x,dy=pj.y-pi.y,dz=pj.z-pi.z;
+      if(dx*dx+dy*dy+dz*dz>BOND_CUT*BOND_CUT) continue;
+      if(Math.random()<AFF[pi.type][pj.type]*rate){ pi.bonds.add(j); pj.bonds.add(i); }
+    }
+  }
+}
+
+function renderBonds(){
+  let idx=0;
+  for(let i=0;i<particles.length&&idx<MAX_BL;i++){
+    const pi=particles[i];
+    for(const j of pi.bonds){
+      if(j<=i||idx>=MAX_BL) continue;
+      const pj=particles[j];
+      bPos[idx*6]=pi.x;bPos[idx*6+1]=pi.y;bPos[idx*6+2]=pi.z;
+      bPos[idx*6+3]=pj.x;bPos[idx*6+4]=pj.y;bPos[idx*6+5]=pj.z;
+      idx++;
+    }
+  }
+  bGeo.attributes.position.needsUpdate=true;
+  bGeo.setDrawRange(0,idx*2);
+}
+
+// ── STRUCTURE DETECTION ───────────────────────────────────────────
+function getComponents(){
+  const n=particles.length, vis=new Int8Array(n), comps=[];
+  for(let s=0;s<n;s++){
+    if(vis[s]) continue;
+    const comp=[], q=[s]; vis[s]=1;
+    while(q.length){ const c=q.shift(); comp.push(c); for(const nb of particles[c].bonds){ if(!vis[nb]){vis[nb]=1;q.push(nb);} } }
+    comps.push(comp);
+  }
+  return comps;
+}
+
+function compHasCycle(comp){
+  const inC=new Set(comp), vis=new Set();
+  function dfs(n,par){ vis.add(n); for(const nb of particles[n].bonds){ if(!inC.has(nb)) continue; if(!vis.has(nb)){if(dfs(nb,n)) return true;} else if(nb!==par) return true; } return false; }
+  return dfs(comp[0],-1);
+}
+
+function compIsSpherical(comp){
+  if(comp.length<8) return false;
+  const ps=comp.map(i=>particles[i]);
+  const cx=ps.reduce((s,p)=>s+p.x,0)/ps.length;
+  const cy=ps.reduce((s,p)=>s+p.y,0)/ps.length;
+  const cz=ps.reduce((s,p)=>s+p.z,0)/ps.length;
+  const ds=ps.map(p=>Math.sqrt((p.x-cx)**2+(p.y-cy)**2+(p.z-cz)**2));
+  const mn=ds.reduce((s,d)=>s+d,0)/ds.length;
+  const cv=Math.sqrt(ds.reduce((s,d)=>s+(d-mn)**2,0)/ds.length)/Math.max(mn,1);
+  return cv<0.38 && mn>7;
+}
+
+function compIsAmphiphilic(comp){
+  if(comp.length<8) return false;
+  const ps=comp.map(i=>({p:particles[i]}));
+  const cx=ps.reduce((s,o)=>s+o.p.x,0)/ps.length;
+  const cy=ps.reduce((s,o)=>s+o.p.y,0)/ps.length;
+  const cz=ps.reduce((s,o)=>s+o.p.z,0)/ps.length;
+  const sorted=[...ps].sort((a,b)=>{
+    const ra=(a.p.x-cx)**2+(a.p.y-cy)**2+(a.p.z-cz)**2;
+    const rb=(b.p.x-cx)**2+(b.p.y-cy)**2+(b.p.z-cz)**2;
+    return ra-rb;
+  });
+  const inner=sorted.slice(0,Math.floor(sorted.length/2));
+  return inner.filter(o=>o.p.type===T_LT).length/inner.length>0.42;
+}
+
+function classifyComp(comp){
+  const n=comp.length;
+  if(n===1) return 'Monomer';
+  if(n===2) return 'Dimer';
+  const cyc=compHasCycle(comp), sph=compIsSpherical(comp), amp=compIsAmphiphilic(comp);
+  if(n<=4  && !cyc) return 'Oligomer';
+  if(n<=4  &&  cyc) return 'Small Ring';
+  if(n<=9  && !cyc) return 'Polymer';
+  if(n<=9  &&  cyc) return 'Macrocycle';
+  if(n<=16 && !sph && !cyc) return 'Branched Polymer';
+  if(n<=16 &&  cyc) return 'Macrocycle';
+  if(n<=20 &&  amp) return 'Proto-Micelle';
+  if(n<=35 &&  sph &&  amp) return 'Micelle';
+  if(n<=35 &&  sph) return 'Spherical Cluster';
+  if(n<=65 &&  sph &&  amp) return 'Vesicle';
+  if(n >65 &&  sph &&  amp) return 'Proto-Cell';
+  if(n >35) return 'Dense Aggregate';
+  return 'Complex Assembly';
+}
+
+const STRUCT_INFO = {
+  'Monomer':          {icon:'●',    color:'#5a8aaa', desc:'Single unbound molecule.'},
+  'Dimer':            {icon:'⬡',    color:'#7aaa88', desc:'Two molecules sharing a bond.'},
+  'Oligomer':         {icon:'───',  color:'#90c880', desc:'Short linear chain (3–4 units).'},
+  'Small Ring':       {icon:'△',    color:'#c8a060', desc:'A closed 3-node ring.'},
+  'Polymer':          {icon:'═══',  color:'#a8d898', desc:'Extended chain of 5–9 units.'},
+  'Macrocycle':       {icon:'◯',    color:'#d8b060', desc:'Large ring with interior cavity.'},
+  'Branched Polymer': {icon:'⊕',    color:'#80c880', desc:'Polymer with lateral branches.'},
+  'Proto-Micelle':    {icon:'◉',    color:'#e8a030', desc:'Amphiphilic cluster with hydrophobic core forming.'},
+  'Micelle':          {icon:'⊙',    color:'#f0c050', desc:'Closed amphiphilic sphere — hydrophobic interior.'},
+  'Spherical Cluster':{icon:'○',    color:'#68b8d8', desc:'Dense spherical aggregate.'},
+  'Vesicle':          {icon:'◎',    color:'#60e0b0', desc:'Hollow lipid bilayer sphere — proto-membrane!'},
+  'Dense Aggregate':  {icon:'⬡',    color:'#9080b8', desc:'Large disordered cluster.'},
+  'Complex Assembly': {icon:'✦',    color:'#c070a0', desc:'Multi-component organised structure.'},
+  'Proto-Cell':       {icon:'⬤',    color:'#f0f0d8', desc:'Large enclosed compartment with internal chemistry.'},
+};
+
+function detectStructures(){
+  const comps=getComponents();
+  let maxSz=0;
+  comps.forEach(c=>{ if(c.length>maxSz) maxSz=c.length; });
+  const hasClosed=comps.some(c=>c.length>=20&&compIsSpherical(c)&&compIsAmphiphilic(c));
+  const totalBd=particles.reduce((s,p)=>s+p.bonds.size,0)/2|0;
+  // Discover new structure types
+  comps.forEach(comp=>{
+    const cls=classifyComp(comp);
+    if(!discoveredStructures.has(cls)){
+      discoveredStructures.set(cls,{tick:_tick,gen:currentGen,tier:currentTier});
+      _addKeyEntry(cls);
+      logE(`◈ ${cls} discovered`);
+    }
+  });
+  _lastComps=comps; _lastMaxClus=maxSz; _lastTotalBd=totalBd; _lastClosed=hasClosed;
+  return {comps,maxSz,totalBd,hasClosed};
+}
+
+function _addKeyEntry(name){
+  const info=STRUCT_INFO[name]||{icon:'?',color:'#aaa',desc:'Unknown structure.'};
+  const ke=document.getElementById('key-entries');
+  const empty=document.getElementById('key-empty');
+  if(empty) empty.remove();
+  const d=discoveredStructures.get(name);
+  const el=document.createElement('div');
+  el.className='key-entry';
+  el.innerHTML=`<div class="key-icon" style="color:${info.color}">${info.icon}</div><div><div class="key-name" style="color:${info.color}">${name}</div><div class="key-desc">${info.desc}</div><div class="key-when">T${d.tier} · Gen ${d.gen} · Tick ${d.tick}</div></div>`;
+  ke.appendChild(el);
+}
+
+// ── TIER SYSTEM ───────────────────────────────────────────────────
+let _flashLabel='', _flashTick=0;
+let _sustainedGrad=0;
+
+function checkTiers(){
+  const mx=_lastMaxClus, bd=_lastTotalBd, comps=_lastComps, cl=_lastClosed;
+  const t=currentTier;
+  if(t<1  && bd>=2)                                                             _setTier(1);
+  if(t<2  && mx>=3)                                                             _setTier(2);
+  if(t<3  && mx>=6)                                                             _setTier(3);
+  if(t<4  && particles.some(p=>p.bonds.size>=3))                                _setTier(4);
+  if(t<5  && comps.some(c=>c.length>=4&&compHasCycle(c)))                       _setTier(5);
+  if(t<6  && mx>=10)                                                            _setTier(6);
+  if(t<7  && comps.filter(c=>c.length>=4).length>=3)                           _setTier(7);
+  if(t<8  && comps.some(c=>c.length>=8&&compIsAmphiphilic(c)))                  _setTier(8);
+  if(t<9  && comps.some(c=>c.length>=15&&compIsAmphiphilic(c)))                 _setTier(9);
+  if(t<10 && cl)                                                                _setTier(10);
+  if(t<11 && comps.some(c=>c.length>=35&&compIsSpherical(c)&&compIsAmphiphilic(c))) _setTier(11);
+  if(t<12 && comps.filter(c=>c.length>=20&&compIsSpherical(c)&&compIsAmphiphilic(c)).length>=2) _setTier(12);
+  if(t<13 && comps.some(c=>c.length>=55&&compIsSpherical(c)))                  _setTier(13);
+  if(t<14 && comps.filter(c=>c.length>=20&&compIsSpherical(c)).length>=3)      _setTier(14);
+}
+
+function _setTier(t){
+  if(tierAchieved[t]) return;
+  tierAchieved[t]=true; currentTier=t;
+  _flashLabel=`T${t} — ${TIER_NAMES[t].toUpperCase()}`;
+  _flashTick=uiTick;
+  document.getElementById('v-tier').textContent=`T${t} — ${TIER_NAMES[t]}`;
+  tierHistory.push(t); drawTierGraph();
+  logE(`▲ TIER ${t} — ${TIER_NAMES[t]}`);
+  _addAgentMsg(SCIENTISTS[uiTick%3],`Tier ${t} confirmed: ${TIER_NAMES[t]}. Monitoring structural evolution.`);
+}
+
+function checkGraduation(){
+  if(currentTier>=13){ _sustainedGrad++; if(_sustainedGrad>=2000&&!_deathRunning) _runDeathCycle('Evolutionary graduation — T13+ sustained'); }
+  else _sustainedGrad=0;
+}
+
+// ── CHEMICAL INTERVENTIONS ────────────────────────────────────────
+let _stagnTicks=0, _lastTierVal=0, _intActive=false, _intTick=0, _intIdx=0;
+let _ca2Active=false, _osmoActive=false, _intSave={};
+
+const INTERVENTIONS=[
+  {name:'Ca²⁺ Ion Flush',
+   reagent:'Calcium chloride (CaCl₂)',
+   desc:'Free Ca²⁺ bridges phosphate heads, destabilising closed membranes and inducing proto-fission events.',
+   apply(){ _ca2Active=true; _intSave.ca2=true; }},
+  {name:'Fatty Acid Injection',
+   reagent:'Additional amphiphilic molecules (+20)',
+   desc:'Surplus lipid molecules increase membrane curvature energy, promoting bilayer budding and division.',
+   apply(){
+     for(let k=0;k<20;k++){
+       const ti=(k%2===0)?T_LH:T_LT;
+       const phi=Math.acos(2*Math.random()-1),th=Math.random()*Math.PI*2,r=WORLD_R*0.55;
+       const x=r*Math.sin(phi)*Math.cos(th),y=r*Math.sin(phi)*Math.sin(th),z=r*Math.cos(phi);
+       const mesh=new THREE.Mesh(sGeos[ti],sMats[ti]);
+       mesh.position.set(x,y,z); scene.add(mesh);
+       particles.push({x,y,z,vx:0,vy:0,vz:0,type:ti,mesh,bonds:new Set(),id:particles.length});
+     }
+   }},
+  {name:'Osmotic Shock',
+   reagent:'Hypotonic solution burst',
+   desc:'Rapid osmotic influx stretches membranes beyond elastic limit, forcing structural reorganisation.',
+   apply(){ _osmoActive=true; }},
+  {name:'pH Alkaline Shift',
+   reagent:'Alkaline buffer (pH 9.2)',
+   desc:'Elevated pH deprotonates lipid heads, reducing repulsion and enabling tighter amphiphilic packing.',
+   apply(){ _intSave.n2=_genome.n2; _genome.n2=_clamp(_genome.n2*1.28,0.4,2.5); }},
+  {name:'Nucleotide Seeding',
+   reagent:'AMP / GMP precursors',
+   desc:'Nucleotide precursors catalyse template-directed polymerisation inside proto-compartments.',
+   apply(){ _intSave.n1=_genome.n1; _intSave.n3=_genome.n3; _genome.n1=_clamp(_genome.n1*1.22,0.4,2.5); _genome.n3=_clamp(_genome.n3*0.84,0.4,2.0); }},
+];
+
+function checkIntervention(){
+  if(_isDead||_intActive) return;
+  if(currentTier!==_lastTierVal){ _lastTierVal=currentTier; _stagnTicks=0; return; }
+  if(currentTier<8) return;
+  _stagnTicks++;
+  if(_stagnTicks>=500 && _intIdx<INTERVENTIONS.length){
+    _triggerIntervention(_intIdx++);
+  }
+}
+
+function _triggerIntervention(idx){
+  const iv=INTERVENTIONS[idx%INTERVENTIONS.length];
+  _intSave={}; iv.apply();
+  _intActive=true; _intTick=0; _stagnTicks=0;
+  document.getElementById('int-name').textContent=iv.name;
+  document.getElementById('int-desc').textContent=`${iv.reagent} — ${iv.desc}`;
+  document.getElementById('int-fill').style.width='100%';
+  document.getElementById('int-panel').style.display='block';
+  logE(`⚗ ${iv.name}`);
+  _addAgentMsg('⚗ INTERVENTION',`T${currentTier} plateau (${_stagnTicks} ticks). Deploying: ${iv.name}. ${iv.desc}`);
+}
+
+function tickIntervention(){
+  if(!_intActive) return;
+  _intTick++;
+  const pct=1-_intTick/250;
+  document.getElementById('int-fill').style.width=(pct*100).toFixed(1)+'%';
+  if(_intTick>=250){
+    // Restore overridden genome params
+    if(_intSave.n1!==undefined) _genome.n1=_intSave.n1;
+    if(_intSave.n2!==undefined) _genome.n2=_intSave.n2;
+    if(_intSave.n3!==undefined) _genome.n3=_intSave.n3;
+    _ca2Active=false; _osmoActive=false;
+    _intActive=false;
+    document.getElementById('int-panel').style.display='none';
+  }
+}
+
+// ── VITALITY CHECK ────────────────────────────────────────────────
+let _vTick=0;
+function checkVitality(){
+  if(currentTier>=5) return;
+  if(++_vTick>=900&&currentTier<2&&!_deathRunning) _runDeathCycle('Vitality failure — no chemistry after 900 ticks');
+}
+
+// ── DEATH / GENERATION ────────────────────────────────────────────
+async function _runDeathCycle(reason){
+  if(_deathRunning) return;
+  _deathRunning=true; _isDead=true;
+  const ws=document.getElementById('world-state');
+  ws.textContent='DEAD WORLD'; ws.className='dead';
+  const seed={positions:particles.map(p=>({x:p.x,y:p.y,z:p.z,type:p.type}))};
+  const archive={generation:currentGen,maxTier:currentTier,
+    tiers:tierAchieved.map((v,i)=>v?i:null).filter(v=>v!==null),
+    genome:{..._genome},deathReason:reason,timestamp:Date.now(),
+    structures:[...discoveredStructures.entries()].map(([k,v])=>({name:k,...v}))};
+  await new Promise(r=>setTimeout(r,1500));
+  ws.textContent='ARCHIVING…';
+  const nextGen=currentGen+1;
+  try{
+    await db.ref(`${ROOT}/archives/${currentGen}`).set(archive);
+    await db.ref(`${ROOT}/genome/${nextGen}/seed`).set(seed);
+    await db.ref(`${ROOT}/genome/${currentGen}`).update({..._genome,maxTier:currentTier});
+    await db.ref(`${ROOT}/currentGeneration`).set(nextGen);
+  }catch(e){console.warn('Archive save:',e);}
+  await new Promise(r=>setTimeout(r,2000));
+  ws.textContent='EVOLVING…';
+  let archives=[];
+  try{ const s=await db.ref(`${ROOT}/archives`).once('value'); if(s.val()) archives=Object.values(s.val()); }catch(e){}
+  _genome=_evolveGenome(archives,_genome);
+  await new Promise(r=>setTimeout(r,1000));
+  ws.className=''; ws.textContent=''; ws.style.opacity='0';
+  currentGen=nextGen; currentTier=0;
+  tierAchieved=new Array(21).fill(false);
+  discoveredStructures.clear();
+  document.getElementById('key-entries').innerHTML='<div id="key-empty">No structures detected yet…</div>';
+  document.getElementById('v-gen').textContent=`GEN ${currentGen}`;
+  document.getElementById('v-tier').textContent=`T0 — ${TIER_NAMES[0]}`;
+  _deathRunning=false; _isDead=false; _sustainedGrad=0;
+  // Restore from seed
+  const sSnap=await db.ref(`${ROOT}/genome/${currentGen}/seed`).once('value');
+  if(sSnap.val()&&sSnap.val().positions){
+    const saved=sSnap.val().positions;
+    particles.forEach(p=>scene.remove(p.mesh)); particles=[];
+    saved.forEach((s,i)=>{
+      const mesh=new THREE.Mesh(sGeos[s.type],sMats[s.type]);
+      mesh.position.set(s.x,s.y,s.z); scene.add(mesh);
+      particles.push({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,type:s.type,mesh,bonds:new Set(),id:i});
+    });
+    _tick=0; uiTick=0; tierHistory=[]; _stagnTicks=0; _lastTierVal=0; _intActive=false; _intIdx=0;
+    _addAgentMsg('🧬 NEW GENERATION',`Gen ${currentGen} seeded from inherited positions (${saved.length} particles). Genome evolved from ${archives.length} archive entries.`);
+  } else { init(_genome); }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────
+const SCIENTISTS=['Dr. Ayasha Okafor','Dr. Lienhard Brun','Dr. Suri Mura'];
+const _elog=[];
+function logE(msg){ _elog.unshift(msg); if(_elog.length>5) _elog.pop(); document.getElementById('elog').innerHTML=_elog.map(m=>`<div>${m}</div>`).join(''); }
+function _addAgentMsg(name,text){
+  const panel=document.getElementById('agent-msgs');
+  const div=document.createElement('div'); div.className='a-msg';
+  div.innerHTML=`<div class="a-name">${name}</div>${text}`;
+  panel.insertBefore(div,panel.firstChild);
+  while(panel.children.length>8) panel.removeChild(panel.lastChild);
+}
+function drawTierGraph(){
+  const c=document.getElementById('gc'),ctx=c.getContext('2d');
+  ctx.clearRect(0,0,200,60);
+  if(tierHistory.length<2) return;
+  ctx.strokeStyle='rgba(80,170,220,0.7)'; ctx.lineWidth=1.5; ctx.beginPath();
+  tierHistory.forEach((t,i)=>{ const x=(i/(tierHistory.length-1))*192+4, y=56-(t/20)*52; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.stroke();
+}
+
+// ── MAIN LOOP ─────────────────────────────────────────────────────
+const STEPS=3;
+function animate(){
+  requestAnimationFrame(animate);
+  if(_isDead){ controls.update(); renderer.render(scene,camera); return; }
+  for(let s=0;s<STEPS;s++){
+    physicsStep(_genome);
+    if(_tick%3===0) updateBonds(_genome);
+    _tick++;
+  }
+  uiTick++;
+  renderBonds();
+  // Structure + tier check every 150 ticks
+  if(_tick%150<STEPS) detectStructures();
+  if(_tick%150<STEPS) checkTiers();
+  checkGraduation(); checkVitality(); checkIntervention(); tickIntervention();
+  // HUD
+  if(uiTick%15===0){
+    document.getElementById('v-tick').textContent=_tick;
+    document.getElementById('v-np').textContent=particles.length;
+    document.getElementById('v-nb').textContent=(_lastTotalBd);
+    document.getElementById('v-mx').textContent=(_lastMaxClus);
+  }
+  // Tier flash
+  const ws=document.getElementById('world-state');
+  if(_flashLabel && uiTick-_flashTick<130){ ws.textContent=_flashLabel; ws.className='flash'; ws.style.opacity='1'; }
+  else if(_flashLabel){ _flashLabel=''; ws.className=''; ws.textContent=''; ws.style.opacity='0'; }
+  controls.update();
+  renderer.render(scene,camera);
+}
+
+// ── FIREBASE RESUME ───────────────────────────────────────────────
+const _sciLoad={done:false};
+setTimeout(async function _pandoraResume(){
+  try{
+    const genSnap=await db.ref(`${ROOT}/currentGeneration`).once('value');
+    currentGen=genSnap.val()||1;
+    const gSnap=await db.ref(`${ROOT}/genome/${currentGen}`).once('value');
+    if(gSnap.val()){ _genome={...defGenome(),...gSnap.val()}; delete _genome.seed; delete _genome.maxTier; }
+    const sSnap=await db.ref(`${ROOT}/genome/${currentGen}/seed`).once('value');
+    if(sSnap.val()&&sSnap.val().positions){
+      const saved=sSnap.val().positions;
+      particles.forEach(p=>scene.remove(p.mesh)); particles=[];
+      saved.forEach((s,i)=>{ const mesh=new THREE.Mesh(sGeos[s.type],sMats[s.type]); mesh.position.set(s.x,s.y,s.z); scene.add(mesh); particles.push({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,type:s.type,mesh,bonds:new Set(),id:i}); });
+      _tick=0; uiTick=0;
+      _addAgentMsg('🔄 RESUME',`Gen ${currentGen} restored from seed (${saved.length} particles).`);
+    } else {
+      init(_genome);
+      _addAgentMsg('🌊 GENESIS',`Gen ${currentGen} initialized — ${particles.length} molecules seeded into the primordial ocean. The experiment begins.`);
+    }
+    document.getElementById('v-gen').textContent=`GEN ${currentGen}`;
+    animate();
+  }catch(e){ console.error('Resume failed:',e); init(_genome); animate(); }
+},800);
+
+setTimeout(async function _loadScientistMemory(){
+  if(currentGen<2) return;
+  try{
+    const snap=await db.ref(`${ROOT}/archives`).once('value');
+    if(!snap.val()) return;
+    const archs=Object.values(snap.val());
+    const maxT=Math.max(...archs.map(a=>a.maxTier||0));
+    const avgT=(archs.reduce((s,a)=>s+(a.maxTier||0),0)/archs.length).toFixed(1);
+    const allStrs=archs.flatMap(a=>a.structures||[]).map(s=>s.name);
+    const uniq=[...new Set(allStrs)];
+    _addAgentMsg(SCIENTISTS[0],`Archive briefing — ${archs.length} generations. Peak T${maxT}, avg T${avgT}. Discovered: ${uniq.slice(0,4).join(', ')}.`);
+    if(maxT>=8) _addAgentMsg(SCIENTISTS[1],`Amphiphilic order previously achieved. Reinforcing lipid genome parameters this generation.`);
+    if(maxT>=10) _addAgentMsg(SCIENTISTS[2],`Compartmentalisation confirmed in history. Ca²⁺ intervention protocol on standby. We are close to membrane fission events.`);
+  }catch(e){}
+},5200);
+</script>
+</body>
+</html>

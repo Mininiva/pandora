@@ -502,7 +502,7 @@ const BIOMES = [
   {id:0,  name:"Terra",                chem:"C · N · O · P / H₂O",     tier:2,status:"active", parent:null,   desc:"The reference world. Carbon hydrothermal chemistry in liquid water — our baseline for what complexity looks like when we already know life is possible.",file:"biome-00-terra.html"},
   {id:1,  name:"Hadean",               chem:"C · H₂O · SO₄",            tier:1,status:"active", parent:0,      desc:"Hot early-carbon with volcanic sulfate. Aggressive thermal gradient. Running."},
   {id:2,  name:"Hydrothermal",          chem:"H₂S · Fe · S / vent",      tier:0,status:"active", parent:null,   desc:"Black smoker vent chemistry. Hydrogen sulfide reacting with iron minerals at extreme temperature gradients. First foray into sulfide-based origin chemistry.",file:"biome-02-hydrothermal.html"},
-  {id:3,  name:"Old Stone",            chem:"C · silicate · H₂O",       tier:2,status:"active", parent:0,      desc:"Carbon chemistry on mineral surfaces. Slower than Terra, but persistent."},
+  {id:3,  name:"Primordial Ocean",      chem:"LH · LT · AA · PO₄ / 3D",  tier:0,status:"active", parent:null,   desc:"First true 3D biome. Amphiphilic molecules (lipid head/tail, amino acids, phosphate) self-assemble in a rotating Three.js ocean. Scientists intervene chemically when compartments stagnate.",file:"biome-03-primordial-ocean.html"},
   {id:4,  name:"Warm Soup",            chem:"C · H₂O · clay",            tier:3,status:"active", parent:0,      desc:"Clay-catalysed carbon world. Montmorillonite surfaces doing real work. Best carbon-family result.",file:"biome-04-warm-soup.html"},
   {id:5,  name:"Carbon Copy",          chem:"C · H₂O · FeS₂",            tier:1,status:"active", parent:2,      desc:"Born from Primordius's failure — iron sulfide catalysis added. The irony of carbon needing iron."},
   {id:6, name:"Tidal Pool", chem:"UV · NaCl · organic", tier:0,status:"active", parent:null, desc:"Cyclic wet-dry UV chemistry. Tidal concentration and evaporation creating conditions for organic molecule polymerization. Inspired by tidal flat origin hypotheses.",file:"biome-06-tidal-pool.html"},
@@ -1723,32 +1723,34 @@ function initIndexFirebase() {
       // ── Populate the real dead-worlds archive grid from Firebase archives ──
       const archiveGrid = document.getElementById('archive-grid');
       const realBiomeNames = {
-        '0':  'Terra',          '2':  'Hydrothermal',   '4':  'Warm Soup',
-        '6':  'Tidal Pool',     '8':  'Clay Lattice',   '10': 'Siliconia',
-        '12': 'Phospho World',  '16': 'Nitrogen Sea',   '20': 'Freeze Frame',
-        '22': 'Methane Cloud',  '30': 'Sulfur Springs', '40': 'Copper Web',
-        '50': 'Boronia',        '62': 'Plasma Arc',     '70': 'Iron Veil',
-        '80': 'Deep Crystal'
+        '0':  'Terra',            '3':  'Primordial Ocean', '2':  'Hydrothermal',
+        '4':  'Warm Soup',        '6':  'Tidal Pool',       '8':  'Clay Lattice',
+        '10': 'Siliconia',        '12': 'Phospho World',    '16': 'Nitrogen Sea',
+        '20': 'Freeze Frame',     '22': 'Methane Cloud',    '30': 'Sulfur Springs',
+        '40': 'Copper Web',       '50': 'Boronia',          '62': 'Plasma Arc',
+        '70': 'Iron Veil',        '80': 'Deep Crystal'
       };
       const realBiomeFiles = {
-        '0':  'biome-00-terra.html',         '2':  'biome-02-hydrothermal.html',
-        '4':  'biome-04-warm-soup.html',     '6':  'biome-06-tidal-pool.html',
-        '8':  'biome-08-clay-lattice.html',  '10': 'biome-10-siliconia.html',
-        '12': 'biome-12-phospho-world.html', '16': 'biome-16-nitrogen-sea.html',
-        '20': 'biome-20-freeze-frame.html',  '22': 'biome-22-methane-cloud.html',
-        '30': 'biome-30-sulfur-springs.html','40': 'biome-40-copper-web.html',
-        '50': 'biome-50-boronia.html',       '62': 'biome-62-plasma-arc.html',
-        '70': 'biome-70-iron-veil.html',     '80': 'biome-80-deep-crystal.html'
+        '0':  'biome-00-terra.html',         '3':  'biome-03-primordial-ocean.html',
+        '2':  'biome-02-hydrothermal.html',  '4':  'biome-04-warm-soup.html',
+        '6':  'biome-06-tidal-pool.html',    '8':  'biome-08-clay-lattice.html',
+        '10': 'biome-10-siliconia.html',     '12': 'biome-12-phospho-world.html',
+        '16': 'biome-16-nitrogen-sea.html',  '20': 'biome-20-freeze-frame.html',
+        '22': 'biome-22-methane-cloud.html', '30': 'biome-30-sulfur-springs.html',
+        '40': 'biome-40-copper-web.html',    '50': 'biome-50-boronia.html',
+        '62': 'biome-62-plasma-arc.html',    '70': 'biome-70-iron-veil.html',
+        '80': 'biome-80-deep-crystal.html'
       };
       const realBiomeChem = {
-        '0':  'C · N · O · P / H₂O', '2':  'H₂S · Fe · S / vent',
-        '4':  'C · H₂O · clay',      '6':  'UV · NaCl · organic',
-        '8':  'clay · Si · AA · P',   '10': 'Si · O · S',
-        '12': 'P · ADP · nucleotide', '16': 'N₂ · NH₃ · nitrile',
-        '20': 'N · H / NH₃',         '22': 'CH₄ · radical · polymer',
-        '30': 'S · H₂S · thiol',     '40': 'Cu · oxide · chelate',
-        '50': 'B · N / organic',     '62': 'ion · plasma · radical',
-        '70': 'Fe · S / H₂O',       '80': 'crystal · lattice · defect'
+        '0':  'C · N · O · P / H₂O',  '3':  'LH · LT · AA · PO₄ / 3D',
+        '2':  'H₂S · Fe · S / vent',   '4':  'C · H₂O · clay',
+        '6':  'UV · NaCl · organic',   '8':  'clay · Si · AA · P',
+        '10': 'Si · O · S',            '12': 'P · ADP · nucleotide',
+        '16': 'N₂ · NH₃ · nitrile',    '20': 'N · H / NH₃',
+        '22': 'CH₄ · radical · polymer','30': 'S · H₂S · thiol',
+        '40': 'Cu · oxide · chelate',  '50': 'B · N / organic',
+        '62': 'ion · plasma · radical','70': 'Fe · S / H₂O',
+        '80': 'crystal · lattice · defect'
       };
       // Build archive cards for each real biome's archive entries
       const realArchiveCards = [];
