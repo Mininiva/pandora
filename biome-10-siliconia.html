@@ -107,6 +107,9 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
@@ -234,16 +237,21 @@ scene.add(new THREE.Mesh(
 // Bond lines
 const MAX_BL=8000;
 const bPos=new Float32Array(MAX_BL*6);
-const bGeo=new THREE.BufferGeometry();
-bGeo.setAttribute('position',new THREE.BufferAttribute(bPos,3));
-bGeo.setDrawRange(0,0);
-const bLines=new THREE.LineSegments(bGeo,new THREE.LineBasicMaterial({color:BC.bondColor,transparent:true,opacity:0.45}));
+const bGeo=new THREE.LineSegmentsGeometry();
+bGeo.setPositions(bPos);
+const bondMat=new THREE.LineMaterial({
+  color:BC.bondColor,linewidth:3,
+  transparent:true,opacity:0.82,
+  resolution:new THREE.Vector2(window.innerWidth,window.innerHeight)
+});
+const bLines=new THREE.LineSegments2(bGeo,bondMat);
 scene.add(bLines);
 
 window.addEventListener('resize',()=>{
   camera.aspect=window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth,window.innerHeight);
+  bondMat.resolution.set(window.innerWidth,window.innerHeight);
 });
 
 // InstancedMesh — one mesh per particle type, all instances rendered in one draw call
@@ -422,8 +430,13 @@ function renderBonds(){
       idx++;
     }
   }
-  bGeo.attributes.position.needsUpdate=true;
-  bGeo.setDrawRange(0,idx*2);
+  if(idx>0){
+    // Update LineSegmentsGeometry in-place via its interleaved buffer
+    const attr=bGeo.getAttribute('instanceStart');
+    if(attr){attr.data.array.set(bPos.subarray(0,idx*6));attr.data.needsUpdate=true;}
+    bGeo.instanceCount=idx;
+  }
+  bLines.visible=idx>0;
 }
 
 // ── STRUCTURE DETECTION ──────────────────────────────────────
