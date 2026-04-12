@@ -1025,16 +1025,26 @@ function triggerRebirth() {
   };
   const archive = () => {
     fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).push(archiveEntry)
-      .then(() => fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).remove())
-      .then(() => { speak('NARRATOR', 'Initiating world rebirth. A new generation will begin in moments.'); setTimeout(() => location.reload(), 1500); })
-      .catch(() => location.reload());
+      .then(() => {
+        // Mark dead in /state so homepage shows it in the dead archive
+        fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
+          worldStatus:    'dead',
+          currentTier,
+          peakComplexity: parseFloat(peakComplexity.toFixed(4)),
+          archivedAt:     Date.now()
+        });
+        // Remove /positions so next visit starts a fresh new generation
+        fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).remove();
+      })
+      .catch(e => console.warn('[Pandora] archive failed:', e));
+    // No auto-reload — user reads the dead world and chooses to leave
   };
   if (typeof fbDb !== 'undefined' && fbDb) { archive(); } else { location.reload(); }
 }
 
 function declareDead(reason) {
   worldStatus = 'dead';
-  _rebirthAt = Date.now() + REBIRTH_DELAY_MS;
+  // _rebirthAt removed — dead worlds stay dead (new generation on next visit)
   const el = document.getElementById('world-state');
   el.textContent = 'DEAD WORLD';
   el.className   = 'dead';
@@ -1930,18 +1940,7 @@ const UI_INTERVAL = 12;
 function loop() {
   requestAnimationFrame(loop);
 
-  // Rebirth countdown: update display and trigger when time is up
-  if (_rebirthAt > 0) {
-    const msLeft = _rebirthAt - Date.now();
-    const el = document.getElementById('world-state');
-    if (msLeft <= 0) {
-      _rebirthAt = -1;
-      if (el) el.textContent = 'REBIRTHING…';
-      triggerRebirth();
-      return;
-    }
-    // countdown text removed — button shown instead
-  }
+  // Dead worlds stay dead — no auto-rebirth timer
 
   for (let s = 0; s < SPEED_VAL; s++) update(); // always run local physics
 
@@ -1962,14 +1961,45 @@ _connectSim();
     try {
       const _fa = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
       fbDb      = firebase.database();
-      const snap = await fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value');
-      const pos  = snap.val();
-      if (pos && Array.isArray(pos.px) && pos.px.length >= 5) {
+
+      // 2.5s timeout — never let Firebase hang the canvas
+      const withTimeout = p => Promise.race([p, new Promise(r => setTimeout(() => r(null), 2500))]);
+
+      // Try positions first (full particle state)
+      const posSnap = await withTimeout(fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value'));
+      const pos = posSnap ? posSnap.val() : null;
+
+      if (pos && Array.isArray(pos.px) && pos.px.length >= 5 && pos.worldStatus !== 'dead') {
+        // Restore saved live state
         _restorePositions(pos);
         restored = true;
         const wsLbl = document.getElementById('ws-lbl');
         if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
+      } else if (!pos) {
+        // No positions yet — fall back to /state for at least tick/tier
+        const stateSnap = await withTimeout(fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value'));
+        const st = stateSnap ? stateSnap.val() : null;
+        if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead') {
+          // Fresh particles but restore the clock and tier
+          init();
+          tick           = st.tick           || 0;
+          currentTier    = st.currentTier    || 0;
+          if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
+          if (typeof peakTick !== 'undefined')       peakTick = st.peakTick || tick;
+          if (typeof interventions !== 'undefined')  interventions  = st.interventions  || 0;
+          worldStatus    = 'active';
+          if (st.tierAchieved) st.tierAchieved.forEach((v,i) => { if(i<tierAchieved.length) tierAchieved[i]=v; });
+          if (currentTier > 0) {
+            const tv = document.getElementById('v-tier');
+            if (tv) tv.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
+          }
+          restored = true;
+          const wsLbl = document.getElementById('ws-lbl');
+          if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
+        }
+        // If worldStatus=dead in /state: fall through to fresh init() = new generation
       }
+      // pos exists but worldStatus='dead': also falls through → new generation
     } catch(e) { console.warn('[Pandora] resume error:', e); }
   }
   if (!restored) init();

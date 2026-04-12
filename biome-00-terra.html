@@ -982,6 +982,15 @@ function checkVitality(cx) {
     el.textContent = 'DEAD WORLD';
     el.className   = 'dead';
     logE('thermodynamic equilibrium — no complexity pathway — DEAD WORLD');
+    // Persist dead status to Firebase so homepage shows this world as dead
+    if (fbDb) {
+      fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
+        worldStatus: 'dead', currentTier,
+        peakComplexity: (typeof peakComplexity !== 'undefined' ? peakComplexity : 0),
+        archivedAt: Date.now()
+      });
+      fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).remove();
+    }
     // Inject return-to-Pandora button
     const _btnId = 'return-to-pandora-btn';
     if (!document.getElementById(_btnId)) {
@@ -1250,14 +1259,45 @@ _connectSim();
     try {
       const _fa = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
       fbDb      = firebase.database();
-      const snap = await fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value');
-      const pos  = snap.val();
-      if (pos && Array.isArray(pos.px) && pos.px.length >= 5) {
+
+      // 2.5s timeout — never let Firebase hang the canvas
+      const withTimeout = p => Promise.race([p, new Promise(r => setTimeout(() => r(null), 2500))]);
+
+      // Try positions first (full particle state)
+      const posSnap = await withTimeout(fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value'));
+      const pos = posSnap ? posSnap.val() : null;
+
+      if (pos && Array.isArray(pos.px) && pos.px.length >= 5 && pos.worldStatus !== 'dead') {
+        // Restore saved live state
         _restorePositions(pos);
         restored = true;
         const wsLbl = document.getElementById('ws-lbl');
         if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
+      } else if (!pos) {
+        // No positions yet — fall back to /state for at least tick/tier
+        const stateSnap = await withTimeout(fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value'));
+        const st = stateSnap ? stateSnap.val() : null;
+        if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead') {
+          // Fresh particles but restore the clock and tier
+          init();
+          tick           = st.tick           || 0;
+          currentTier    = st.currentTier    || 0;
+          if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
+          if (typeof peakTick !== 'undefined')       peakTick = st.peakTick || tick;
+          if (typeof interventions !== 'undefined')  interventions  = st.interventions  || 0;
+          worldStatus    = 'active';
+          if (st.tierAchieved) st.tierAchieved.forEach((v,i) => { if(i<tierAchieved.length) tierAchieved[i]=v; });
+          if (currentTier > 0) {
+            const tv = document.getElementById('v-tier');
+            if (tv) tv.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
+          }
+          restored = true;
+          const wsLbl = document.getElementById('ws-lbl');
+          if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
+        }
+        // If worldStatus=dead in /state: fall through to fresh init() = new generation
       }
+      // pos exists but worldStatus='dead': also falls through → new generation
     } catch(e) { console.warn('[Pandora] resume error:', e); }
   }
   if (!restored) init();
