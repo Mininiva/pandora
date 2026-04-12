@@ -675,7 +675,7 @@ function buildHero() {
   const peak    = Math.max(...BIOMES.map(b=>b.tier));
   const topB    = BIOMES.find(b=>b.tier===peak);
   const s       = ts(peak);
-  const tiersHit= [...new Set(BIOMES.map(b=>b.tier))].sort().length;
+  const tiersHit= peak;
 
   document.getElementById('hero-name').textContent  = topB.name;
   document.getElementById('hero-tier').textContent  = `T${peak} — ${TIER_NAMES[peak]}`;
