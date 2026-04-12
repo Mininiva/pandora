@@ -1613,7 +1613,23 @@ function initIndexFirebase() {
         // Seed the BioMini with real tier so mini-sim starts from correct level
         const sim = MINI[id];
         if (sim && tier > sim.tier) { sim.tier = tier; }
+
+        // Keep BIOMES array in sync so sort order stays correct
+        const bObj = BIOMES.find(x => x.id === id);
+        if (bObj && tier > 0) bObj.tier = tier;
       });
+
+      // Re-sort the live grid by tier (highest first) after Firebase updates
+      const liveGrid = document.getElementById('biome-grid');
+      if (liveGrid) {
+        const cards = Array.from(liveGrid.children);
+        cards.sort((a, b) => {
+          const ta = parseInt(a.querySelector('.t-num')?.textContent?.replace('T','') || '0');
+          const tb = parseInt(b.querySelector('.t-num')?.textContent?.replace('T','') || '0');
+          return tb - ta || parseInt(a.dataset.id||'0') - parseInt(b.dataset.id||'0');
+        });
+        cards.forEach(c => liveGrid.appendChild(c));
+      }
 
       // Update hero stats with real Firebase data
       // ARCHIVED = total archive entries across all biomes (permanent, survives rebirth)
@@ -1831,6 +1847,20 @@ function initIndexFirebase() {
         const stLbl = card.querySelector('.status-indicator span');
         if (dot)   dot.className = 'sdot dead';
         if (stLbl) { stLbl.textContent = 'DEAD'; stLbl.style.color = s[2]; }
+      }
+
+      // Update BIOMES array and re-sort grid
+      const bObj = BIOMES.find(x => x.id === id);
+      if (bObj && tier > 0) bObj.tier = tier;
+      const liveGrid = document.getElementById('biome-grid');
+      if (liveGrid) {
+        const cards = Array.from(liveGrid.children);
+        cards.sort((a, b) => {
+          const ta = parseInt(a.querySelector('.t-num')?.textContent?.replace('T','') || '0');
+          const tb = parseInt(b.querySelector('.t-num')?.textContent?.replace('T','') || '0');
+          return tb - ta || parseInt(a.dataset.id||'0') - parseInt(b.dataset.id||'0');
+        });
+        cards.forEach(c => liveGrid.appendChild(c));
       }
     });
 
