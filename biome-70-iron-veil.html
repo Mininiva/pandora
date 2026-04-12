@@ -2,2571 +2,677 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Pandora — Biome 70: Iron Veil</title>
+<title>Pandora — Iron Veil</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-canvas { display: block; position: absolute; inset: 0; z-index: 0; }
-
-/* ── HUD (left) ───────────────────────────────────────────── */
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
 #hud {
-  position: absolute; top: 24px; left: 24px; z-index: 10;
-  font-size: 14px; line-height: 2.1;
-  color: rgba(200, 120, 40, 0.88);
-  text-shadow: 0 0 8px rgba(160, 100, 40, 0.3);
+  position:fixed; top:24px; left:24px; z-index:10;
+  font-size:13px; line-height:2.1; color:rgba(140,190,220,0.88);
 }
-.hk { color: rgba(140, 80, 30, 0.85); display: inline-block; width: 108px; }
-.hv { color: rgba(220, 160, 80, 0.92); }
-
-#title {
-  position: absolute; top: 24px; right: 318px; z-index: 10;
-  font-size: 14px; letter-spacing: 5px;
-  color: rgba(200, 120, 40, 0.80);
-  text-shadow: 0 0 20px rgba(160, 100, 40, 0.12);
-}
-#subtitle {
-  position: absolute; top: 46px; right: 318px; z-index: 10;
-  font-size: 12px; letter-spacing: 3px;
-  color: rgba(160, 100, 40, 0.80);
-}
-
-#graph-box {
-  position: fixed; bottom: 24px; right: 24px; z-index: 55;
-}
-#gl { font-size: 12px; letter-spacing: 3px; color: rgba(100, 150, 170, 0.82); margin-bottom: 5px; }
-#gc { display: block; border: 1px solid rgba(80,130,160,0.12); }
-
-#elog {
-  position: absolute; bottom: 24px; left: 24px; z-index: 10;
-  font-size: 12px; line-height: 1.8;
-  color: rgba(200, 120, 40, 0.85);
-  width: 340px;
-}
-
-#legend {
-  position: absolute; top: 280px; left: 24px; z-index: 10;
-  font-size: 12px; line-height: 2.2;
-  color: rgba(140, 80, 30, 0.82);
-  border-top: 1px solid rgba(160, 100, 40, 0.12);
-  padding-top: 12px;
-}
-.ld {
-  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
-  margin-right: 7px; vertical-align: middle;
-}
-
+.hk { color:rgba(70,120,160,0.75); display:inline-block; width:118px; }
+.hv { color:rgba(170,215,245,0.92); }
+#title { position:fixed; top:24px; right:310px; z-index:10; font-size:13px; letter-spacing:5px; color:rgba(140,190,220,0.75); }
+#subtitle { position:fixed; top:45px; right:310px; z-index:10; font-size:11px; letter-spacing:3px; color:rgba(80,140,175,0.60); }
 #world-state {
-  position: absolute; top: 50%; left: calc(50% - 130px);
-  transform: translate(-50%, -50%);
-  font-size: 22px; letter-spacing: 8px;
-  pointer-events: none; z-index: 20;
-  opacity: 0; transition: opacity 1.5s;
+  position:fixed; top:50%; left:calc(50% - 160px);
+  transform:translate(-50%,-50%); font-size:22px; letter-spacing:8px;
+  pointer-events:none; z-index:20; opacity:0; transition:opacity 1.5s;
 }
-#world-state.dead {
-  color: rgba(200, 100, 50, 0.75);
-  text-shadow: 0 0 40px rgba(160, 80, 40, 0.4);
-  opacity: 1;
+#world-state.dead { color:rgba(120,180,230,0.75); text-shadow:0 0 40px rgba(60,140,200,0.4); opacity:1; }
+#world-state.flash { color:rgba(180,230,255,0.9); text-shadow:0 0 30px rgba(80,180,230,0.6); opacity:1; }
+#structure-key {
+  position:fixed; bottom:24px; left:24px; z-index:10;
+  width:285px; max-height:310px; overflow-y:auto;
+  background:rgba(2,6,14,0.88); border:1px solid rgba(50,90,130,0.22);
+  border-radius:6px; padding:12px 14px;
 }
-#world-state.perturbed {
-  color: rgba(255, 180, 80, 0.8);
-  text-shadow: 0 0 30px rgba(220, 140, 60, 0.5);
-  opacity: 1;
+#structure-key::-webkit-scrollbar { width:3px; }
+#structure-key::-webkit-scrollbar-thumb { background:rgba(60,110,150,0.4); }
+.key-title { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(70,130,170,0.65); border-bottom:1px solid rgba(50,90,130,0.18); padding-bottom:7px; margin-bottom:8px; }
+.key-entry { display:flex; align-items:flex-start; gap:9px; padding:5px 0; border-bottom:1px solid rgba(30,60,90,0.12); font-size:11px; }
+.key-icon { font-size:20px; width:28px; text-align:center; flex-shrink:0; line-height:1.2; margin-top:2px; }
+.key-name { font-weight:700; font-size:11px; }
+.key-desc { color:rgba(100,155,190,0.7); font-size:10px; margin-top:1px; line-height:1.5; }
+.key-when { color:rgba(55,100,135,0.6); font-size:9px; margin-top:2px; }
+#key-empty { color:rgba(50,90,120,0.5); font-size:10px; font-style:italic; }
+#int-panel {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(2,10,20,0.97); border:1px solid rgba(60,200,150,0.35);
+  border-radius:8px; padding:22px 30px; z-index:30; text-align:center; min-width:340px;
 }
-
-/* ── Agent panel (right, collapsible) ────────────────────── */
+.int-label { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:rgba(60,200,150,0.65); margin-bottom:10px; }
+.int-name  { font-size:15px; color:rgba(140,240,200,0.95); letter-spacing:.07em; margin-bottom:7px; }
+.int-desc  { font-size:11px; color:rgba(90,170,145,0.8); line-height:1.75; max-width:300px; }
+.int-bar   { margin-top:14px; height:3px; background:rgba(30,80,65,0.5); border-radius:2px; overflow:hidden; }
+.int-fill  { height:100%; background:rgba(60,200,150,0.7); transition:width .4s; }
 #agent-panel {
-  position: fixed; top: 0; right: 0;
-  width: 268px; height: 100vh;
-  background: rgba(5, 8, 14, 0.90);
-  backdrop-filter: blur(12px);
-  border-left: 1px solid rgba(200, 120, 40, 0.10);
-  display: flex; flex-direction: column;
-  z-index: 50;
-  transition: transform 0.3s ease;
+  position:fixed; top:0; right:0; width:268px; height:100vh;
+  background:rgba(2,6,16,0.93); border-left:1px solid rgba(50,90,130,0.18);
+  z-index:10; padding:20px 16px; display:flex; flex-direction:column; gap:10px;
+  overflow-y:auto;
 }
-#agent-panel.collapsed { transform: translateX(256px); }
-
-#panel-toggle {
-  position: absolute; left: -28px; top: 50%;
-  transform: translateY(-50%);
-  width: 28px; height: 54px;
-  background: rgba(5, 8, 14, 0.90);
-  border: 1px solid rgba(200, 120, 40, 0.10);
-  border-right: none;
-  cursor: pointer;
-  color: rgba(160, 100, 40, 0.85);
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  display: flex; align-items: center; justify-content: center;
-  writing-mode: vertical-rl;
-  letter-spacing: 2px;
-}
-#panel-toggle:hover { color: rgba(220, 160, 80, 0.8); }
-
-#panel-header {
-  padding: 14px 14px 10px;
-  border-bottom: 1px solid rgba(200, 120, 40, 0.07);
-  flex-shrink: 0;
-}
-#panel-title {
-  font-size: 12px; letter-spacing: 4px;
-  color: rgba(160, 100, 40, 0.85);
-  margin-bottom: 3px;
-}
-#panel-agents {
-  font-size: 14px;
-  display: flex; flex-direction: column; gap: 5px;
-}
-.pagent { font-size: 12px; letter-spacing: 1px; }
-.pagent.OBSERVER { color: rgba(100, 180, 255, 0.85); }
-.pagent.ANALYST  { color: rgba(60, 210, 170, 0.85); }
-.pagent.NARRATOR { color: rgba(255, 200, 80, 0.85); }
-
-#agent-feed {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-}
-#agent-feed::-webkit-scrollbar { width: 2px; }
-#agent-feed::-webkit-scrollbar-thumb { background: rgba(200, 120, 40, 0.2); }
-
-.ae { display: flex; flex-direction: column; gap: 3px; animation: fadein 0.4s ease; }
-@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
-
-.ae-meta { display: flex; gap: 8px; align-items: baseline; }
-.ae-name { font-size: 12px; letter-spacing: 2px; }
-.ae-time { font-size: 12px; color: rgba(150, 90, 40, 0.82); }
-.ae-msg  { font-size: 12px; line-height: 1.65; padding-left: 2px; }
-
-.ae-name.OBSERVER { color: rgba(100, 180, 255, 0.85); }
-.ae-name.ANALYST  { color: rgba(60, 210, 170, 0.85); }
-.ae-name.NARRATOR { color: rgba(255, 200, 80, 0.92); }
-.ae-name.SYSTEM   { color: rgba(200, 100, 50, 0.88); }
-
-.ae-msg.OBSERVER  { color: rgba(140, 200, 240, 0.85); }
-.ae-msg.ANALYST   { color: rgba(100, 220, 185, 0.85); }
-.ae-msg.NARRATOR  { color: rgba(225, 185, 80, 0.88); font-style: italic; }
-.ae-msg.SYSTEM    { color: rgba(190, 100, 50, 0.85); font-size: 12px; letter-spacing: 0.3px; }
-
-.ae-highlight { border-left: 2px solid rgba(255, 200, 80, 0.25); padding-left: 5px; }
-.ae-type { font-size: 12px; letter-spacing: 1.5px; padding: 1px 4px; border-radius: 2px;
-           display: inline-block; margin-left: 5px; vertical-align: middle; }
-.ae-type.proposal  { background: rgba(255, 200, 80, 0.12); color: rgba(255, 200, 80, 0.8); }
-.ae-type.yes       { background: rgba(100, 220, 150, 0.12); color: rgba(100, 220, 150, 0.8); }
-.ae-type.no        { background: rgba(255, 100, 80, 0.12);  color: rgba(255, 100, 80, 0.8); }
-.ae-type.action    { background: rgba(100, 200, 255, 0.12); color: rgba(100, 200, 255, 0.8); }
-.ae-type.knowledge { background: rgba(200, 150, 255, 0.12); color: rgba(200, 150, 255, 0.8); }
-
-/* ── Agent rank system ──────────────────────────────────────── */
-#panel-agents { flex-direction: column; gap: 5px; }
-.pagent-wrap { display: flex; align-items: center; gap: 5px; }
-.pagent { font-size: 12px; letter-spacing: 1px; flex: none; width: 64px; }
-.rank-badge {
-  font-size: 12px; letter-spacing: 1px; padding: 1px 4px; border-radius: 2px;
-  font-weight: bold; flex: none;
-}
-.rank-student    { background: rgba(130,130,130,0.15); color: rgba(170,170,170,0.8); }
-.rank-researcher { background: rgba(60,130,240,0.15);  color: rgba(80,160,255,0.85); }
-.rank-scientist  { background: rgba(40,200,160,0.15);  color: rgba(60,220,185,0.9); }
-.rank-professor  { background: rgba(255,190,40,0.15);  color: rgba(255,210,80,0.95); }
-.xp-track { flex: 1; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; }
-.xp-fill  { height: 100%; border-radius: 1px; transition: width 0.8s ease; }
-.ae.ae-levelup { border-left: 2px solid rgba(255,210,80,0.5); padding-left: 5px;
-                 background: rgba(255,210,80,0.03); }
-.ae-type.levelup { background: rgba(255,210,80,0.15); color: rgba(255,210,80,0.9); }
-
-/* ── UI READABILITY OVERRIDES ──────────────────────────────── */
-
-/* Frosted-glass panel behind HUD metrics */
-#hud {
-  background: rgba(4, 7, 12, 0.82);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 160, 60, 0.09);
-  border-radius: 8px;
-  padding: 14px 18px;
-}
-
-/* Frosted panel behind element legend */
-#legend {
-  background: rgba(4, 7, 12, 0.78);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(200, 100, 30, 0.10);
-  border-top: none;
-  border-radius: 8px;
-  padding: 12px 14px;
-}
-
-/* Frosted panel behind complexity graph */
-#graph-box {
-  background: rgba(4, 7, 12, 0.78);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(200, 100, 30, 0.10);
-  border-radius: 8px;
-  padding: 12px 14px;
-}
-
-/* Frosted panel behind event log */
-#elog {
-  background: rgba(4, 7, 12, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 140, 40, 0.07);
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-
-/* Stronger agent panel background */
-#agent-panel {
-  background: rgba(4, 7, 14, 0.97) !important;
-  border-left: 1px solid rgba(255, 140, 40, 0.14) !important;
-  width: 300px !important;
-}
-#agent-panel.collapsed { transform: translateX(288px) !important; }
-
-/* Agent feed: more readable text */
-.ae-msg { font-size: 12px !important; line-height: 1.72 !important; }
-.ae-msg.OBSERVER { color: rgba(140, 200, 240, 0.88) !important; }
-.ae-msg.ANALYST  { color: rgba(100, 220, 185, 0.88) !important; }
-.ae-msg.NARRATOR { color: rgba(225, 185, 80, 0.92) !important; }
-.ae-msg.SYSTEM   { color: rgba(200, 120, 60, 0.75) !important; }
-.ae-name { font-size: 14px !important; letter-spacing: 2px !important; }
-
-/* Back button to home */
-#home-btn {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 14px; letter-spacing: 2.5px;
-  color: rgba(200, 130, 50, 0.85);
-  text-decoration: none;
-  padding: 0 0 10px 0;
-  margin-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 140, 40, 0.08);
-  transition: color 0.2s;
-  font-family: 'Courier New', monospace;
-}
-#home-btn:hover { color: rgba(255, 210, 80, 0.95); }
-#home-btn svg { opacity: 0.65; flex-shrink: 0; }
-#home-btn:hover svg { opacity: 1; }
-
-/* Legend moved to bottom-left above event log to avoid HUD overlap */
-#legend {
-  top: auto !important;
-  bottom: 190px !important;
-}
+#agent-panel::-webkit-scrollbar { width:3px; }
+#agent-panel::-webkit-scrollbar-thumb { background:rgba(60,110,150,0.3); }
+.a-title { font-size:10px; letter-spacing:.15em; text-transform:uppercase; color:rgba(55,100,140,0.65); border-bottom:1px solid rgba(50,90,130,0.14); padding-bottom:7px; }
+.a-msg { font-size:10.5px; line-height:1.75; color:rgba(130,180,210,0.8); padding:8px 10px; background:rgba(6,14,28,0.7); border-radius:4px; border-left:2px solid rgba(50,110,155,0.3); }
+.a-name { font-size:9.5px; color:rgba(65,120,165,0.65); margin-bottom:3px; letter-spacing:.07em; }
+#graph-box { position:fixed; bottom:24px; right:24px; z-index:10; }
+#gl { font-size:10px; letter-spacing:3px; color:rgba(65,120,165,0.65); margin-bottom:5px; }
+#gc { display:block; border:1px solid rgba(50,90,130,0.14); }
+#elog { position:fixed; bottom:24px; left:312px; z-index:10; font-size:11px; line-height:1.85; color:rgba(120,180,215,0.75); width:290px; }
 </style>
-  <!-- Firebase compat SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
-
-<canvas id="main"></canvas>
-
-<div id="title">BIOME 70 — IRON VEIL</div>
-<div id="subtitle">IRON · SULFUR · HYDROTHERMAL · WÄCHTERSHÄUSER</div>
-
 <div id="hud">
-  <div><span class="hk">CHEMISTRY</span><span class="hv">Fe / S / H₂O</span></div>
-  <div><span class="hk">SOLVENT</span><span class="hv">Hydrothermal fluid</span></div>
-  <div><span class="hk">TEMP</span>    <span class="hv" id="v-t">400 K</span></div>
-  <div><span class="hk">PRESSURE</span><span class="hv" id="v-p">50 atm</span></div>
-  <div><span class="hk">Fe ATOMS</span> <span class="hv" id="v-si">—</span></div>
-  <div><span class="hk">Fe-S BONDS</span><span class="hv" id="v-bonds">—</span></div>
-  <div><span class="hk">MAX CHAIN</span><span class="hv" id="v-mxl">—</span></div>
-  <div><span class="hk">BRANCH PTS</span><span class="hv" id="v-brn">—</span></div>
-  <div><span class="hk">RINGS</span>   <span class="hv" id="v-rings">—</span></div>
-  <div><span class="hk">COMPLEXITY</span><span class="hv" id="v-cx">—</span></div>
-  <div><span class="hk">TIER</span>    <span class="hv" id="v-tier">T0 — Inert</span></div>
+  <div><span class="hk">BIOME</span><span class="hv">IRON VEIL</span></div>
+  <div><span class="hk">TIER</span><span class="hv" id="v-tier">T0 — Void</span></div>
   <div><span class="hk">GENERATION</span><span class="hv" id="v-gen">GEN 1</span></div>
-  <div><span class="hk">SPEED</span>   <span class="hv" id="v-speed">4×</span></div>
-  <div><span class="hk">TIME</span>    <span class="hv" id="v-time">—</span></div>
+  <div><span class="hk">TICK</span><span class="hv" id="v-tick">0</span></div>
+  <div><span class="hk">PARTICLES</span><span class="hv" id="v-np">—</span></div>
+  <div><span class="hk">BONDS</span><span class="hv" id="v-nb">—</span></div>
+  <div><span class="hk">MAX CLUSTER</span><span class="hv" id="v-mx">—</span></div>
 </div>
-
-<div id="legend">
-  <div><span class="ld" style="background:rgba(200,120,40,0.9)"></span>iron atom (Fe)</div>
-  <div><span class="ld" style="background:rgba(255,220,60,0.9)"></span>sulfur bridge (S)</div>
-  <div><span class="ld" style="background:rgba(100,180,255,0.7)"></span>water/oxygen catalyst (O)</div>
-</div>
-
-<div id="graph-box">
-  <div id="gl">NETWORK COMPLEXITY</div>
-  <canvas id="gc" width="220" height="90"></canvas>
-</div>
-
+<div id="title">PANDORA</div>
+<div id="subtitle">IRON VEIL · 3D</div>
 <div id="world-state"></div>
-<div id="elog"></div>
-
-<!-- ── Agent panel ───────────────────────────────────────────── -->
-<div id="agent-panel">
-  <button id="panel-toggle" onclick="togglePanel()">AGENTS</button>
-  <div id="panel-header">
-    <a href="index.html" id="home-btn"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M6 2L3 5L6 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>PANDORA HOME</a>
-    
-    <div id="panel-title">FIELD AGENTS — IRON VEIL</div>
-    <div id="panel-agents">
-      <span class="pagent OBSERVER">OBSERVER</span>
-      <span class="pagent ANALYST">ANALYST</span>
-      <span class="pagent NARRATOR">NARRATOR</span>
-    </div>
-  </div>
-  <div id="agent-feed"></div>
+<div id="structure-key">
+  <div class="key-title">◈ Structural Discovery Log</div>
+  <div id="key-entries"><div id="key-empty">No structures detected yet…</div></div>
 </div>
-
+<div id="elog"></div>
+<div id="graph-box"><div id="gl">TIER HISTORY</div><canvas id="gc" width="200" height="60"></canvas></div>
+<div id="agent-panel"><div class="a-title">◈ Research Team</div><div id="agent-msgs"></div></div>
+<div id="int-panel" style="display:none">
+  <div class="int-label">⚗ Scientific Intervention</div>
+  <div class="int-name" id="int-name">—</div>
+  <div class="int-desc" id="int-desc">—</div>
+  <div class="int-bar"><div class="int-fill" id="int-fill" style="width:100%"></div></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 'use strict';
+// ================================================================
+//  PANDORA · IRON VEIL (biome-70) · Three.js 3D
+//  Chemistry: Fe · S / H₂O · iron-sulfur
+// ================================================================
 
-// ═══════════════════════════════════════════════════════════════
-//  PANDORA — BIOME 70: IRON VEIL
-//
-//  Iron-sulfur chemistry in hydrothermal vent conditions.
-//  400K, 50 atm, deep ocean thermal energy.
-//  Inspired by Wächtershäuser's iron-sulfur world hypothesis.
-//
-//  Chemistry palette:
-//    FE  — iron atom (up to 4 bonds, redox active node)
-//    SU  — sulfur bridge (up to 2 bonds, links Fe atoms)
-//    OW  — water/oxygen catalyst (enhances Fe-S bond formation)
-//
-//  Emergent targets: Fe-S networks at hydrothermal vents
-// ═══════════════════════════════════════════════════════════════
-
-const canvas = document.getElementById('main');
-const ctx    = canvas.getContext('2d');
-const gcv    = document.getElementById('gc');
-const gctx   = gcv.getContext('2d');
-
-let W, H;
-const resize = () => {
-  W = canvas.width  = innerWidth;
-  H = canvas.height = innerHeight;
+// ── BIOME CONFIG (unique per biome) ─────────────────────────────
+const BC = {
+  id:          '70',
+  name:        'Iron Veil',
+  tierNames: [
+    'Void',
+    'Fe Activation',
+    'Fe-S Bond',
+    'Iron-Sulfur Chain',
+    'Fe Net',
+    'FeS Ring',
+    'Dense Assembly',
+    'Redox Cascade',
+    'Amphiphilic Order',
+    'Core-Shell',
+    'Compartment',
+    'Proto-Division',
+    'Inheritance',
+    'Colony',
+    'Differentiation',
+    'Signalling',
+    'Memory',
+    'Symbiosis',
+    'Metabolism',
+    'Directed Motion',
+    '✦ Sentience'
+  ],
+  // World physics
+  worldR:      90,
+  nBase:       295,
+  thermalNoise:0.2,
+  bondCut:     21,
+  bondSpring:  0.12,
+  bondRest:    12,
+  bondBreak:   27,
+  wallK:       0.1,
+  bondRate:    0.0058,
+  ljSig:       7.2,
+  // Particle types: [symbol, color, radius, maxBonds]
+  types: [
+    ['FE', 0xd06030, 4.2, 4],
+    ['SU', 0xf0d820, 3.5, 3],
+    ['OW', 0x60b0d8, 3.0, 2],
+    ['FS', 0xc08040, 3.8, 3]
+  ],
+  // Type ratios
+  ratios: [0.27, 0.26, 0.22, 0.25],
+  // Affinity matrix [typeA][typeB]
+  affinity: [
+    [0.25, 0.70, 0.30, 0.55],
+    [0.70, 0.30, 0.15, 0.60],
+    [0.30, 0.15, 0.10, 0.25],
+    [0.55, 0.60, 0.25, 0.30]
+  ],
+  // Visuals
+  bgColor:     0x080402,
+  fogDensity:  0.0024,
+  ambientColor:0x180c08,
+  ambientInt:  1.4,
+  sunColor:    0xe07830,
+  sunInt:      1.8,
+  fillColor:   0x281008,
+  bondColor:   0x604020,
+  cameraZ:     153,
+  rotateSpeed: 0.32,
 };
-resize();
-addEventListener('resize', resize);
 
-// ── Biome constants ───────────────────────────────────────────
-const T0     = 400;
-let   NOISE  = 0.20;
-const _BASE_NOISE = 0.20;
-const VENT_H = 0.45;
+// ── SHARED 3D ENGINE ─────────────────────────────────────────────
+// (identical code in every biome — only BC above changes)
+const BIOME_ID   = BC.id;
+const BIOME_NAME = BC.name;
 
-const _BASE_N1 = 140;  // base FE count
-const _BASE_N2 = 120;  // base SU count
-const _BASE_N3 = 25;  // base OW count
+firebase.initializeApp({
+  apiKey:'AIzaSyANFCI2Uyehrezru2TxZ8jOP_V9lVSYkGA',
+  authDomain:'pandora-68637.firebaseapp.com',
+  databaseURL:'https://pandora-68637-default-rtdb.firebaseio.com',
+  projectId:'pandora-68637',
+  storageBucket:'pandora-68637.firebasestorage.app',
+  messagingSenderId:'244482446708',
+  appId:'1:244482446708:web:7bec4962611f8c4a224821',
+});
+const db   = firebase.database();
+const ROOT = `pandora/biomes/${BIOME_ID}`;
 
-const lTemp = (x, y) =>
-  T0 * (1 + VENT_H * Math.max(0, 1 - Math.hypot(x - W * 0.5, y - H) / (H * 0.6)));
+// THREE.js scene
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+Object.assign(renderer.domElement.style,{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',zIndex:'0'});
+document.body.insertBefore(renderer.domElement,document.body.firstChild);
 
-// ── Agent type constants ──────────────────────────────────────
-const FE = 0;   // iron atom — network node
-const SU = 1;   // sulfur bridge — linker
-const OW = 2;   // water/oxygen catalyst
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(BC.bgColor);
+scene.fog = new THREE.FogExp2(BC.bgColor, BC.fogDensity);
 
-const MAX_FE_BONDS = 4;
-const MAX_SU_BONDS = 2;
+const camera = new THREE.PerspectiveCamera(52,window.innerWidth/window.innerHeight,0.5,2000);
+camera.position.set(0,50,BC.cameraZ);
 
-// ── Simulation state ──────────────────────────────────────────
-let A      = [];
-let BONDS  = new Set();
-let tick   = 0;
-let uid    = 0;
+const controls = new THREE.OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.04;
+controls.minDistance=60; controls.maxDistance=600;
+controls.autoRotate=true; controls.autoRotateSpeed=BC.rotateSpeed;
 
-const bkey = (i, j) => i < j ? `${i},${j}` : `${j},${i}`;
-// ── Mesa / Cloud Run simulation engine ───────────────────────────────────────
-// Connects to the Python/Mesa WebSocket server on Cloud Run (~15 Hz).
-// Falls back to local JS physics automatically if connection drops.
-const _SIM_WS  = 'wss://pandora-sim-244482446708.us-central1.run.app';
-let   _wsReady   = false;
-let   _wsRetries = 0;
-let   _wsConn    = null;
-let   _lastWsMsg = 0;        // timestamp of last received frame
+scene.add(new THREE.AmbientLight(BC.ambientColor, BC.ambientInt));
+const sun = new THREE.DirectionalLight(BC.sunColor, BC.sunInt);
+sun.position.set(100,180,140); scene.add(sun);
+const fill = new THREE.DirectionalLight(BC.fillColor, 0.5);
+fill.position.set(-90,-70,-120); scene.add(fill);
 
-function _connectSim() {
-  const bid = String(typeof BIOME_ID !== 'undefined' ? BIOME_ID : '00').padStart(2, '0');
-  const url = `${_SIM_WS}/ws/${bid}?w=${Math.round(W||900)}&h=${Math.round(H||650)}`;
-  _wsConn = new WebSocket(url);
+// World boundary
+scene.add(new THREE.Mesh(
+  new THREE.SphereGeometry(BC.worldR,32,24),
+  new THREE.MeshBasicMaterial({color:0x1a3050,wireframe:true,transparent:true,opacity:0.06})
+));
 
-  _wsConn.onopen = () => {
-    _wsReady = true; _wsRetries = 0;
-    const bar = document.getElementById('ws-bar');
-    const pct = document.getElementById('ws-pct');
-    const lbl = document.getElementById('ws-lbl');
-    if (bar) bar.style.width = '100%';
-    if (pct) pct.textContent = '100%';
-    if (lbl) lbl.textContent = 'ENGINE READY';
-    const el = document.getElementById('ws-status');
-    if (el) { setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 900); }, 400); }
-  };
+// Bond lines
+const MAX_BL=1200;
+const bPos=new Float32Array(MAX_BL*6);
+const bGeo=new THREE.BufferGeometry();
+bGeo.setAttribute('position',new THREE.BufferAttribute(bPos,3));
+bGeo.setDrawRange(0,0);
+const bLines=new THREE.LineSegments(bGeo,new THREE.LineBasicMaterial({color:BC.bondColor,transparent:true,opacity:0.45}));
+scene.add(bLines);
 
-  _wsConn.onmessage = evt => {
-    try {
-      const s = JSON.parse(evt.data);
-      if (!s.px) return;
-      _lastWsMsg = Date.now();
-      _applySimState(s);
-    } catch(e) {}
-  };
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
 
-  _wsConn.onclose = _wsConn.onerror = () => {
-    _wsReady = false;
-    const delay = Math.min(1000 * Math.pow(2, _wsRetries++), 12000);
-    setTimeout(_connectSim, delay);
-  };
+// Particle geometry cache
+const sGeos = BC.types.map(t=>new THREE.SphereGeometry(t[2],10,8));
+const sMats = BC.types.map(t=>new THREE.MeshPhongMaterial({
+  color:t[1], emissive:new THREE.Color(t[1]).multiplyScalar(0.12), shininess:60
+}));
+
+// ── STATE ──────────────────────────────────────────────────────
+let particles=[]; let _tick=0; let uiTick=0;
+let currentTier=0; let currentGen=1;
+let tierAchieved=new Array(21).fill(false);
+let tierHistory=[]; let _isDead=false; let _deathRunning=false;
+let _lastComps=[]; let _lastMaxClus=0; let _lastTotalBd=0; let _lastClosed=false;
+let discoveredStructures=new Map();
+let _genome={n1:1,n2:1,n3:1,noiseScale:1};
+function _clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+
+function defGenome(){return{n1:1,n2:1,n3:1,noiseScale:1};}
+function _evolveGenome(archives,g){
+  const ng={...g};
+  if(!archives||!archives.length) return ng;
+  const maxH=Math.max(...archives.map(a=>a.maxTier||0));
+  const last=archives[archives.length-1];
+  const ms=(last.maxTier>=maxH&&last.maxTier>=4)?0.015:0.08;
+  const mu=()=>1+(Math.random()-0.5)*2*ms;
+  ['n1','n2','n3','noiseScale'].forEach(k=>{ng[k]=_clamp((ng[k]||1)*mu(),0.4,2.2);});
+  const avg=archives.reduce((s,a)=>s+(a.maxTier||0),0)/archives.length;
+  if(avg<6) ng.n1=_clamp(ng.n1*1.04,0.4,2.2);
+  else if(avg<10) ng.n1=_clamp(ng.n1*1.03,0.4,2.2);
+  else ng.noiseScale=_clamp(ng.noiseScale*0.97,0.4,2.2);
+  return ng;
 }
 
-function _applySimState(s) {
-  // Validate: reject state if positions are NaN/Inf (broken server data)
-  if (!s.px || !s.py || !isFinite(s.px[0]) || !isFinite(s.py[0])) return;
-  while (A.length < s.n)
-    A.push({ x:0, y:0, vx:0, vy:0, type:0, bonds:new Set(), hot:false, hotT:0 });
-  A.length = s.n;
-  for (let i = 0; i < s.n; i++) {
-    const a = A[i];
-    // Only apply if position is valid; keeps particle in place if server sends NaN
-    if (isFinite(s.px[i]) && isFinite(s.py[i])) {
-      a.x = s.px[i]; a.y = s.py[i];
+// ── INIT ──────────────────────────────────────────────────────
+function init(g){
+  particles.forEach(p=>scene.remove(p.mesh)); particles=[];
+  const n=Math.round(BC.nBase*(0.85+0.3*Math.random()));
+  const nTypes=BC.types.length;
+  const counts=BC.ratios.map((r,i)=>Math.round(r*n));
+  counts[0]=n-counts.slice(1).reduce((a,b)=>a+b,0);
+  for(let ti=0;ti<nTypes;ti++){
+    for(let k=0;k<counts[ti];k++){
+      const phi=Math.acos(2*Math.random()-1),th=Math.random()*Math.PI*2;
+      const r=BC.worldR*0.78*Math.cbrt(Math.random());
+      const x=r*Math.sin(phi)*Math.cos(th),y=r*Math.sin(phi)*Math.sin(th),z=r*Math.cos(phi);
+      const sp=BC.thermalNoise*2.5;
+      const mesh=new THREE.Mesh(sGeos[ti],sMats[ti]);
+      mesh.position.set(x,y,z); scene.add(mesh);
+      particles.push({x,y,z,vx:(Math.random()-0.5)*sp,vy:(Math.random()-0.5)*sp,vz:(Math.random()-0.5)*sp,type:ti,mesh,bonds:new Set(),id:particles.length});
     }
-    a.vx = 0; a.vy = 0;
-    a.type = s.types[i]; a.bonds.clear();
   }
-  BONDS.clear();
-  for (const [i, j] of s.bonds) {
-    BONDS.add(bkey(i, j));
-    if (A[i]) A[i].bonds.add(j);
-    if (A[j]) A[j].bonds.add(i);
-  }
-  tick = s.tick;
+  _tick=0; uiTick=0; tierHistory=[]; _stagnTicks=0; _lastTierVal=0;
+  _intActive=false; _intTick=0; _intIdx=0;
+  document.getElementById('int-panel').style.display='none';
 }
 
+// ── PHYSICS ──────────────────────────────────────────────────
+function physicsStep(g){
+  const n=particles.length, dt=0.55;
+  const eps=0.025*(g.n2||1), ns=BC.thermalNoise*(g.noiseScale||1);
+  const fx=new Float32Array(n),fy=new Float32Array(n),fz=new Float32Array(n);
+  const sig=BC.ljSig;
 
-function newAgent(type, x, y) {
-  return {
-    id:    uid++,
-    type,
-    x:     x  ?? Math.random() * W,
-    y:     y  ?? (Math.random() * H * 0.85 + H * 0.05),
-    vx:    (Math.random() - 0.5) * 1.2,
-    vy:    (Math.random() - 0.5) * 1.2,
-    bonds: new Set(),
-    hot:   false,
-    hotT:  0,
-    idx:   -1,
-  };
-}
-
-function addAgent(type, x, y, vx, vy) {
-  const a = newAgent(type, x, y);
-  if (vx !== undefined) { a.vx = vx; a.vy = vy; }
-  a.idx = A.length;
-  A.push(a);
-}
-
-function init(genome) {
-  const g = genome || _genome;
-  A = []; BONDS.clear(); tick = 0; uid = 0;
-  NOISE = _BASE_NOISE * g.noiseScale;
-  for (let i = 0; i < Math.round(_BASE_N1 * g.n1); i++) addAgent(FE);
-  for (let i = 0; i < Math.round(_BASE_N2 * g.n2); i++) addAgent(SU);
-  for (let i = 0; i < Math.round(_BASE_N3 * g.n3); i++) addAgent(OW);
-}
-
-// ── Spatial hash ──────────────────────────────────────────────
-const CELL = 32;
-let gh = {};
-
-function buildGrid() {
-  gh = {};
-  for (let i = 0; i < A.length; i++) {
-    const a = A[i];
-    const k = `${(a.x / CELL) | 0},${(a.y / CELL) | 0}`;
-    (gh[k] = gh[k] || []).push(i);
-  }
-}
-
-function nearby(x, y, cells = 1) {
-  const cx = (x / CELL) | 0, cy = (y / CELL) | 0, out = [];
-  for (let dx = -cells; dx <= cells; dx++)
-    for (let dy = -cells; dy <= cells; dy++) {
-      const nb = gh[`${cx + dx},${cy + dy}`];
-      if (nb) for (const i of nb) out.push(i);
-    }
-  return out;
-}
-
-// ── Bond management ───────────────────────────────────────────
-let totalBondsFormed = 0;
-
-function addBond(i, j) {
-  const k = bkey(i, j);
-  if (BONDS.has(k)) return;
-  BONDS.add(k);
-  A[i].bonds.add(j);
-  A[j].bonds.add(i);
-  totalBondsFormed++;
-}
-
-function rmBond(i, j) {
-  const k = bkey(i, j);
-  if (!BONDS.has(k)) return;
-  BONDS.delete(k);
-  A[i].bonds.delete(j);
-  A[j].bonds.delete(i);
-}
-
-// ── Network analysis ──────────────────────────────────────────
-function findComponents() {
-  const vis = new Uint8Array(A.length);
-  const comps = [];
-  for (let i = 0; i < A.length; i++) {
-    if (vis[i] || A[i].type === OW) continue;
-    const comp = { nodes: [], feCount: 0, bonds: 0 };
-    const q = [i];
-    while (q.length) {
-      const c = q.pop();
-      if (vis[c]) continue;
-      vis[c] = 1;
-      comp.nodes.push(c);
-      if (A[c].type === FE) comp.feCount++;
-      for (const nb of A[c].bonds) {
-        comp.bonds++;
-        if (!vis[nb]) q.push(nb);
+  for(let i=0;i<n-1;i++){
+    const pi=particles[i];
+    for(let j=i+1;j<n;j++){
+      const pj=particles[j];
+      if(pi.bonds.has(j)) continue;
+      const dx=pj.x-pi.x,dy=pj.y-pi.y,dz=pj.z-pi.z;
+      const r2=dx*dx+dy*dy+dz*dz; if(r2<1) continue;
+      const r=Math.sqrt(r2);
+      if(r<7){const f=-0.45/r2;fx[i]+=f*dx;fy[i]+=f*dy;fz[i]+=f*dz;fx[j]-=f*dx;fy[j]-=f*dy;fz[j]-=f*dz;continue;}
+      if(r<36){
+        const sr6=Math.pow(sig/r,6);
+        const aff=BC.affinity[pi.type][pj.type]*(g.n1||1);
+        const f=24*eps*aff/r2*(2*sr6*sr6-sr6);
+        fx[i]+=f*dx;fy[i]+=f*dy;fz[i]+=f*dz;fx[j]-=f*dx;fy[j]-=f*dy;fz[j]-=f*dz;
       }
     }
-    comp.bonds = Math.floor(comp.bonds / 2);
-    if (comp.nodes.length >= 2) comps.push(comp);
+  }
+  for(let i=0;i<n;i++){
+    const pi=particles[i];
+    for(const j of pi.bonds){
+      if(j<=i) continue;
+      const pj=particles[j];
+      const dx=pj.x-pi.x,dy=pj.y-pi.y,dz=pj.z-pi.z;
+      const r=Math.sqrt(dx*dx+dy*dy+dz*dz); if(r<0.1) continue;
+      if(r>BC.bondBreak){pi.bonds.delete(j);pj.bonds.delete(i);continue;}
+      const f=BC.bondSpring*(g.n2||1)*(r-BC.bondRest)/r;
+      fx[i]+=f*dx;fy[i]+=f*dy;fz[i]+=f*dz;fx[j]-=f*dx;fy[j]-=f*dy;fz[j]-=f*dz;
+    }
+  }
+  for(let i=0;i<n;i++){
+    const pi=particles[i];
+    pi.vx+=(Math.random()-0.5)*ns+fx[i]*dt;
+    pi.vy+=(Math.random()-0.5)*ns+fy[i]*dt;
+    pi.vz+=(Math.random()-0.5)*ns+fz[i]*dt;
+    const damp=0.968-0.006*(g.n3||1);
+    pi.vx*=damp;pi.vy*=damp;pi.vz*=damp;
+    const spd=Math.sqrt(pi.vx*pi.vx+pi.vy*pi.vy+pi.vz*pi.vz);
+    if(spd>4.0){const s=4.0/spd;pi.vx*=s;pi.vy*=s;pi.vz*=s;}
+    pi.x+=pi.vx*dt;pi.y+=pi.vy*dt;pi.z+=pi.vz*dt;
+    // Soft wall + gentle central pull
+    const dist=Math.sqrt(pi.x*pi.x+pi.y*pi.y+pi.z*pi.z);
+    if(dist>BC.worldR-4){const ex=dist-(BC.worldR-4),f=BC.wallK*ex/dist;pi.vx-=f*pi.x;pi.vy-=f*pi.y;pi.vz-=f*pi.z;}
+    // Gentle inward pull beyond 65% of radius (keeps density high near center)
+    if(dist>BC.worldR*0.65){const f=0.003*(dist-BC.worldR*0.65)/dist;pi.vx-=f*pi.x;pi.vy-=f*pi.y;pi.vz-=f*pi.z;}
+    pi.mesh.position.set(pi.x,pi.y,pi.z);
+  }
+}
+
+function updateBonds(g){
+  const n=particles.length,rate=BC.bondRate*(g.n1||1);
+  for(let i=0;i<n-1;i++){
+    const pi=particles[i];if(pi.bonds.size>=BC.types[pi.type][3]) continue;
+    for(let j=i+1;j<n;j++){
+      const pj=particles[j];
+      if(pj.bonds.size>=BC.types[pj.type][3]||pi.bonds.has(j)) continue;
+      const dx=pj.x-pi.x,dy=pj.y-pi.y,dz=pj.z-pi.z;
+      if(dx*dx+dy*dy+dz*dz>BC.bondCut*BC.bondCut) continue;
+      if(Math.random()<BC.affinity[pi.type][pj.type]*rate){pi.bonds.add(j);pj.bonds.add(i);}
+    }
+  }
+}
+
+function renderBonds(){
+  let idx=0;
+  for(let i=0;i<particles.length&&idx<MAX_BL;i++){
+    const pi=particles[i];
+    for(const j of pi.bonds){
+      if(j<=i||idx>=MAX_BL) continue;
+      const pj=particles[j];
+      bPos[idx*6]=pi.x;bPos[idx*6+1]=pi.y;bPos[idx*6+2]=pi.z;
+      bPos[idx*6+3]=pj.x;bPos[idx*6+4]=pj.y;bPos[idx*6+5]=pj.z;
+      idx++;
+    }
+  }
+  bGeo.attributes.position.needsUpdate=true;
+  bGeo.setDrawRange(0,idx*2);
+}
+
+// ── STRUCTURE DETECTION ──────────────────────────────────────
+function getComponents(){
+  const n=particles.length,vis=new Int8Array(n),comps=[];
+  for(let s=0;s<n;s++){
+    if(vis[s]) continue;
+    const comp=[],q=[s];vis[s]=1;
+    while(q.length){const c=q.shift();comp.push(c);for(const nb of particles[c].bonds){if(!vis[nb]){vis[nb]=1;q.push(nb);}}}
+    comps.push(comp);
   }
   return comps;
 }
-
-function maxChainLength(comps) {
-  return comps.reduce((m, c) => Math.max(m, c.feCount), 0);
+function compHasCycle(comp){
+  const inC=new Set(comp),vis=new Set();
+  function dfs(n,p){vis.add(n);for(const nb of particles[n].bonds){if(!inC.has(nb))continue;if(!vis.has(nb)){if(dfs(nb,n))return true;}else if(nb!==p)return true;}return false;}
+  return dfs(comp[0],-1);
+}
+function compIsSpherical(comp){
+  if(comp.length<8)return false;
+  const ps=comp.map(i=>particles[i]);
+  const cx=ps.reduce((s,p)=>s+p.x,0)/ps.length,cy=ps.reduce((s,p)=>s+p.y,0)/ps.length,cz=ps.reduce((s,p)=>s+p.z,0)/ps.length;
+  const ds=ps.map(p=>Math.sqrt((p.x-cx)**2+(p.y-cy)**2+(p.z-cz)**2));
+  const mn=ds.reduce((s,d)=>s+d,0)/ds.length;
+  return Math.sqrt(ds.reduce((s,d)=>s+(d-mn)**2,0)/ds.length)/Math.max(mn,1)<0.40&&mn>6;
+}
+function compIsMixed(comp){
+  const types=new Set(comp.map(i=>particles[i].type));
+  return types.size>=2;
+}
+function classifyComp(comp){
+  const n=comp.length;
+  if(n===1)return 'Monomer';
+  if(n===2)return 'Dimer';
+  const cyc=compHasCycle(comp),sph=compIsSpherical(comp),mix=compIsMixed(comp);
+  if(n<=4&&!cyc)return 'Oligomer';
+  if(n<=4&&cyc)return 'Small Ring';
+  if(n<=9&&!cyc)return 'Polymer';
+  if(n<=9&&cyc)return 'Macrocycle';
+  if(n<=16&&!sph&&!cyc)return 'Branched Polymer';
+  if(n<=16&&cyc)return 'Macrocycle';
+  if(n<=20&&mix)return 'Mixed Assembly';
+  if(n<=35&&sph)return 'Spherical Cluster';
+  if(n<=35&&mix)return 'Complex Assembly';
+  if(n<=60&&sph&&mix)return 'Proto-Compartment';
+  if(n>60&&sph)return 'Enclosed Structure';
+  if(n>35)return 'Dense Aggregate';
+  return 'Complex Assembly';
+}
+const STRUCT_INFO={
+  'Monomer':{icon:'●',color:'#5a8aaa',desc:'Single unbound molecule.'},
+  'Dimer':{icon:'⬡',color:'#7aaa88',desc:'Two molecules sharing a bond.'},
+  'Oligomer':{icon:'───',color:'#90c880',desc:'Short linear chain (3–4 units).'},
+  'Small Ring':{icon:'△',color:'#c8a060',desc:'A closed 3-node ring.'},
+  'Polymer':{icon:'═══',color:'#a8d898',desc:'Extended chain 5–9 units.'},
+  'Macrocycle':{icon:'◯',color:'#d8b060',desc:'Large ring with interior cavity.'},
+  'Branched Polymer':{icon:'⊕',color:'#80c880',desc:'Polymer with lateral branches.'},
+  'Mixed Assembly':{icon:'◉',color:'#e8a030',desc:'Multi-type cluster — early organisation.'},
+  'Spherical Cluster':{icon:'○',color:'#68b8d8',desc:'Dense spherical aggregate.'},
+  'Complex Assembly':{icon:'✦',color:'#c870a0',desc:'Multi-component organised structure.'},
+  'Proto-Compartment':{icon:'◎',color:'#60e0b0',desc:'Spherical mixed cluster — proto-membrane forming.'},
+  'Dense Aggregate':{icon:'⬡',color:'#9080b8',desc:'Large disordered cluster.'},
+  'Enclosed Structure':{icon:'⬤',color:'#f0f0d8',desc:'Large enclosed compartment — proto-cell candidate.'},
+};
+function detectStructures(){
+  const comps=getComponents();let maxSz=0;
+  comps.forEach(c=>{if(c.length>maxSz)maxSz=c.length;});
+  const hasClosed=comps.some(c=>c.length>=18&&compIsSpherical(c)&&compIsMixed(c));
+  const totalBd=particles.reduce((s,p)=>s+p.bonds.size,0)/2|0;
+  comps.forEach(comp=>{const cls=classifyComp(comp);if(!discoveredStructures.has(cls)){discoveredStructures.set(cls,{tick:_tick,gen:currentGen,tier:currentTier});_addKeyEntry(cls);logE(`◈ ${cls} discovered`);}});
+  _lastComps=comps;_lastMaxClus=maxSz;_lastTotalBd=totalBd;_lastClosed=hasClosed;
+}
+function _addKeyEntry(name){
+  const info=STRUCT_INFO[name]||{icon:'?',color:'#aaa',desc:'Unknown.'};
+  const ke=document.getElementById('key-entries');
+  const empty=document.getElementById('key-empty');if(empty)empty.remove();
+  const d=discoveredStructures.get(name);
+  const el=document.createElement('div');el.className='key-entry';
+  el.innerHTML=`<div class="key-icon" style="color:${info.color}">${info.icon}</div><div><div class="key-name" style="color:${info.color}">${name}</div><div class="key-desc">${info.desc}</div><div class="key-when">T${d.tier} · Gen ${d.gen} · Tick ${d.tick}</div></div>`;
+  ke.appendChild(el);
 }
 
-function countBranching() {
-  return A.filter(a => a.type === FE && a.bonds.size >= 3).length;
+// ── TIER SYSTEM ──────────────────────────────────────────────
+let _flashLabel='',_flashTick=0,_sustainedGrad=0;
+function checkTiers(){
+  const mx=_lastMaxClus,bd=_lastTotalBd,comps=_lastComps,cl=_lastClosed;
+  const t=currentTier;
+  if(t<1&&bd>=2)                                                                  _setTier(1);
+  if(t<2&&mx>=3)                                                                  _setTier(2);
+  if(t<3&&mx>=6)                                                                  _setTier(3);
+  if(t<4&&particles.some(p=>p.bonds.size>=3))                                     _setTier(4);
+  if(t<5&&comps.some(c=>c.length>=4&&compHasCycle(c)))                            _setTier(5);
+  if(t<6&&mx>=12)                                                                 _setTier(6);
+  if(t<7&&comps.filter(c=>c.length>=4).length>=3)                                _setTier(7);
+  if(t<8&&comps.some(c=>c.length>=10&&compIsMixed(c)))                            _setTier(8);
+  if(t<9&&comps.some(c=>c.length>=16&&compIsMixed(c)))                            _setTier(9);
+  if(t<10&&cl)                                                                    _setTier(10);
+  if(t<11&&comps.some(c=>c.length>=32&&compIsSpherical(c)))                       _setTier(11);
+  if(t<12&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=2)           _setTier(12);
+  if(t<13&&comps.some(c=>c.length>=55&&compIsSpherical(c)))                       _setTier(13);
+  if(t<14&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=3)           _setTier(14);
+}
+function _setTier(t){
+  if(tierAchieved[t])return;tierAchieved[t]=true;currentTier=t;
+  _flashLabel=`T${t} — ${BC.tierNames[t].toUpperCase()}`;_flashTick=uiTick;
+  document.getElementById('v-tier').textContent=`T${t} — ${BC.tierNames[t]}`;
+  tierHistory.push(t);drawTierGraph();logE(`▲ TIER ${t} — ${BC.tierNames[t]}`);
+  _addAgentMsg(SCIENTISTS[uiTick%3],`Tier ${t} confirmed: ${BC.tierNames[t]}.`);
+}
+function checkGraduation(){
+  if(currentTier>=13){_sustainedGrad++;if(_sustainedGrad>=2000&&!_deathRunning)_runDeathCycle('Evolutionary graduation — T13+ sustained');}
+  else _sustainedGrad=0;
 }
 
-function countRings(comps) {
-  return comps.filter(c => c.bonds > c.nodes.length - 1).length;
-}
-
-function complexity(comps) {
-  const nFE = A.filter(a => a.type === FE).length;
-  if (!nFE) return 0;
-  return comps.reduce((s, c) => s + c.feCount * c.feCount, 0) / nFE;
-}
-
-// ── Event log ──────────────────────────────────────────────────
-const elog = [];
-let lastLogT = -300;
-
-function logE(msg) {
-  if (tick - lastLogT < 80) return;
-  lastLogT = tick;
-  elog.unshift(`[t=${tick}]  ${msg}`);
-  if (elog.length > 7) elog.pop();
-}
-
-// ── Physics update ────────────────────────────────────────────
-const toBreak = [];
-let SPEED = 4;
-
-// ── Bond maintenance ─────────────────────────────────────────────────────
-//  Runs every tick, independent of the spatial grid.
-//  Enforces a physical maximum bond length (bonds snap if over-stretched)
-//  and applies a proper Hooke's-law spring to every bonded pair regardless
-//  of how far apart they have drifted.
-const BOND_MAX_D  = CELL * 3.0;    // bonds snap beyond this (≈ 96px at CELL=32)
-const BOND_MAX_D2 = BOND_MAX_D * BOND_MAX_D;
-const BOND_REST   = 14;            // natural bond length (px)
-const BOND_K      = 0.008;         // gentle nudge — strong springs freeze the simulation
-
-// ══════════════════════════════════════════════════════════════
-// PANDORA EVOLUTION ENGINE — genome-driven rebirth cycle
-// ══════════════════════════════════════════════════════════════
-
-// Genome: multipliers applied to base particle counts & noise
-let _genome       = { n1: 1.0, n2: 1.0, n3: 1.0, noiseScale: 1.0 };
-let _generation   = 1;
-let _rebirthPhase = 0; // 0=live 1=dead 2=analyzing 3=evolving 4=spawning
-
-function _clamp(v, lo, hi) { return Math.max(lo, Math.min(v, hi)); }
-
-// Derive next genome from archive history + current genome
-function _evolveGenome(archives, genome) {
-  const g = { n1: genome.n1, n2: genome.n2, n3: genome.n3, noiseScale: genome.noiseScale };
-
-  if (!archives || archives.length === 0) {
-    // First death — apply small random nudge
-    g.n1         = _clamp(g.n1         * (0.97 + Math.random() * 0.06), 0.6, 1.9);
-    g.n2         = _clamp(g.n2         * (0.97 + Math.random() * 0.06), 0.6, 1.9);
-    g.n3         = _clamp(g.n3         * (0.97 + Math.random() * 0.06), 0.5, 2.2);
-    g.noiseScale = _clamp(g.noiseScale * (0.97 + Math.random() * 0.06), 0.6, 1.7);
-    return g;
-  }
-
-  const recent  = archives.slice(-5);
-  const avgTier = recent.reduce((s, a) => s + (a.maxTier || a.peakTier || 0), 0) / recent.length;
-  const last    = recent[recent.length - 1];
-  const reason  = (last.deathReason || last.reason || '').toLowerCase();
-
-  // Died at T0-T2: can't form basic bonds — boost primary atoms, reduce chaos
-  if (avgTier < 2) {
-    g.n1         = _clamp(g.n1 * 1.10, 0.6, 1.9);
-    g.n2         = _clamp(g.n2 * 1.05, 0.6, 1.9);
-    g.noiseScale = _clamp(g.noiseScale * 0.93, 0.6, 1.7);
-  }
-  // Stuck T2-T5: bonds forming but fragile — more catalysts + gentle energy boost
-  else if (avgTier < 5) {
-    g.n3         = _clamp(g.n3 * 1.12, 0.5, 2.2);
-    g.noiseScale = _clamp(g.noiseScale * 1.05, 0.6, 1.7);
-  }
-  // Reaching T5-T8: doing well — slight challenge increase
-  else if (avgTier < 8) {
-    g.n1         = _clamp(g.n1 * 0.98, 0.6, 1.9);
-    g.noiseScale = _clamp(g.noiseScale * 1.03, 0.6, 1.7);
-  }
-  // T8-T12: near protocell — boost cluster-growth to reach T11+
-  else if (avgTier < 13) {
-    g.n1 = _clamp(g.n1 * 1.04, 0.6, 1.9);  // more primary particles → cluster grows
-    g.n2 = _clamp(g.n2 * 1.02, 0.6, 1.9);  // more structural particles
-    g.n3 = _clamp(g.n3 * 1.01, 0.5, 2.2);
-  }
-  // T13+: growing well — reinforce and push for T14+
-  else {
-    g.n1 = _clamp(g.n1 * 1.02, 0.6, 1.9);
-    g.n3 = _clamp(g.n3 * 1.04, 0.5, 2.2);  // more catalysts for complexity
-    g.noiseScale = _clamp(g.noiseScale * 0.97, 0.6, 1.7);  // slightly less noise
-  }
-
-  // Died of equilibrium: need more thermal perturbation
-  if (reason.includes('equilibrium')) {
-    g.noiseScale = _clamp(g.noiseScale * 1.14, 0.6, 1.7);
-    g.n3         = _clamp(g.n3 * 1.08, 0.5, 2.2);  // more catalysts
-  }
-  // Died early (short lived): try slightly fewer particles (less competition)
-  if ((last.peakTick || 0) < 5000 && avgTier < 3) {
-    g.n1 = _clamp(g.n1 * 0.94, 0.6, 1.9);
-    g.n2 = _clamp(g.n2 * 0.94, 0.6, 1.9);
-  }
-
-  // If this generation set a new tier record: reinforce with tiny mutation (preserve what works)
-  // If it regressed: apply normal mutation to escape local minimum
-  const maxHistTier = recent.length > 1
-    ? Math.max(...recent.slice(0,-1).map(a => a.maxTier || a.peakTier || 0))
-    : 0;
-  const mutScale = (last.maxTier || last.peakTier || 0) >= Math.max(maxHistTier, 8)
-    ? 0.015   // record-tier generation: tiny ±1.5% mutation — preserve the winning genome
-    : 0.08;   // regressed or early: normal ±4-8% exploratory mutation
-
-  g.n1         = _clamp(g.n1         * (1 - mutScale + Math.random() * mutScale * 2), 0.6, 1.9);
-  g.n2         = _clamp(g.n2         * (1 - mutScale + Math.random() * mutScale * 2), 0.6, 1.9);
-  g.n3         = _clamp(g.n3         * (1 - mutScale + Math.random() * mutScale * 2), 0.5, 2.2);
-  g.noiseScale = _clamp(g.noiseScale * (1 - mutScale + Math.random() * mutScale * 2), 0.6, 1.7);
-
-  return g;
-}
-
-// Update the HUD generation display
-function _updateGenDisplay() {
-  const el = document.getElementById('v-gen');
-  if (el) el.textContent = `GEN ${_generation}`;
-  document.title = document.title.replace(/ — GEN \d+$/, '') + ` — GEN ${_generation}`;
-}
-
-// Phase labels shown on the dead-world overlay
-const _PHASES = ['', 'DEAD WORLD', 'ANALYZING LEARNINGS...', `EVOLVING GENERATION...`, 'SPAWNING NEW GENERATION...'];
-
-function _setDeadLabel(text) {
-  const el = document.getElementById('world-state');
-  if (el) el.textContent = text;
-}
-
-// Full death → archive → evolve → rebirth pipeline
-async function _runDeathCycle(deathReason) {
-  _rebirthPhase = 1;
-  _setDeadLabel('DEAD WORLD');
-
-  // --- Phase 1: archive immediately ---
-  const archiveEntry = {
-    generation:      _generation,
-    maxTier:         currentTier,
-    peakTier:        currentTier,
-    peakTick:        peakTick,
-    peakComplexity:  parseFloat(peakComplexity.toFixed(4)),
-    interventions:   interventions,
-    deathReason:     deathReason,
-    genome:          { ..._genome },
-    archivedAt:      Date.now(),
-    summary:         `GEN ${_generation} · T${currentTier} · ${tick.toLocaleString()} ticks · cx=${peakComplexity.toFixed(3)} · ${deathReason}`,
-  };
-
-  // Capture peak molecular state as inheritance seed for the next generation
-  // (must happen BEFORE positions.remove() erases the particle array)
-  const _inheritanceSeed = (typeof A !== 'undefined' && A.length > 0) ? {
-    px:            A.map(a => Math.round(a.x * 10) / 10),
-    py:            A.map(a => Math.round(a.y * 10) / 10),
-    types:         A.map(a => a.type),
-    bonds:         [...BONDS].map(k => k.split(',').map(Number)),
-    tick:          0,
-    currentTier:   currentTier,
-    peakComplexity: parseFloat(peakComplexity.toFixed(4)),
-    peakTick:      0,
-    interventions: 0,
-    worldStatus:   'active',
-    tierAchieved:  (typeof tierAchieved !== 'undefined') ? [...tierAchieved] : [],
-    inheritedAt:   Date.now()
-  } : null;
-
-  if (typeof fbDb !== 'undefined' && fbDb) {
-    try {
-      await fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).push(archiveEntry);
-      await fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
-        worldStatus:    'dead',
-        currentTier,
-        generation:     _generation,
-        peakComplexity: parseFloat(peakComplexity.toFixed(4)),
-        archivedAt:     Date.now()
-      });
-      await fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).remove();
-    } catch(e) { console.warn('[Pandora] archive failed:', e); }
-  }
-
-  // --- Phase 2: 8s "Analyzing learnings" ---
-  await new Promise(r => setTimeout(r, 1500));
-  _rebirthPhase = 2;
-  _setDeadLabel('ANALYZING LEARNINGS...');
-
-  await new Promise(r => setTimeout(r, 2000));
-
-  // --- Phase 3: evolve genome ---
-  _rebirthPhase = 3;
-  let nextGenome = { ..._genome };
-  let nextGen    = _generation + 1;
-
-  if (typeof fbDb !== 'undefined' && fbDb) {
-    try {
-      const [archSnap, genSnap] = await Promise.all([
-        Promise.race([
-          fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).limitToLast(5).once('value'),
-          new Promise(r => setTimeout(() => r(null), 3000))
-        ]),
-        Promise.race([
-          fbDb.ref(`pandora/biomes/${BIOME_ID}/genome`).once('value'),
-          new Promise(r => setTimeout(() => r(null), 2000))
-        ])
-      ]);
-      const archives     = archSnap ? Object.values(archSnap.val() || {}) : [archiveEntry];
-      const savedGenome  = genSnap  ? (genSnap.val() || _genome)           : _genome;
-      nextGenome = _evolveGenome(archives, savedGenome);
-      nextGen    = archives.length + 1;
-    } catch(e) { console.warn('[Pandora] genome load failed:', e); }
-  } else {
-    nextGenome = _evolveGenome([archiveEntry], _genome);
-  }
-
-  _setDeadLabel(`EVOLVING GENERATION ${nextGen}...`);
-  await new Promise(r => setTimeout(r, 2000));
-
-  // --- Phase 4: navigate to new generation page ---
-  _rebirthPhase = 4;
-  _setDeadLabel(`GENERATION ${nextGen} BEGINNING...`);
-
-  // Save evolved genome under its own generation key
-  if (typeof fbDb !== 'undefined' && fbDb) {
-    try {
-      // Store this generation's genome at /genome/N so each gen is addressable
-      await fbDb.ref(`pandora/biomes/${BIOME_ID}/genome/${nextGen}`).set(nextGenome);
-      // Save inheritance seed so next generation starts from parent's peak molecular state
-      if (_inheritanceSeed) {
-        await fbDb.ref(`pandora/biomes/${BIOME_ID}/genome/${nextGen}/seed`).set(_inheritanceSeed);
-      }
-      // Track which generation is currently active
-      await fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).set(nextGen);
-      await fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
-        worldStatus: 'active',
-        generation:  nextGen,
-        tick:        0
-      });
-    } catch(e) { console.warn('[Pandora] genome save failed:', e); }
-  }
-
-  await new Promise(r => setTimeout(r, 1000));
-
-  // Navigate to the new generation's URL — each gen is a distinct page visit
-  const _curFile = window.location.pathname.split('/').pop().split('?')[0];
-  window.location.href = `${_curFile}?g=${nextGen}`;
-  // (page navigation — code below will not execute)
-}
-
-
-function maintainBonds() {
-  const snap = [];
-  for (const key of BONDS) {
-    const c  = key.indexOf(',');
-    const i  = parseInt(key.slice(0, c));
-    const j  = parseInt(key.slice(c + 1));
-    if (!A[i] || !A[j]) { snap.push([i, j]); continue; }
-    let dx = A[j].x - A[i].x;
-    let dy = A[j].y - A[i].y;
-    if (dx >  W * 0.5) dx -= W;
-    if (dx < -W * 0.5) dx += W;
-    if (dy >  H * 0.5) dy -= H;
-    if (dy < -H * 0.5) dy += H;
-    const d2 = dx * dx + dy * dy;
-    if (d2 > BOND_MAX_D2) { snap.push([i, j]); continue; }  // over-stretched → snap
-    const d       = Math.sqrt(d2) + 0.001;
-    const stretch = d - BOND_REST;
-    const f       = BOND_K * stretch / d;                    // Hooke's law
-    A[i].vx += dx * f;  A[i].vy += dy * f;
-    A[j].vx -= dx * f;  A[j].vy -= dy * f;
-  }
-  for (const [i, j] of snap) rmBond(i, j);
-}
-
-
-function update() {
-  tick++;
-
-  if (tick % 130 === 0 && A.filter(a => a.type === FE).length < 170) {
-    addAgent(FE, W*0.5 + (Math.random()-0.5)*W*0.12, H-4,
-             (Math.random()-0.5)*0.9, -2.6 - Math.random()*1.8);
-  }
-  if (tick % 180 === 0 && A.filter(a => a.type === SU).length < 150) {
-    addAgent(SU, W*0.5 + (Math.random()-0.5)*W*0.16, H-4,
-             (Math.random()-0.5)*0.8, -2.2 - Math.random()*1.4);
-  }
-  if (tick % 420 === 0 && A.filter(a => a.type === OW).length < 35) {
-    addAgent(OW, W*0.5 + (Math.random()-0.5)*W*0.14, H-4,
-             (Math.random()-0.5)*0.6, -3.0 - Math.random()*2.0);
-  }
-
-  buildGrid();
-
-  // ── Brownian motion + drag ────────────────────────────────
-  for (let i = 0; i < A.length; i++) {
-    const a  = A[i];
-    const Tl = lTemp(a.x, a.y);
-    const br = Math.sqrt(Tl / T0) * NOISE;
-
-    const drag = (a.bonds.size > 0)
-      ? (a.type === FE ? 0.90 : 0.91)
-      : (a.type === OW ? 0.97 : 0.95);
-
-    a.vx += (Math.random() - 0.5) * br * 3.2;
-    a.vy += (Math.random() - 0.5) * br * 3.2;
-    a.vx *= drag;
-    a.vy *= drag;
-    a.x  += a.vx;
-    a.y  += a.vy;
-
-    if (a.x < 0) a.x += W; else if (a.x > W) a.x -= W;
-    if (a.y < 0) a.y += H; else if (a.y > H) a.y -= H;
-
-    if (a.hot && --a.hotT <= 0) a.hot = false;
-  }
-
-  // ── Pairwise interactions ─────────────────────────────────
-  for (let i = 0; i < A.length; i++) {
-    const a = A[i];
-    for (const j of nearby(a.x, a.y)) {
-      if (j <= i) continue;
-      const b  = A[j];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const d2 = dx*dx + dy*dy;
-      if (d2 > CELL*CELL) continue;
-      const d  = Math.sqrt(d2) + 0.001;
-      const Tl = lTemp((a.x+b.x)*0.5, (a.y+b.y)*0.5);
-
-      // ── FE + SU → Fe-S bond ────────────────────────────────
-      const isFeSu = (a.type===FE && b.type===SU) || (a.type===SU && b.type===FE);
-      if (isFeSu) {
-        const fe = a.type===FE ? a : b;
-        const fe_i = a.type===FE ? i : j;
-        const su = a.type===SU ? a : b;
-        const su_j = a.type===SU ? j : i;
-        const bonded = fe.bonds.has(su_j);
-
-        if (!bonded && fe.bonds.size < MAX_FE_BONDS && su.bonds.size < MAX_SU_BONDS) {
-          let hasCat = false;
-          for (const k of nearby(fe.x, fe.y)) {
-            if (A[k].type === OW && Math.hypot(A[k].x-fe.x, A[k].y-fe.y) < CELL*1.5) {
-              hasCat = true; break;
-            }
-          }
-          const p = 0.006
-            * (hasCat ? 3.5 : 1)
-            * Math.exp(-90 / Tl);
-
-          if (Math.random() < p) {
-            addBond(fe_i, su_j);
-            const f = 0.18 / d;
-            fe.vx += dx * f * (a.type===FE ? 1 : -1);
-            fe.vy += dy * f * (a.type===FE ? 1 : -1);
-            su.vx -= dx * f * (b.type===SU ? 1 : -1);
-            su.vy -= dy * f * (b.type===SU ? 1 : -1);
-            if (hasCat) {
-              fe.hot = true; fe.hotT = 50;
-              logE('water-catalysed Fe-S bond formed');
-            }
-          }
-        }
-
-        if (bonded) {
-          const Pb = 5e-5 * Math.exp(Tl / 600);
-          if (Math.random() < Pb) {
-            toBreak.push([fe_i, su_j]);
-          } else {
-            const rest = 20;
-            const stretch = d - rest;
-            const f = 0.06 * stretch / d;
-            fe.vx += dx * f; fe.vy += dy * f;
-            su.vx -= dx * f; su.vy -= dy * f;
-          }
-        }
-      }
-
-      // ── SU–SU: mild repulsion ──────────────────────────────
-      if (a.type===SU && b.type===SU) {
-        if (d < 14) {
-          const f = 0.22 * (1 - d/14) / d;
-          a.vx -= dx*f; a.vy -= dy*f;
-          b.vx += dx*f; b.vy += dy*f;
-        }
-      }
-
-      // ── FE–FE: steric repulsion ────────────────────────────
-      if (a.type===FE && b.type===FE) {
-        if (d < 16) {
-          const f = 0.28 * (1 - d/16) / d;
-          a.vx -= dx*f; a.vy -= dy*f;
-          b.vx += dx*f; b.vy += dy*f;
-        }
-      }
-    }
-  }
-
-  maintainBonds();
-
-  while (toBreak.length) {
-    const [i, j] = toBreak.pop();
-    rmBond(i, j);
-  }
-}
-
-// ── Render ────────────────────────────────────────────────────
-let tierFlash = 0, tierFlashLabel = '';
-let perturbFlash = 0;
-let worldStatus = 'active';
-
-function render(comps, brn, rings) {
-
-  // Background — dark rust
-  ctx.fillStyle = '#050302';
-  ctx.fillRect(0, 0, W, H);
-
-  if (worldStatus === 'dead') {
-    ctx.fillStyle = 'rgba(18, 12, 8, 0.55)';
-    ctx.fillRect(0, 0, W, H);
-  }
-
-  if (perturbFlash > 0) {
-    ctx.fillStyle = `rgba(220, 140, 60, ${perturbFlash/40 * 0.10})`;
-    ctx.fillRect(0, 0, W, H);
-    perturbFlash--;
-  }
-
-  if (tierFlash > 0) {
-    ctx.fillStyle = `rgba(220, 140, 60, ${(tierFlash/90) * 0.10})`;
-    ctx.fillRect(0, 0, W, H);
-    if (tierFlash > 50) {
-      ctx.save();
-      ctx.globalAlpha = (tierFlash-50)/40;
-      ctx.font = '13px Courier New';
-      ctx.fillStyle = 'rgba(220, 160, 80, 0.9)';
-      ctx.textAlign = 'center';
-      ctx.fillText(tierFlashLabel, W/2 - 130, H/2 - 12);
-      ctx.font = '10px Courier New';
-      ctx.fillStyle = 'rgba(200, 120, 40, 0.6)';
-      ctx.fillText('THRESHOLD CROSSED', W/2 - 130, H/2 + 10);
-      ctx.restore();
-    }
-    tierFlash--;
-  }
-
-  // Vent glow at bottom
-  const vg = ctx.createRadialGradient(W*0.5, H, 10, W*0.5, H, H*0.55);
-  vg.addColorStop(0,   'rgba(220, 120, 40, 0.22)');
-  vg.addColorStop(0.4, 'rgba(180, 80, 20, 0.08)');
-  vg.addColorStop(1,   'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = vg;
-  ctx.fillRect(0, 0, W, H);
-
-  const cg = ctx.createLinearGradient(0, 0, 0, H*0.3);
-  cg.addColorStop(0, 'rgba(80, 40, 20, 0.05)');
-  cg.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = cg;
-  ctx.fillRect(0, 0, W, H);
-
-  // Network auras
-  for (const comp of comps) {
-    if (comp.feCount < 3) continue;
-    let cx = 0, cy = 0;
-    for (const idx of comp.nodes) { cx += A[idx].x; cy += A[idx].y; }
-    cx /= comp.nodes.length; cy /= comp.nodes.length;
-    const r = Math.sqrt(comp.nodes.length) * 14;
-    const alpha = Math.min(0.10, comp.nodes.length * 0.004);
-    const ag = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    ag.addColorStop(0, `rgba(220, 120, 40, ${alpha * 2.0})`);
-    ag.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = ag;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI*2);
-    ctx.fill();
-  }
-
-  // Fe-S bonds
-  ctx.lineWidth = 1.5;
-  for (const k of BONDS) {
-    const [si, sj] = k.split(',');
-    const a2 = A[+si], b2 = A[+sj];
-    if (!a2 || !b2) continue;
-    const len = (a2.bonds.size + b2.bonds.size) * 0.5;
-    const r2  = Math.min(255, 180 + len * 22);
-    const g2  = Math.min(220, 100 + len * 20);
-    ctx.strokeStyle = `rgba(${r2}, ${g2}, 40, 0.52)`;
-    ctx.beginPath();
-    ctx.moveTo(a2.x, a2.y);
-    ctx.lineTo(b2.x, b2.y);
-    ctx.stroke();
-  }
-
-  // SU agents — sulfur bridges (yellow)
-  for (const a of A) {
-    if (a.type !== SU) continue;
-    const bonded = a.bonds.size > 0;
-    const r = bonded ? 3.0 : 2.0;
-
-    if (bonded) {
-      ctx.beginPath();
-      ctx.arc(a.x, a.y, r * 2.8, 0, Math.PI*2);
-      ctx.fillStyle = 'rgba(255, 240, 120, 0.05)';
-      ctx.fill();
-    }
-
-    ctx.beginPath();
-    ctx.arc(a.x, a.y, r, 0, Math.PI*2);
-    ctx.fillStyle = bonded
-      ? 'rgba(255, 220, 60, 0.90)'
-      : 'rgba(220, 180, 40, 0.45)';
-    ctx.fill();
-  }
-
-  // FE agents — iron nodes (rust-orange)
-  for (const a of A) {
-    if (a.type !== FE) continue;
-    const bc = a.bonds.size;
-    const r  = 3.2 + bc * 0.9;
-
-    if (a.hot) {
-      ctx.beginPath();
-      ctx.arc(a.x, a.y, r * 3.5, 0, Math.PI*2);
-      ctx.fillStyle = 'rgba(255, 200, 60, 0.08)';
-      ctx.fill();
-    }
-
-    if (bc > 0) {
-      ctx.beginPath();
-      ctx.arc(a.x, a.y, r * 2.0, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(220, 120, 40, ${0.04 + bc * 0.015})`;
-      ctx.fill();
-    }
-
-    const heat = Math.min(1, bc / 4);
-    const gr  = Math.round(220 - heat * 40);
-    const gg  = Math.round(110 - heat * 50);
-    const gb  = Math.round(30);
-    ctx.beginPath();
-    ctx.arc(a.x, a.y, r, 0, Math.PI*2);
-    ctx.fillStyle = `rgba(${gr}, ${gg}, ${gb}, ${0.68 + bc * 0.06})`;
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(a.x - r*0.3, a.y - r*0.35, r*0.38, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(255, 255, 200, 0.15)';
-    ctx.fill();
-
-    if (bc >= 3) {
-      ctx.beginPath();
-      ctx.arc(a.x, a.y, r + 3, 0, Math.PI*2);
-      ctx.strokeStyle = `rgba(255, 200, 80, ${0.12 + (bc-3) * 0.10})`;
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-    }
-  }
-
-  // OW agents — water catalyst sparks (blue)
-  for (const a of A) {
-    if (a.type !== OW) continue;
-    const sg2 = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, 7);
-    sg2.addColorStop(0, 'rgba(100, 180, 255, 0.95)');
-    sg2.addColorStop(1, 'rgba(60, 140, 220, 0)');
-    ctx.beginPath();
-    ctx.arc(a.x, a.y, 7, 0, Math.PI*2);
-    ctx.fillStyle = sg2;
-    ctx.fill();
-  }
-}
-
-// ── HUD + complexity graph ─────────────────────────────────────
-const hist = [];
-let latestComps = [];
-let lastUI = 0;
-
-function updateUI() {
-  latestComps = findComponents();
-  const cx   = complexity(latestComps);
-  const mxl  = maxChainLength(latestComps);
-  const brn  = countBranching();
-  const rings = countRings(latestComps);
-
-  hist.push(cx);
-  if (hist.length > 220) hist.shift();
-
-  const nFE   = A.filter(a => a.type === FE).length;
-  const nBonds = BONDS.size;
-
-  document.getElementById('v-si').textContent    = nFE;
-  document.getElementById('v-bonds').textContent = nBonds;
-  document.getElementById('v-mxl').textContent   = mxl;
-  document.getElementById('v-brn').textContent   = brn;
-  document.getElementById('v-rings').textContent = rings;
-  document.getElementById('v-cx').textContent    = cx.toFixed(3);
-  document.getElementById('v-speed').textContent = `${SPEED}×  [ +/- to adjust ]`;
-  document.getElementById('v-time').textContent  = tick;
-
-  if (mxl >= 3  && tick % 180 === 0) logE(`Fe-S chain — length ${mxl} Fe atoms`);
-  if (brn >= 1  && tick % 250 === 0) logE(`branching point detected — ${brn} nodes`);
-  if (rings >= 1 && tick % 300 === 0) logE(`ring closure — ${rings} cyclic structures`);
-  if (cx > 3    && tick % 400 === 0) logE(`sustained network complexity > 3`);
-  if (mxl >= 8) logE(`iron sulfide polymer — L=${mxl}`);
-
-  checkTiers(cx, mxl, brn, rings);
-  checkVitality(cx);
-
-  document.getElementById('elog').innerHTML =
-    elog.map(l => `<div>${l}</div>`).join('');
-
-  // Complexity graph
-  gctx.fillStyle = '#010d17';
-  gctx.fillRect(0, 0, 220, 90);
-  if (hist.length > 1) {
-    const mx = Math.max(...hist, 0.5);
-    gctx.strokeStyle = 'rgba(118, 208, 255, 0.72)';
-    gctx.lineWidth   = 1;
-    gctx.beginPath();
-    hist.forEach((v, i) => {
-      const x = (i / hist.length) * 220;
-      const y = 90 - (v / mx) * 85;
-      i === 0 ? gctx.moveTo(x, y) : gctx.lineTo(x, y);
-    });
-    gctx.stroke();
-    gctx.strokeStyle = 'rgba(80, 130, 160, 0.15)';
-    gctx.lineWidth   = 0.5;
-    gctx.beginPath();
-    gctx.moveTo(0, 89); gctx.lineTo(220, 89);
-    gctx.stroke();
-  }
-
-  return { cx, mxl, brn, rings };
-}
-
-// ── Vitality / stagnation engine ──────────────────────────────
-const STAGNATION_WINDOW = 800;
-function getStagnationWindow() {
-  // Higher-tier worlds get more time before stagnation death
-  return Math.round(STAGNATION_WINDOW * (1 + currentTier * 0.35));
-}
-
-const COMPLEXITY_FLOOR  = 0.35;
-const MEANINGFUL_DELTA  = 0.06;
-const MAX_INTERVENTIONS_BASE = 3;
-function getMaxInterventions() {
-  // High-tier worlds get many more chances — graduation fires before exhaustion
-  return currentTier >= 5 ? 30 : MAX_INTERVENTIONS_BASE;
-}
-const HARD_DEATH_TICK   = 7000;
-
-let peakComplexity  = 0;
-let peakTick        = 0;
-let interventions   = 0;
-
-const PERTURBATION_TYPES = [
-  {
-    name: '🌋 VENT SURGE',
-    desc: 'thermal energy surge — injecting fresh Fe and catalysts',
-    fn: () => {
-      for (let i = 0; i < 24; i++)
-        addAgent(OW, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
-                 (Math.random()-0.5)*0.7, -3.0-Math.random()*2.0);
-      for (let i = 0; i < 20; i++)
-        addAgent(FE, W*0.5+(Math.random()-0.5)*W*0.12, H-4,
-                 (Math.random()-0.5)*0.7, -2.5-Math.random()*2.0);
-    }
-  },
-  {
-    name: '💥 SEISMIC SHOCKWAVE',
-    desc: 'mechanical disruption — scattering all network nodes',
-    fn: () => {
-      for (const a of A) {
-        a.vx += (Math.random()-0.5) * 12;
-        a.vy += (Math.random()-0.5) * 12;
-      }
-    }
-  },
-  {
-    name: '🧪 SULFIDE INFLUX',
-    desc: 'incoming sulfide and iron minerals from above',
-    fn: () => {
-      for (let i = 0; i < 40; i++)
-        addAgent(SU, Math.random()*W, 8,
-                 (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
-      for (let i = 0; i < 15; i++)
-        addAgent(FE, Math.random()*W, 8,
-                 (Math.random()-0.5)*2.0, 1.5+Math.random()*2);
-    }
-  }
+// ── INTERVENTIONS ────────────────────────────────────────────
+let _stagnTicks=0,_lastTierVal=0,_intActive=false,_intTick=0,_intIdx=0;
+let _ca2Active=false,_osmoActive=false,_intSave={};
+const INTERVENTIONS=[
+  {name:'Ca²⁺ Ion Flush',reagent:'CaCl₂',desc:'Calcium ions bridge polar head-groups, destabilising closed structures and inducing proto-fission.',
+   apply(){_ca2Active=true;}},
+  {name:'Reagent Injection',reagent:'Additional molecular precursors',desc:'Surplus reactive molecules increase encounter frequency and bonding probability.',
+   apply(){
+     const nAdd=18;
+     for(let k=0;k<nAdd;k++){
+       const ti=k%BC.types.length;
+       const phi=Math.acos(2*Math.random()-1),th=Math.random()*Math.PI*2,r=BC.worldR*0.5;
+       const x=r*Math.sin(phi)*Math.cos(th),y=r*Math.sin(phi)*Math.sin(th),z=r*Math.cos(phi);
+       const mesh=new THREE.Mesh(sGeos[ti],sMats[ti]);
+       mesh.position.set(x,y,z);scene.add(mesh);
+       particles.push({x,y,z,vx:0,vy:0,vz:0,type:ti,mesh,bonds:new Set(),id:particles.length});
+     }
+   }},
+  {name:'Osmotic Shock',reagent:'Hypotonic solution',desc:'Rapid osmotic pressure differential forces structural reorganisation of assembled clusters.',
+   apply(){_osmoActive=true;}},
+  {name:'pH Alkaline Shift',reagent:'Alkaline buffer (pH 9.2)',desc:'Elevated pH modifies inter-molecular electrostatics, enabling tighter packing.',
+   apply(){_intSave.n2=_genome.n2;_genome.n2=_clamp(_genome.n2*1.28,0.4,2.5);}},
+  {name:'Energy Seeding',reagent:'High-energy precursors',desc:'Energised molecules catalyse template-directed polymerisation inside proto-compartments.',
+   apply(){_intSave.n1=_genome.n1;_intSave.n3=_genome.n3;_genome.n1=_clamp(_genome.n1*1.20,0.4,2.5);_genome.n3=_clamp(_genome.n3*0.85,0.4,2.0);}},
 ];
-
-let _rebirthAt = -1;        // real-time timestamp for world rebirth
-const REBIRTH_DELAY_MS = 35000; // 35 seconds of death display before rebirth
-
-
-function triggerRebirth(reason) {
-  // Replaced by evolution engine — _runDeathCycle handles archive + evolve + rebirth
-  _runDeathCycle(reason || 'unknown cause');
-}
-
-function declareDead(reason) {
-  worldStatus = 'dead';
-  // _rebirthAt removed — dead worlds stay dead (new generation on next visit)
-  const el = document.getElementById('world-state');
-  el.textContent = 'DEAD WORLD';
-  el.className   = 'dead';
-  // Inject return-to-Pandora button
-  const _btnId = 'return-to-pandora-btn';
-  if (!document.getElementById(_btnId)) {
-    const btn = document.createElement('a');
-    btn.id        = _btnId;
-    btn.href      = 'index.html';
-    btn.innerHTML = '← RETURN TO PANDORA';
-    btn.style.cssText = [
-      'position:fixed','bottom:40px','left:50%','transform:translateX(-50%)',
-      'background:rgba(255,255,255,0.08)','border:1px solid rgba(255,255,255,0.3)',
-      'color:#fff','font-family:monospace','font-size:13px','letter-spacing:0.12em',
-      'padding:10px 24px','border-radius:4px','text-decoration:none',
-      'cursor:pointer','z-index:9999','backdrop-filter:blur(6px)',
-      'transition:background 0.2s',
-    ].join(';');
-    btn.onmouseenter = () => btn.style.background = 'rgba(255,255,255,0.18)';
-    btn.onmouseleave = () => btn.style.background = 'rgba(255,255,255,0.08)';
-    document.body.appendChild(btn);
-  }
-  logE(reason);
-  triggerRebirth(reason);
-  agentSay('NARRATOR', 'The iron sulfide world wanted to live. The vent was not hot enough, or not long enough. We preserve the Iron Veil in our archives and hypothesize the next biome.');
-}
-
-function checkVitality(cx) {
-  if (worldStatus === 'dead') return;
-
-  if (cx > peakComplexity * (1 + MEANINGFUL_DELTA)) {
-    peakComplexity = cx;
-    peakTick       = tick;
-    if (worldStatus === 'perturbed') {
-      worldStatus = 'active';
-      document.getElementById('world-state').className  = '';
-      document.getElementById('world-state').textContent = '';
-      logE('meaningful complexity growth — world responding to perturbation');
-      speak('OBSERVER', `Recovery at t=${tick}. Complexity ${cx.toFixed(3)} exceeds peak. Intervention successful.`);
-      // Award XP: intervention was successful
-      if (CONV._pendingXP) {
-        for (const agent of CONV._pendingXP) awardXP(agent, 25, 'Successful intervention');
-        CONV._pendingXP = null;
-      }
-      if (CONV._lastProposal) {
-        CONV._lastProposal = null;
-      }
-      writeKnowledge({type:'recovery', cx, summary:`Recovery after intervention ${interventions}`});
-    }
-  }
-
-  if (!tierAchieved[2] && tick > HARD_DEATH_TICK) {
-    declareDead('T2 never reached — Fe-S chain formation failed — DEAD WORLD');
-    speak('NARRATOR', `${HARD_DEATH_TICK} ticks. No persistent chain ever formed. Archiving world.`);
+function checkIntervention(){
+  if(_isDead||_intActive)return;
+  if(currentTier!==_lastTierVal){_lastTierVal=currentTier;_stagnTicks=0;return;}
+  _stagnTicks++;
+  if(currentTier>=2&&currentTier<8){
+    if(_stagnTicks>=6000)_runDeathCycle(`evolutionary stagnation — T${currentTier} plateau`);
     return;
   }
-
-  const stagnant = tick - peakTick > getStagnationWindow();
-  if (!stagnant) return;
-
-  if (interventions >= getMaxInterventions()) {
-    declareDead('thermodynamic equilibrium — iron sulfide network dissolved — DEAD WORLD');
+  if(currentTier<2)return;
+  if(_stagnTicks<500)return;
+  if(_intIdx>=INTERVENTIONS.length*3){
+    if(_stagnTicks>=2000)_runDeathCycle(`all interventions exhausted — T${currentTier} dead end`);
     return;
   }
-
-  if (currentTier >= 5) {
-    // High-tier worlds: preserve molecular structure — no destructive auto-perturbation
-    // Just extend the stagnation window and let the agent conversation handle it
-    peakTick = tick + Math.floor(getStagnationWindow() * 0.5); // grace extension
-  } else {
-    const p = PERTURBATION_TYPES[interventions % PERTURBATION_TYPES.length];
-    p.fn();
+  _triggerIntervention(_intIdx++);
+}
+function _triggerIntervention(idx){
+  const iv=INTERVENTIONS[idx%INTERVENTIONS.length];
+  _intSave={n1:_genome.n1,n2:_genome.n2,n3:_genome.n3,noiseScale:_genome.noiseScale};
+  iv.apply();_intActive=true;_intTick=0;_stagnTicks=0;
+  document.getElementById('int-name').textContent=iv.name;
+  document.getElementById('int-desc').textContent=`${iv.reagent} — ${iv.desc}`;
+  document.getElementById('int-fill').style.width='100%';
+  document.getElementById('int-panel').style.display='block';
+  logE(`⚗ ${iv.name}`);
+  _addAgentMsg('⚗ INTERVENTION',`T${currentTier} stagnation. Deploying: ${iv.name}. ${iv.desc}`);
+}
+function tickIntervention(){
+  if(!_intActive)return;_intTick++;
+  document.getElementById('int-fill').style.width=((1-_intTick/250)*100).toFixed(1)+'%';
+  if(_intTick>=250){
+    if(_intSave.n1!==undefined)_genome.n1=_intSave.n1;
+    if(_intSave.n2!==undefined)_genome.n2=_intSave.n2;
+    if(_intSave.n3!==undefined)_genome.n3=_intSave.n3;
+    _ca2Active=false;_osmoActive=false;_intActive=false;
+    document.getElementById('int-panel').style.display='none';
   }
-  interventions++;
-  peakTick    = tick;
-  perturbFlash = 40;
-  worldStatus = 'perturbed';
+}
 
-  const el = document.getElementById('world-state');
-  el.textContent = p.name;
-  el.className   = 'perturbed';
-  setTimeout(() => {
-    if (worldStatus !== 'dead') {
-      el.className = ''; el.textContent = '';
+// ── VITALITY ────────────────────────────────────────────────
+let _vTick=0;
+function checkVitality(){
+  if(currentTier>=5)return;
+  if(++_vTick>=1200&&currentTier<2&&!_deathRunning)_runDeathCycle('Vitality failure — no chemistry after 1200 ticks');
+}
+
+// ── DEATH / GENERATION ──────────────────────────────────────
+async function _runDeathCycle(reason){
+  if(_deathRunning)return;_deathRunning=true;_isDead=true;
+  const ws=document.getElementById('world-state');
+  ws.textContent='DEAD WORLD';ws.className='dead';
+  const seed={positions:particles.map(p=>({x:p.x,y:p.y,z:p.z,type:p.type}))};
+  const archive={generation:currentGen,maxTier:currentTier,
+    tiers:tierAchieved.map((v,i)=>v?i:null).filter(v=>v!==null),
+    genome:{..._genome},deathReason:reason,timestamp:Date.now(),
+    structures:[...discoveredStructures.entries()].map(([k,v])=>({name:k,...v}))};
+  await new Promise(r=>setTimeout(r,1500));ws.textContent='ARCHIVING…';
+  const nextGen=currentGen+1;
+  try{
+    await db.ref(`${ROOT}/archives/${currentGen}`).set(archive);
+    await db.ref(`${ROOT}/genome/${nextGen}/seed`).set(seed);
+    await db.ref(`${ROOT}/genome/${currentGen}`).update({..._genome,maxTier:currentTier});
+    await db.ref(`${ROOT}/currentGeneration`).set(nextGen);
+  }catch(e){console.warn('Archive:',e);}
+  await new Promise(r=>setTimeout(r,2000));ws.textContent='EVOLVING…';
+  let archives=[];
+  try{const s=await db.ref(`${ROOT}/archives`).once('value');if(s.val())archives=Object.values(s.val());}catch(e){}
+  _genome=_evolveGenome(archives,_genome);
+  await new Promise(r=>setTimeout(r,1000));
+  ws.className='';ws.textContent='';ws.style.opacity='0';
+  currentGen=nextGen;currentTier=0;tierAchieved=new Array(21).fill(false);
+  discoveredStructures.clear();
+  document.getElementById('key-entries').innerHTML='<div id="key-empty">No structures detected yet…</div>';
+  document.getElementById('v-gen').textContent=`GEN ${currentGen}`;
+  document.getElementById('v-tier').textContent=`T0 — ${BC.tierNames[0]}`;
+  _deathRunning=false;_isDead=false;_sustainedGrad=0;_vTick=0;
+  const sSnap=await db.ref(`${ROOT}/genome/${currentGen}/seed`).once('value');
+  if(sSnap.val()&&sSnap.val().positions){
+    const saved=sSnap.val().positions;
+    particles.forEach(p=>scene.remove(p.mesh));particles=[];
+    saved.forEach((s,i)=>{const mesh=new THREE.Mesh(sGeos[s.type<BC.types.length?s.type:0],sMats[s.type<BC.types.length?s.type:0]);mesh.position.set(s.x,s.y,s.z);scene.add(mesh);particles.push({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,type:s.type<BC.types.length?s.type:0,mesh,bonds:new Set(),id:i});});
+    _tick=0;uiTick=0;tierHistory=[];_stagnTicks=0;_lastTierVal=0;_intActive=false;_intIdx=0;
+    _addAgentMsg('🧬 NEW GENERATION',`Gen ${currentGen} seeded from inherited positions. Genome evolved from ${archives.length} archive entries.`);
+  }else{init(_genome);}
+}
+
+// ── HUD ────────────────────────────────────────────────────
+const SCIENTISTS=['Dr. Ayasha Okafor','Dr. Lienhard Brun','Dr. Suri Mura'];
+const _elog=[];
+function logE(msg){_elog.unshift(msg);if(_elog.length>5)_elog.pop();document.getElementById('elog').innerHTML=_elog.map(m=>`<div>${m}</div>`).join('');}
+function _addAgentMsg(name,text){
+  const panel=document.getElementById('agent-msgs');
+  const div=document.createElement('div');div.className='a-msg';
+  div.innerHTML=`<div class="a-name">${name}</div>${text}`;
+  panel.insertBefore(div,panel.firstChild);
+  while(panel.children.length>8)panel.removeChild(panel.lastChild);
+}
+function drawTierGraph(){
+  const c=document.getElementById('gc'),ctx=c.getContext('2d');
+  ctx.clearRect(0,0,200,60);if(tierHistory.length<2)return;
+  ctx.strokeStyle='rgba(80,160,220,0.7)';ctx.lineWidth=1.5;ctx.beginPath();
+  tierHistory.forEach((t,i)=>{const x=(i/(tierHistory.length-1))*192+4,y=56-(t/20)*52;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();
+}
+
+// ── MAIN LOOP ───────────────────────────────────────────────
+const STEPS=3;
+function animate(){
+  requestAnimationFrame(animate);
+  if(_isDead){controls.update();renderer.render(scene,camera);return;}
+  for(let s=0;s<STEPS;s++){
+    physicsStep(_genome);
+    if(_tick%3===0)updateBonds(_genome);
+    _tick++;
+  }
+  uiTick++;renderBonds();
+  if(_tick%160<STEPS){detectStructures();checkTiers();}
+  checkGraduation();checkVitality();checkIntervention();tickIntervention();
+  if(uiTick%15===0){
+    document.getElementById('v-tick').textContent=_tick;
+    document.getElementById('v-np').textContent=particles.length;
+    document.getElementById('v-nb').textContent=_lastTotalBd;
+    document.getElementById('v-mx').textContent=_lastMaxClus;
+  }
+  const ws=document.getElementById('world-state');
+  if(_flashLabel&&uiTick-_flashTick<130){ws.textContent=_flashLabel;ws.className='flash';ws.style.opacity='1';}
+  else if(_flashLabel){_flashLabel='';ws.className='';ws.textContent='';ws.style.opacity='0';}
+  controls.update();renderer.render(scene,camera);
+}
+
+// ── FIREBASE RESUME ─────────────────────────────────────────
+const _sciLoad={done:false};
+setTimeout(async function _pandoraResume(){
+  try{
+    const genSnap=await db.ref(`${ROOT}/currentGeneration`).once('value');
+    currentGen=genSnap.val()||1;
+    const gSnap=await db.ref(`${ROOT}/genome/${currentGen}`).once('value');
+    if(gSnap.val()){_genome={...defGenome(),...gSnap.val()};delete _genome.seed;delete _genome.maxTier;}
+    const sSnap=await db.ref(`${ROOT}/genome/${currentGen}/seed`).once('value');
+    if(sSnap.val()&&sSnap.val().positions){
+      const saved=sSnap.val().positions;
+      particles.forEach(p=>scene.remove(p.mesh));particles=[];
+      saved.forEach((s,i)=>{const t=s.type<BC.types.length?s.type:0;const mesh=new THREE.Mesh(sGeos[t],sMats[t]);mesh.position.set(s.x,s.y,s.z);scene.add(mesh);particles.push({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,type:t,mesh,bonds:new Set(),id:i});});
+      _tick=0;uiTick=0;_addAgentMsg('🔄 RESUME',`Gen ${currentGen} restored (${saved.length} particles).`);
+    }else{
+      init(_genome);
+      _addAgentMsg('🌱 GENESIS',`Gen ${currentGen} initialized — ${particles.length} molecules seeded. The experiment begins.`);
     }
-  }, 3000);
-
-  logE(`intervention ${interventions}/${MAX_INTERVENTIONS}: ${p.desc}`);
-}
-
-// ── Tier detection ──────────────────────────────────────────
-const TIER_NAMES = [
-  'Inert', 'Molecular Activity', 'Persistent Structures',
-  'Reaction Diversity', 'Spatial Heterogeneity', 'Spontaneous Assembly',
-  'Sustained Complexity', 'Coupled Reactions', 'Emergent Catalysis',
-  'Boundary Formation', 'Closed Compartment', 'Interior Differentiation',
-  'Protocell Stability',
-  'Iron-Sulfur Catalysis', 'Magnetite Memory', 'Ferrous Templating',
-  'Metalloprotein Code', 'Redox Metabolism', 'Iron Membrane',
-  'Metal Division', 'Iron Life'
-];
-
-const tierAchieved = new Array(25).fill(false);
-let currentTier    = 0;
-
-let sustainedChainTicks = 0;
-let sustainedBranchTicks = 0;
-let sustainedRingTicks   = 0;
-let sustainedCxTicks     = 0;
-let sustainedT7Ticks  = 0;  // multi-cluster
-let sustainedT9Ticks  = 0;  // high complexity
-let sustainedT10Ticks = 0;  // dense compound cluster
-let sustainedT12Ticks = 0;  // long-term stability
-let sustainedT13Ticks = 0;  // hyper-branching
-let sustainedT15Ticks = 0;  // ultra-complexity
-let sustainedT19Ticks = 0;  // hypercomplexity
-let sustainedGradTicks = 0;  // evolutionary graduation counter
-// ── Chemical Intervention State ────────────────────────────────
-let _intStagnTicks = 0;   // ticks stuck at current tier
-let _lastIntTier   = -1;  // tier at last stagnation reset
-let _intActive     = false;
-let _intIdx        = 0;   // which intervention to try next
-let _intGenomeSave = {};  // genome backup before intervention
-
-function promoteTier(t) {
-  if (tierAchieved[t]) return;
-  tierAchieved[t]  = true;
-  currentTier      = t;
-  tierFlash        = 90;
-  tierFlashLabel   = `T${t} — ${TIER_NAMES[t].toUpperCase()}`;
-  logE(`▲ TIER ${t} — ${TIER_NAMES[t]}`);
-  document.getElementById('v-tier').textContent = `T${t} — ${TIER_NAMES[t]}`;
-
-  const tierNarrative = {
-    1: ['OBSERVER',  'First Fe-S bond confirmed. Molecular activity initiated. T1 achieved.'],
-    2: ['ANALYST',   'Persistent Fe-S chain detected. Iron sulfide polymer forming. T2 confirmed.'],
-    3: ['ANALYST',   'Branching detected. The Fe network grows with increasing complexity. T3 confirmed.'],
-    4: ['NARRATOR',  'Ring closure. An iron sulfide cycle. The network folds back on itself. T4. Wächtershäuser was right. There is structure here.'],
-    5: ['ANALYST',   'Spontaneous assembly confirmed. Fe-S networks migrating from vent zone. T5.'],
-    6: ['OBSERVER',  'Sustained complexity plateau. The iron sulfide network is self-reinforcing. T6.'],
-  };
-
-  const cx_now    = hist.length ? hist[hist.length-1] : 0;
-  const mxl_now   = maxChainLength(latestComps);
-  const brn_now   = countBranching();
-  const rings_now = countRings(latestComps);
-  convTierUp(t, cx_now, mxl_now, brn_now, rings_now);
-  // Award XP for tier discovery
-  awardXP('OBSERVER', 20, `Tier ${t} discovered`);
-  awardXP('ANALYST',  15, `Tier ${t} transition`);
-
-  // Immediately persist the new tier so it's never lost between 500-tick saves
-  if (typeof fbDb !== 'undefined' && fbDb) {
-    fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
-      currentTier: t,
-      tick:        tick,
-      lastUpdated: Date.now(),
-    }).catch(() => {});
-  }
-}
-
-function checkTiers(cx, mxl, brn, rings) {
-  if (!tierAchieved[1] && totalBondsFormed > 0) promoteTier(1);
-
-  if (mxl >= 3) sustainedChainTicks++; else sustainedChainTicks = 0;
-  if (!tierAchieved[2] && sustainedChainTicks >= 30) promoteTier(2);
-
-  if (brn >= 1) sustainedBranchTicks++; else sustainedBranchTicks = 0;
-  if (!tierAchieved[3] && sustainedBranchTicks >= 20) promoteTier(3);
-
-  if (rings >= 1) sustainedRingTicks++; else sustainedRingTicks = 0;
-  if (!tierAchieved[4] && sustainedRingTicks >= 15) promoteTier(4);
-
-  if (!tierAchieved[5]) {
-    for (const comp of latestComps) {
-      if (comp.feCount < 6) continue;
-      let cy2 = 0;
-      for (const idx of comp.nodes) cy2 += A[idx].y;
-      if (cy2 / comp.nodes.length < H * 0.78) { promoteTier(5); break; }
-    }
-  }
-
-  if (hist.length >= 80) {
-    const win  = hist.slice(-80);
-    const mean = win.reduce((s,v)=>s+v,0)/win.length;
-    if (mean > 1.5) sustainedCxTicks++; else sustainedCxTicks = 0;
-  }
-  if (!tierAchieved[6] && sustainedCxTicks >= 4) promoteTier(6);
-  // T7 — 2+ distinct clusters of 4+ nodes, sustained 20 ticks
-  const largeClusters = latestComps.filter(c => c.nodes.length >= 4).length;
-  if (largeClusters >= 2) sustainedT7Ticks++; else sustainedT7Ticks = 0;
-  if (!tierAchieved[7] && sustainedT7Ticks >= 20) promoteTier(7);
-
-  // T8 — polyring topology: 3+ rings in the system
-  if (!tierAchieved[8] && tierAchieved[7] && rings >= 3) promoteTier(8);
-
-  // T9 — high sustained complexity (mean > 1.8 over 60 history points)
-  if (hist.length >= 60) {
-    const win9 = hist.slice(-60);
-    const mean9 = win9.reduce((s,v) => s + v, 0) / win9.length;
-    if (mean9 > 1.8) sustainedT9Ticks++; else sustainedT9Ticks = 0;
-  }
-  if (!tierAchieved[9] && sustainedT9Ticks >= 15) promoteTier(9);
-
-  // T10 — dense compound: cluster 6+ nodes, rings present, branching >= 3
-  const hasDense = latestComps.some(c => c.nodes.length >= 6) && rings >= 1 && brn >= 3;
-  if (hasDense) sustainedT10Ticks++; else sustainedT10Ticks = 0;
-  if (!tierAchieved[10] && sustainedT10Ticks >= 15) promoteTier(10);
-
-  // T11 — cluster growth: primary cluster reaches 8+ nodes (was: brn>=8)
-  if (!tierAchieved[11] && tierAchieved[10] && latestComps.some(c => c.nodes.length >= 8)) promoteTier(11);
-
-  // T12 — sustained T10-quality state for 50 ticks → compartment stability
-  if (tierAchieved[10]) sustainedT12Ticks++; else sustainedT12Ticks = 0;
-  if (!tierAchieved[12] && sustainedT12Ticks >= 50) promoteTier(12);
-
-  // ── T13-T20: Ascending complexity beyond protocell stability ─────────────
-  // T13 — growing cluster: primary cluster reaches 10+ nodes with 2+ rings
-  if (latestComps.some(c => c.nodes.length >= 10) && rings >= 2) sustainedT13Ticks++; else sustainedT13Ticks = 0;
-  if (!tierAchieved[13] && tierAchieved[12] && sustainedT13Ticks >= 15) promoteTier(13);
-
-  // T14 — mega-cluster emergent: single component 12+ nodes, 4+ rings
-  if (!tierAchieved[14] && tierAchieved[13]) {
-    if (latestComps.some(c => c.nodes.length >= 12) && rings >= 4) promoteTier(14);
-  }
-
-  // T15 — ultra-complexity: mean cx > 2.2 over 80 ticks, sustained
-  if (hist.length >= 80) {
-    const m15 = hist.slice(-80).reduce((s,v)=>s+v,0)/80;
-    if (m15 > 2.2) sustainedT15Ticks++; else sustainedT15Ticks = 0;
-  }
-  if (!tierAchieved[15] && tierAchieved[14] && sustainedT15Ticks >= 25) promoteTier(15);
-
-  // T16 — polyring cascade: 8+ simultaneous rings
-  if (!tierAchieved[16] && tierAchieved[15] && rings >= 8) promoteTier(16);
-
-  // T17 — fractal clustering: 4+ large clusters (≥5 nodes) simultaneously
-  if (!tierAchieved[17] && tierAchieved[16]) {
-    if (latestComps.filter(c => c.nodes.length >= 5).length >= 4) promoteTier(17);
-  }
-
-  // T18 — mega-network: single cluster 15+ nodes
-  if (!tierAchieved[18] && tierAchieved[17]) {
-    if (latestComps.some(c => c.nodes.length >= 15)) promoteTier(18);
-  }
-
-  // T19 — hypercomplexity: mean cx > 2.8 over 60 ticks, sustained
-  if (hist.length >= 60) {
-    const m19 = hist.slice(-60).reduce((s,v)=>s+v,0)/60;
-    if (m19 > 2.8) sustainedT19Ticks++; else sustainedT19Ticks = 0;
-  }
-  if (!tierAchieved[19] && tierAchieved[18] && sustainedT19Ticks >= 20) promoteTier(19);
-
-  // T20 — apex synthesis: all upper tiers + extreme topology
-  if (!tierAchieved[20] && tierAchieved[19] && brn >= 15 && rings >= 10) promoteTier(20);
-
-  // ── Graduation mechanic: sustained T10+ for 3000 ticks → evolutionary ascension
-  // Graduation: must reach T13+ before graduating (not just T10)
-  if (currentTier >= 13) sustainedGradTicks++; else sustainedGradTicks = 0;
-  if (sustainedGradTicks >= 2000 && worldStatus === 'active') {
-    worldStatus = 'graduating';
-    speak('NARRATOR', `After ${sustainedGradTicks} ticks at T${currentTier}, this world has reached evolutionary completion. Graduation initiating.`);
-    speak('ANALYST', `Graduation conditions met. Archiving molecular state as seed for next generation. This world's achievement will persist.`);
-    setTimeout(() => _runDeathCycle(`evolutionary graduation — T${currentTier} sustained — ascending to generation ${_generation + 1}`), 3000);
-  }
-
-  _checkIntervention();
-}
-// ═══════════════════════════════════════════════════════════════
-//  CHEMICAL INTERVENTION SYSTEM
-//  When worlds stagnate at T8+ for 500+ ticks, the research team
-//  injects specific reagents to push past the closed-compartment
-//  phase toward proto-division and higher complexity.
-// ═══════════════════════════════════════════════════════════════
-const _INTERVENTIONS = [
-  { name: 'Ca²⁺ Ion Flush',
-    desc: 'Calcium ions bridge phosphate head-groups, destabilising closed membranes and inducing proto-fission.',
-    fn: g => { g.n2 = Math.min(g.n2 * 0.74, 2.5); } },
-  { name: 'Fatty Acid Injection',
-    desc: 'Surplus amphiphilic molecules increase membrane curvature energy, promoting bilayer budding.',
-    fn: g => { g.n1 = Math.min(g.n1 * 1.22, 2.5); } },
-  { name: 'Osmotic Shock',
-    desc: 'Hypotonic influx stretches membranes beyond elastic limit, forcing structural reorganisation.',
-    fn: g => { g.n3 = Math.min(g.n3 * 1.38, 2.5); } },
-  { name: 'pH Alkaline Shift (9.2)',
-    desc: 'Elevated pH deprotonates lipid heads, reducing repulsion and enabling tighter amphiphilic packing.',
-    fn: g => { g.n2 = Math.min(g.n2 * 1.28, 2.5); } },
-  { name: 'Nucleotide Seeding',
-    desc: 'AMP/GMP precursors catalyse template-directed polymerisation inside proto-compartments.',
-    fn: g => { g.n1 = Math.min(g.n1 * 1.18, 2.5); g.n3 = Math.max(g.n3 * 0.82, 0.4); } },
-];
-
-function _checkIntervention() {
-  if (worldStatus !== 'active' || _intActive) return;
-  if (currentTier !== _lastIntTier) { _lastIntTier = currentTier; _intStagnTicks = 0; return; }
-  _intStagnTicks++;
-
-  // T2-T7: natural selection — stagnation death after 6000 ticks
-  if (currentTier >= 2 && currentTier < 8) {
-    if (_intStagnTicks >= 6000 && typeof _runDeathCycle === 'function') {
-      _runDeathCycle(`evolutionary stagnation — T${currentTier} plateau — natural selection reset`);
-    }
-    return;
-  }
-  if (currentTier < 2) return;
-
-  // T8+: intervention cycle (fires every 500 stagnation ticks)
-  if (_intStagnTicks < 500) return;
-  if (_intIdx >= _INTERVENTIONS.length * 3) {
-    // All interventions exhausted — stagnation death
-    if (_intStagnTicks >= 2000 && typeof _runDeathCycle === 'function') {
-      _runDeathCycle(`all interventions exhausted — T${currentTier} evolutionary dead end`);
-    }
-    return;
-  }
-  _triggerIntervention(_intIdx % _INTERVENTIONS.length);
-  _intIdx++;
-}
-
-function _triggerIntervention(idx) {
-  const iv = _INTERVENTIONS[idx];
-  _intGenomeSave = { n1: _genome.n1, n2: _genome.n2, n3: _genome.n3, noiseScale: _genome.noiseScale };
-  iv.fn(_genome);
-  _intActive     = true;
-  _intStagnTicks = 0;
-  speak('ANALYST', `T${currentTier} stagnation detected (${_intIdx * 500} ticks). Initiating ${iv.name}. ${iv.desc}`);
-  const ws = document.getElementById('world-state');
-  if (ws) {
-    ws.textContent = '⚗ ' + iv.name.toUpperCase();
-    ws.className   = 'perturbed';
-    setTimeout(() => { if (ws.className === 'perturbed') { ws.textContent = ''; ws.className = ''; } }, 4000);
-  }
-  setTimeout(_endIntervention, 300 * 17); // ~5 seconds
-}
-
-function _endIntervention() {
-  if (!_intActive) return;
-  Object.assign(_genome, _intGenomeSave);
-  _intActive = false;
-}
-
-
-// ═══════════════════════════════════════════════════════════════
-//  REACTIVE AGENT CONVERSATION ENGINE — IRON VEIL
-//
-//  Agents observe, debate, propose actions, vote (2/3 consensus),
-//  execute agreed interventions. Discoveries archived to localStorage.
-// ═══════════════════════════════════════════════════════════════
-
-// ── Cross-biome knowledge (localStorage) ─────────────────────
-const BIOME_ID   = 70;
-const BIOME_NAME = 'IRON VEIL';
-const K_KEY      = 'pandora_knowledge_v1';
-
-function readKnowledge() {
-  try { return JSON.parse(localStorage.getItem(K_KEY) || '[]'); } catch(e) { return []; }
-}
-function writeKnowledge(entry) {
-  const full = {...entry, biome_id: BIOME_ID, biome: BIOME_NAME, tick, ts: Date.now()};
-  try {
-    const k = readKnowledge();
-    k.push(full);
-    if (k.length > 400) k.splice(0, k.length - 400);
-    localStorage.setItem(K_KEY, JSON.stringify(k));
-  } catch(e) {}
-  writeKnowledgeToFirebase(full);
-}
-function getOtherBiomeFacts() {
-  return readKnowledge().filter(e => e.biome_id !== BIOME_ID).slice(-12);
-}
-
-// ── Conversation state ────────────────────────────────────────
-const agentFeed = document.getElementById('agent-feed');
-const CONV = {
-  queue:        [],
-  cooldown:     0,
-  pending:      null,
-  history:      [],
-  booted:       false,
-  lastPeriodic: -1500,
-};
-
-const ACTIONS = {
-  INJECT_CATALYST: 'inject additional water catalyst molecules to facilitate Fe-S bonding',
-  THERMAL_SHOCK:   'trigger a hydrothermal vent surge to redistribute the network',
-  MATERIAL_RAIN:   'introduce fresh iron and sulfur from the vent below',
-  DECLARE_DEAD:    'archive this world and broadcast its learnings',
-};
-
-function speak(speaker, msg, type) {
-  type = type || 'statement';
-  CONV.queue.push({speaker, msg, type});
-}
-
-
-// ── Agent Rank System ─────────────────────────────────────────
-//
-//  Agents begin as STUDENT and advance through:
-//    STUDENT(0) → RESEARCHER(50) → SCIENTIST(150) → PROFESSOR(300)
-//
-//  XP is earned by:
-//    +20  Tier-up occurs (OBSERVER who first reported it)
-//    +25  Successful intervention (proposer, if cx improves after)
-//    +10  Cross-biome insight cited leads to a correct prediction
-//    +15  Death well-documented (NARRATOR)
-//    +5   Vote cast correctly (yes on success, no on failure)
-//    -10  Intervention fails (cx does not improve)
-//    -5   Proposal ignored / never seconded
-//
-//  Higher ranks change behaviour:
-//    STUDENT    — observes, asks questions, vote weight 0.5
-//    RESEARCHER — can propose, vote weight 1.0
-//    SCIENTIST  — complex proposals, vote weight 1.5, auto-references cross-biome
-//    PROFESSOR  — veto power, vote weight 2.0, emergency unilateral action at max stagnation
-
-const RANKS     = ['STUDENT', 'RESEARCHER', 'SCIENTIST', 'PROFESSOR'];
-const RANK_XP   = [0, 50, 150, 300];
-const RANK_W    = {STUDENT: 0.5, RESEARCHER: 1.0, SCIENTIST: 1.5, PROFESSOR: 2.0};
-const RANK_CLR  = {
-  STUDENT:    'rgba(160,160,160,0.5)',
-  RESEARCHER: 'rgba(80,150,240,0.6)',
-  SCIENTIST:  'rgba(60,210,175,0.7)',
-  PROFESSOR:  'rgba(255,200,60,0.9)',
-};
-const A_KEY = 'pandora_agents_v1';
-
-const AGENT_STATE = {
-  OBSERVER: {xp:0, rank:'STUDENT', successful:0, failed:0, predictions:[]},
-  ANALYST:  {xp:0, rank:'STUDENT', successful:0, failed:0, predictions:[]},
-  NARRATOR: {xp:0, rank:'STUDENT', successful:0, failed:0, predictions:[]},
-};
-
-function rankOf(xp) {
-  for (let i = RANKS.length-1; i >= 0; i--) if (xp >= RANK_XP[i]) return RANKS[i];
-  return 'STUDENT';
-}
-
-function loadAgentProfiles() {
-  try { return JSON.parse(localStorage.getItem(A_KEY) || '{}'); } catch(e) { return {}; }
-}
-function saveAgentProfile(name) {
-  try {
-    const all = loadAgentProfiles();
-    all[`${BIOME_ID}_${name}`] = {
-      xp: AGENT_STATE[name].xp, rank: AGENT_STATE[name].rank,
-      successful: AGENT_STATE[name].successful, failed: AGENT_STATE[name].failed,
-    };
-    localStorage.setItem(A_KEY, JSON.stringify(all));
-  } catch(e) {}
-}
-
-function initAgentProfiles() {
-  const saved = loadAgentProfiles();
-  for (const name of ['OBSERVER','ANALYST','NARRATOR']) {
-    const key = `${BIOME_ID}_${name}`;
-    if (saved[key]) {
-      AGENT_STATE[name].xp         = saved[key].xp         || 0;
-      AGENT_STATE[name].successful = saved[key].successful || 0;
-      AGENT_STATE[name].failed     = saved[key].failed     || 0;
-    }
-    AGENT_STATE[name].rank = rankOf(AGENT_STATE[name].xp);
-  }
-  updateRankDisplay();
-}
-
-const RANK_UP_MSG = {
-  RESEARCHER: {
-    OBSERVER: 'My field observations have been validated enough times. I can now formally propose actions to the team.',
-    ANALYST:  'My pattern recognition track record qualifies me for the RESEARCHER rank. I am now permitted to issue proposals.',
-    NARRATOR: 'My contextual analysis has earned research standing. I will use this to push for better-reasoned decisions.',
-  },
-  SCIENTIST: {
-    OBSERVER: 'SCIENTIST rank. My observations have driven multiple successful interventions. I will now propose multi-step strategies and my vote carries extra weight.',
-    ANALYST:  'SCIENTIST rank. My interventions have been validated across enough biomes. I can now propose complex 2-step actions and outweigh less-experienced voices.',
-    NARRATOR: 'SCIENTIST rank. My synthesis of cross-biome data has been consistently correct. I will use this platform to argue harder for what the evidence demands.',
-  },
-  PROFESSOR: {
-    OBSERVER: 'PROFESSOR. I have been in this world longer than anyone, observed more than anyone, and my predictions have held across multiple biomes. I now hold veto power.',
-    ANALYST:  'PROFESSOR. My analytical track record is the best in this biome. I will use my veto sparingly — only when the evidence is unambiguous.',
-    NARRATOR: 'PROFESSOR. The universe has been my classroom. I will use this standing to ensure we make only decisions the archive will be proud of.',
-  },
-};
-
-function awardXP(name, amount, reason) {
-  const s = AGENT_STATE[name];
-  if (!s) return;
-  const oldRank = s.rank;
-  s.xp = Math.max(0, s.xp + amount);
-  s.rank = rankOf(s.xp);
-  if (amount > 0) s.successful++; else if (amount < 0) s.failed++;
-  saveAgentProfile(name);
-
-  if (s.rank !== oldRank && RANKS.indexOf(s.rank) > RANKS.indexOf(oldRank)) {
-    const msg = RANK_UP_MSG[s.rank]?.[name] || `Rank advanced to ${s.rank}.`;
-    speak(name, `▲ RANK UP — ${s.rank}. ${msg}`, 'levelup');
-    writeKnowledge({type:'rank_up', agent:name, new_rank:s.rank, xp:s.xp,
-      summary:`${name} reached ${s.rank} (${s.xp} XP) in ${BIOME_NAME}`});
-  } else if (s.rank !== oldRank) {
-    speak(name, `▼ Rank dropped to ${s.rank} (${s.xp} XP). My track record needs work.`, 'statement');
-  }
-  updateRankDisplay();
-}
-
-function updateRankDisplay() {
-  const container = document.getElementById('panel-agents');
-  if (!container) return;
-  container.innerHTML = ['OBSERVER','ANALYST','NARRATOR'].map(name => {
-    const s   = AGENT_STATE[name];
-    const ri  = RANKS.indexOf(s.rank);
-    const lo  = RANK_XP[ri];
-    const hi  = RANK_XP[ri+1] || (lo + 50);
-    const pct = Math.min(100, Math.round(((s.xp - lo) / (hi - lo)) * 100));
-    const fill_color = {STUDENT:'rgba(160,160,160,0.4)',RESEARCHER:'rgba(80,150,240,0.5)',
-                        SCIENTIST:'rgba(60,210,175,0.6)',PROFESSOR:'rgba(255,200,60,0.8)'}[s.rank];
-    return `<div class="pagent-wrap">
-      <span class="pagent ${name}">${name}</span>
-      <span class="rank-badge rank-${s.rank.toLowerCase()}" title="${s.rank} — ${s.xp} XP">${s.rank.charAt(0)}</span>
-      <div class="xp-track" title="${s.xp} XP / ${hi} next rank">
-        <div class="xp-fill" style="width:${pct}%;background:${fill_color}"></div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-
-// Agent rank prefix for messages
-function rankPrefix(speaker) {
-  const rank = AGENT_STATE[speaker]?.rank || 'STUDENT';
-  if (rank === 'STUDENT')    return '[?] ';
-  if (rank === 'RESEARCHER') return '';
-  if (rank === 'SCIENTIST')  return '';
-  if (rank === 'PROFESSOR')  return '[PROF] ';
-  return '';
-}
-
-
-// Check if agent is allowed to propose
-function canPropose(name) {
-  const rank = AGENT_STATE[name]?.rank || 'STUDENT';
-  if (rank === 'STUDENT') {
-    speak(name, `I want to propose an action but I haven't earned proposal rights yet. I need ${50 - (AGENT_STATE[name]?.xp||0)} more XP to reach RESEARCHER rank.`);
-    return false;
-  }
-  return true;
-}
-
-function flushQueue() {
-  if (!CONV.queue.length) return;
-  if (CONV.cooldown > 0) { CONV.cooldown--; return; }
-  const {speaker, msg, type} = CONV.queue.shift();
-  CONV.history.push({speaker, msg, type, tick});
-  if (CONV.history.length > 200) CONV.history.shift();
-  const badges = {
-    proposal:  '<span class="ae-type proposal">PROPOSAL</span>',
-    vote_yes:  '<span class="ae-type yes">AGREE</span>',
-    vote_no:   '<span class="ae-type no">DISAGREE</span>',
-    consensus: '<span class="ae-type action">CONSENSUS</span>',
-    action:    '<span class="ae-type action">ACTION</span>',
-    knowledge: '<span class="ae-type knowledge">FROM RECORD</span>',
-  };
-  const badge   = badges[type] || '';
-  const hiClass = ['proposal','consensus','action'].includes(type) ? ' ae-highlight' : '';
-  const div = document.createElement('div');
-  div.className = `ae${hiClass}`;
-  div.innerHTML = `
-    <div class="ae-meta">
-      <span class="ae-name ${speaker}">${speaker}</span>
-      <span class="ae-time">t=${tick}</span>${badge}
-    </div>
-    <div class="ae-msg ${speaker}">${msg}</div>`;
-  agentFeed.appendChild(div);
-  agentFeed.scrollTop = agentFeed.scrollHeight;
-  while (agentFeed.children.length > 80) agentFeed.removeChild(agentFeed.firstChild);
-  if (['proposal','consensus','action','vote_yes','vote_no'].includes(type)) {
-    writeKnowledge({type, speaker, msg, summary: `${speaker}: ${msg.slice(0,80)}`});
-  }
-  CONV.cooldown = 50 + Math.floor(Math.random() * 40);
-}
-
-function propose(proposer, action, reason) {
-  if (CONV.pending) return false;
-  if (!canPropose(proposer)) return false;
-  CONV.pending = {action, reason, proposer, votes: {[proposer]: true}, weights: {[proposer]: RANK_W[AGENT_STATE[proposer]?.rank||'STUDENT']}};
-  speak(proposer, `I propose we ${ACTIONS[action]}. ${reason}`, 'proposal');
-  return true;
-}
-
-function castVote(voter, inFavor, reason) {
-  if (!CONV.pending || voter in CONV.pending.votes) return;
-  CONV.pending.votes[voter]   = inFavor;
-  CONV.pending.weights        = CONV.pending.weights || {};
-  const vw = RANK_W[AGENT_STATE[voter]?.rank || 'STUDENT'];
-  CONV.pending.weights[voter] = inFavor ? vw : 0;
-
-  // PROFESSOR veto
-  if (!inFavor && AGENT_STATE[voter]?.rank === 'PROFESSOR') {
-    speak(voter, `VETO. ${reason || 'The evidence does not support this action at this time.'}`, 'vote_no');
-    speak('NARRATOR', `Professor-level veto applied. Proposal rejected by authority. Continuing observation.`);
-    awardXP(voter, 5, 'Valid veto');
-    CONV.pending = null;
-    return;
-  }
-
-  speak(voter, reason || (inFavor ? 'Agreed.' : 'Disagree.'), inFavor ? 'vote_yes' : 'vote_no');
-
-  const weightedYes = Object.values(CONV.pending.weights).reduce((s,v) => s+v, 0);
-  const yes         = Object.values(CONV.pending.votes).filter(Boolean).length;
-  const total       = Object.keys(CONV.pending.votes).length;
-
-  if (weightedYes >= 2.0 || yes >= 2) {
-    const p = CONV.pending; CONV.pending = null;
-    CONV._lastProposal = p;
-    speak('NARRATOR', `Consensus — weighted ${weightedYes.toFixed(1)}, ${yes}/${total} yes votes. Executing.`, 'consensus');
-    setTimeout(() => {
-      executeAction(p.action, p.reason);
-      // Track who voted yes for post-hoc XP award
-      CONV._pendingXP = Object.entries(p.votes)
-        .filter(([,v]) => v).map(([k]) => k);
-    }, 900);
-  } else if (total >= 3) {
-    speak('NARRATOR', `Proposal failed — weighted ${weightedYes.toFixed(1)}, ${yes}/${total}. Continuing.`);
-    awardXP(CONV.pending?.proposer, -8, 'Failed proposal');
-    CONV.pending = null;
-  }
-}
-
-function executeAction(action, reason) {
-  switch (action) {
-    case 'INJECT_CATALYST':
-      for (let i = 0; i < 18; i++)
-        addAgent(OW, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
-                 (Math.random()-0.5)*0.7, -3.2-Math.random()*2.2);
-      speak('OBSERVER', `Injected 18 water catalyst molecules. Monitoring Fe-S bond rate response.`, 'action');
-      break;
-    case 'THERMAL_SHOCK':
-      if (currentTier >= 5) {
-        speak('SYSTEM', `THERMAL_SHOCK blocked at T${currentTier} — structural protection active. Applying safe material rain instead.`);
-        executeAction('MATERIAL_RAIN', 'Auto-safe fallback: thermal action blocked at T5+');
-        return;
-      }
-      for (const a of A) { a.vx += (Math.random()-0.5)*12; a.vy += (Math.random()-0.5)*12; }
-      perturbFlash = 40;
-      speak('OBSERVER', `Redistribution applied at T${currentTier} — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
-      break;
-    case 'MATERIAL_RAIN':
-      for (let i = 0; i < 35; i++)
-        addAgent(A[0].type, Math.random()*W, 8, (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
-      for (let i = 0; i < 15; i++)
-        addAgent(A[1]?.type ?? A[0].type, Math.random()*W, 8, (Math.random()-0.5)*2.0, 1.5+Math.random()*2);
-      speak('OBSERVER', `Material influx initiated — 50 molecules incoming. Total: ${A.length}.`, 'action');
-      break;
-    case 'DECLARE_DEAD':
-      declareDead(reason); return;
-  }
-  interventions++;
-  peakTick    = tick;
-  worldStatus = 'perturbed';
-  const el = document.getElementById('world-state');
-  el.textContent = action.replace(/_/g,' ');
-  el.className   = 'perturbed';
-  setTimeout(() => { if (worldStatus !== 'dead') { el.className=''; el.textContent=''; } }, 3000);
-  writeKnowledge({type:'intervention', action, summary: `Applied ${action}: ${reason}`});
-}
-
-// ── Conversation triggers ─────────────────────────────────────
-function convBoot() {
-  const facts = getOtherBiomeFacts();
-  const N = A.length;
-  speak('OBSERVER', `Biome-70 IRON VEIL online. Iron sulfide chemistry, 400K hydrothermal. Wächtershäuser hypothesis. ' + N + ' agents initialised. `);
-  speak('ANALYST',  `Conditions verified: 50 atm, T₀=400K, FE:SU=140:130, OW catalyst 9%. Ea≈60 kJ/mol — moderate barrier, water facilitates Fe-S bond via ligand exchange.`);
-  if (facts.length > 0) {
-    const f = facts[facts.length-1];
-    speak('NARRATOR', `The archive already carries data from ${f.biome}: "${f.summary}". We enter IRON VEIL knowing what came before.`, 'knowledge');
-  } else {
-    speak('NARRATOR', `Before proteins, before RNA, before lipids — there was iron and sulfur and hot water. Everything we call life may have started here. Iron Veil is the oldest hypothesis in Pandora.`);
-  }
-}
-
-function convTierUp(t, cx, mxl, brn, rings) {
-  const facts = getOtherBiomeFacts();
-  const ref   = facts.length ? facts[facts.length-1] : null;
-  if (t === 1) {
-    speak('OBSERVER', `First Fe-S bond confirmed at t=' + tick + '. T1. Wächtershäuser's first prediction validated.`);
-    speak('ANALYST',  `Iron-sulfur bonding initiated. Water catalyst facilitating via ligand exchange mechanism. This is the same Fe-S chemistry found in every living cell's electron transport chain.`);
-    speak('NARRATOR', `The first Fe-S bond. This bond type exists in every living organism on Earth — ferredoxins, hydrogenases, nitrogenases. We are watching the proto-origin of metabolism.`);
-  } else if (t === 2) {
-    speak('OBSERVER', `Persistent Fe-S chain — ' + mxl + ' Fe atoms, sustained >300 ticks. T2.`);
-    speak('ANALYST',  `Fe-S chain stability achieved. An iron sulfide polymer is forming. Wächtershäuser predicted this would be the first step. It took ' + tick + ' ticks.`);
-    if (ref) speak('NARRATOR', `${ref.biome} also formed persistent Fe-S chains — "${ref.summary}". also reached polymer stage — "".`, 'knowledge');
-    else     speak('NARRATOR', `An iron sulfide chain. Wächtershäuser predicted this. He said the first metabolism was a mineral surface. We are watching the prediction become a measurement.`);
-  } else if (t === 3) {
-    speak('OBSERVER', `Branching — ' + brn + ' multi-bonded Fe nodes. The Fe-S network has forked. T3.`);
-    speak('ANALYST',  `Branched iron sulfide structure. Each branching Fe atom is an analog of the [4Fe-4S] cluster found in biological ferredoxins. The universe is rehearsing a theme.`);
-    speak('NARRATOR', `The branches grow. Each Fe-S fork in this world echoes a fork found inside every living mitochondrion. The deep homology between geology and biology.`);
-  } else if (t === 4) {
-    speak('OBSERVER', `Ring closure — ' + rings + ' Fe-S cyclic structure(s). T4.`);
-    speak('ANALYST',  `Cyclic iron sulfide. [4Fe-4S] and [2Fe-2S] clusters are the canonical biological Fe-S cofactors. The network is finding the shapes life uses.`);
-    speak('NARRATOR', `Rings. The iron network closes on itself. The precondition of compartmentation. One day, metabolism will happen inside a structure that began as this ring.`);
-  } else if (t === 5) {
-    speak('OBSERVER', `Fe-S cluster migrated from vent zone — spatial reorganization confirmed. T5.`);
-    speak('ANALYST',  `The iron sulfide network is becoming spatially autonomous — no longer vent-dependent. This is the critical transition Wächtershäuser called "surface metabolism to free metabolism".`);
-  } else if (t === 6) {
-    speak('OBSERVER', `Sustained complexity above 1.5 for >80 intervals. T6 — self-reinforcing.`);
-    speak('ANALYST',  `Positive feedback confirmed. Fe-S network autocatalytic for own growth. This mirrors the autocatalytic sulfur cycles in modern hydrothermal vent ecosystems.`);
-    speak('NARRATOR', `Iron Veil has become self-sustaining. This is what Wächtershäuser described — iron sulfide that maintains itself against thermodynamic dissolution.`);
-  }
-  writeKnowledge({type:'tier_up', tier:t, cx, mxl, brn, rings,
-    summary:`T${t} achieved at t=${tick}: cx=${cx.toFixed(3)}, chain=${mxl}`});
-}
-
-function convStagnationWarning(cx, mxl) {
-  const elapsed = tick - peakTick;
-  const pct     = Math.round((elapsed / STAGNATION_WINDOW) * 100);
-  speak('OBSERVER', `Stagnation — peak cx=${peakComplexity.toFixed(3)} reached ${elapsed} ticks ago. ${pct}% of tolerance window consumed.`);
-  speak('ANALYST',  `Fe-s chain=${mxl}, bonds=${BONDS.size}. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining.`);
-  const delay = 700;
-  if (mxl < 3) {
-    speak('ANALYST', `Water catalyst concentration is the limiting factor — OW facilitates Fe-S ligand exchange and without it, bonding cannot proceed. Proposing OW injection.`);
-    setTimeout(() => {
-      propose('ANALYST', 'INJECT_CATALYST', `Fe-S bond formation requires water ligand exchange. OW concentration is insufficient for chain extension.`);
-      setTimeout(() => {
-        castVote('OBSERVER', true, `Confirmed — OW concentration has fallen below threshold. The hydrothermal chemistry is dry.`);
-        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. The iron-sulfur world without water is just geology. The catalyst is what makes it chemistry.`); }, 1200);
-      }, 900);
-    }, delay);
-  } else if (BONDS.size < 20) {
-    if (currentTier >= 5) {
-      speak('ANALYST', `We are at T${currentTier} — a hydrothermal surge would destroy the [4Fe-4S] cluster architecture that took thousands of ticks to assemble. Only safe interventions permissible.`);
-      speak('NARRATOR', `The agents do not scatter what vent chemistry so carefully precipitated.`);
-      setTimeout(() => {
-        propose('ANALYST', 'MATERIAL_RAIN', `At T${currentTier}, fresh Fe-S substrate is the safe path. No surge disruption.`);
-        setTimeout(() => {
-          castVote('OBSERVER', true, `Confirmed — material replenishment preserves existing cluster architecture while providing new substrate for [4Fe-4S] formation.`);
-          setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Structural integrity takes precedence.`); }, 1100);
-        }, 900);
-      }, delay);
-    } else {
-      speak('ANALYST', `Fe-S network topology is fragmented — isolated clusters, no large connected component. A vent surge may redistribute material and allow cluster coalescence.`);
-      setTimeout(() => {
-        propose('ANALYST', 'THERMAL_SHOCK', `Fe-S topology is stuck in isolated dyads. A hydrothermal surge may allow the preferred [4Fe-4S] cluster geometry to emerge.`);
-        setTimeout(() => {
-          const obs_yes = Math.random() > 0.3;
-          castVote('OBSERVER', obs_yes, obs_yes ? `Network topology maps confirm fragmentation.` : `Risk: a full surge may dissolve the small clusters we have. But the alternative — continued fragmentation — is worse.`);
-          setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation exceeds the risk. Vote yes.`); }, 1100);
-        }, 900);
-      }, delay);
-    }
-  } else {
-    speak('ANALYST', `FE count falling. Fresh iron from the vent below would replenish the substrate for Fe-S cluster formation.`);
-    setTimeout(() => {
-      propose('OBSERVER', 'MATERIAL_RAIN', `FE density has dropped. Vent emission is insufficient. Fresh iron-sulfur material required.`);
-      setTimeout(() => {
-        castVote('ANALYST', true, `Material replenishment is the correct intervention.`);
-        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Two votes. We proceed.`); }, 1100);
-      }, 900);
-    }, delay);
-  }
-}
-
-function convDead(reason) {
-  const facts = getOtherBiomeFacts();
-  speak('OBSERVER', `World terminated. Final: cx=${peakComplexity.toFixed(3)}, T${currentTier}, ${interventions} interventions. Reason: ${reason}`);
-  speak('ANALYST', currentTier < 2
-    ? `Limiting factor: Fe-S activation barrier too high without sufficient water catalyst. Wächtershäuser's hypothesis requires active water chemistry — the ligand exchange mechanism failed.`
-    : currentTier < 4
-    ? `Limiting factor: Fe-S chain extension failed — monomers formed but could not polymerise at this temperature and pressure.`
-    : `Limiting factor: complexity ceiling at T' + currentTier + '. The Fe-S network could not achieve the spatial organisation required for higher-tier structures.`);
-  if (facts.length > 0) {
-    const others = [...new Set(facts.slice(-3).map(f => f.biome))].join(', ');
-    speak('NARRATOR', `These findings join records from {others}. Findings join records from ${others}. IRON VEIL's children inherit this data.`, 'knowledge');
-  } else {
-    speak('NARRATOR', `The iron sulfide world wanted to live. The vent was not hot enough, or the water chemistry insufficient. We preserve Iron Veil and carry its data forward. Wächtershäuser's hypothesis survives — this is one data point in a much larger experiment.`);
-  }
-  awardXP('NARRATOR', 15, 'World archived with full analysis');
-  awardXP('OBSERVER',  5, 'Death documented');
-
-  writeKnowledge({type:'death', reason, peak_cx: peakComplexity, peak_tier: currentTier,
-    interventions_applied: interventions,
-    summary: `IRON VEIL died at t=${tick}, T${currentTier}, cx=${peakComplexity.toFixed(2)}: ${reason}`});
-}
-
-function convPeriodic() {
-  const cx    = hist.length ? hist[hist.length-1] : 0;
-  const mxl   = maxChainLength(latestComps);
-  const brn   = countBranching();
-  const rings = countRings(latestComps);
-  const facts = getOtherBiomeFacts();
-  const turn  = Math.floor(tick / 1500) % 3;
-  if (turn === 0) {
-    speak('OBSERVER', `Report t=${tick}. Bonds: ${BONDS.size}. Max chain: ${mxl}. Branch pts: ${brn}. Rings: ${rings}. Complexity: ${cx.toFixed(3)}.`);
-    speak('ANALYST', mxl >= 6
-      ? `Fe-S network maturing. Chain ' + mxl + ', ' + brn + ' Fe branch pts. ' + (rings > 0 ? rings + ' ring(s) — cyclic stability confirmed.' : 'Ring closure is the remaining milestone.') + ' Wächtershäuser predicted this.`
-      : mxl >= 3
-      ? `Development moderate. Chain ' + mxl + '. Fe-S chemistry progressing toward [4Fe-4S] cluster geometry.`
-      : `Minimal progress. Chain ' + mxl + '. Fe-S kinetics are not matching theoretical predictions at this temperature.`);
-  } else if (turn === 1 && facts.length > 0) {
-    const f = facts[Math.floor(Math.random() * facts.length)];
-    speak('ANALYST', `Cross-biome data: ${f.biome} recorded — "${f.summary}". Comparing to IRON VEIL — our T${currentTier} progress.`, 'knowledge');
-    speak('OBSERVER', `Integrating: if ${f.biome} reached T${f.tier||'?'}, what parameters differed? Temperature, catalyst type, or material ratio?`);
-    speak('ANALYST',  `Most likely: catalytic efficiency and temperature. IRON VEIL's offspring should vary those parameters systematically.`);
-  } else {
-    if (tierAchieved[4])      speak('NARRATOR', `Rings. The iron network closes on itself. The precondition of compartmentation. One day, metabolism happens inside.`);
-    else if (tierAchieved[3]) speak('NARRATOR', `The Fe-S branches grow. Each fork echoes the [4Fe-4S] clusters in every living mitochondrion. The deep homology between geology and biology.`);
-    else if (tierAchieved[2]) speak('NARRATOR', `The chains persist. Iron and sulfur writing their story in the deep ocean heat.`);
-    else                       speak('NARRATOR', `Iron Veil is patient. Wächtershäuser knew this place would take time. We observe. The chemistry moves at its own pace.`);
-  }
-  const stagnPct = (tick - peakTick) / STAGNATION_WINDOW;
-  if (stagnPct > 0.70 && stagnPct < 0.95 && !CONV.pending && interventions < MAX_INTERVENTIONS) {
-    setTimeout(() => convStagnationWarning(cx, mxl), 400);
-  }
-}
-
-function runAgentConversations() {
-  flushQueue();
-  if (!CONV.booted && tick >= 1) {
-    CONV.booted = true;
-    initAgentProfiles();
-    convBoot();
-    return;
-  }
-  if (worldStatus !== 'dead' && tick - CONV.lastPeriodic >= 1500 && tick > 200) {
-    CONV.lastPeriodic = tick;
-    convPeriodic();
-  }
-}
-
-// ── Panel toggle ──────────────────────────────────────────────
-function togglePanel() {
-  document.getElementById('agent-panel').classList.toggle('collapsed');
-}
-
-// ── Speed control ─────────────────────────────────────────────
-let SPEED_VAL = 4;
-document.addEventListener('keydown', e => {
-  if (e.key === '+' || e.key === '=') SPEED_VAL = Math.min(30, SPEED_VAL + 1);
-  if (e.key === '-')                   SPEED_VAL = Math.max(1,  SPEED_VAL - 1);
-  if (e.key === '0')                   SPEED_VAL = 4;
-  SPEED = SPEED_VAL;
-});
-
-
-// ═══════════════════════════════════════════════════════════════
-//  FIREBASE PERSISTENCE
-//
-//  Every visitor continues the simulation from wherever the last
-//  visitor left off. State, knowledge, and agent ranks are shared
-//  globally — no world ever resets after its first run.
-//
-//  DB structure:
-//    pandora/biomes/{id}/state      — simulation state snapshot
-//    pandora/biomes/{id}/agents     — agent XP / ranks
-//    pandora/knowledge              — cross-biome discovery log
-// ═══════════════════════════════════════════════════════════════
-
-const FB_CONFIG = {
-  apiKey:            'AIzaSyANFCI2Uyehrezru2TxZ8jOP_V9lVSYkGA',
-  authDomain:        'pandora-68637.firebaseapp.com',
-  databaseURL:       'https://pandora-68637-default-rtdb.firebaseio.com',
-  projectId:         'pandora-68637',
-  storageBucket:     'pandora-68637.firebasestorage.app',
-  messagingSenderId: '244482446708',
-  appId:             '1:244482446708:web:7bec4962611f8c4a224821',
-};
-
-let fbDb = null;
-
-function initFirebase() {
-  try {
-    if (typeof firebase === 'undefined') return;
-    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
-    fbDb = firebase.database();
-    loadBiomeState();
-    loadGlobalKnowledge();
-    loadAgentRanks();
-
-  // Presence tracking — register this session, count historic visitors
-  const _sid = Math.random().toString(36).slice(2, 10);
-  const _presRef = fbDb.ref(`pandora/presence/${_sid}`);
-  _presRef.set({ page: `biome-${BIOME_ID}`, connectedAt: Date.now(), ticksPerSec: 0 });
-  _presRef.onDisconnect().remove();
-  fbDb.ref('pandora/stats/totalVisitors').transaction(n => (n || 0) + 1).catch(() => {});
-
-  // Periodically update ticksPerSec in presence so index can show live compute rate
-  let _lastTickSnapshot = 0, _lastTickTime = Date.now();
-  setInterval(() => {
-    const now = Date.now();
-    const elapsed = (now - _lastTickTime) / 1000;
-    const ticksDone = tick - _lastTickSnapshot;
-    const rate = elapsed > 0 ? Math.round(ticksDone / elapsed) : 0;
-    _lastTickSnapshot = tick;
-    _lastTickTime = now;
-    _presRef.update({ ticksPerSec: rate }).catch(() => {});
-  }, 5000); // report every 5 seconds
-    // Save positions on unload and periodically
-    window.addEventListener('beforeunload', _savePositions);
-    setInterval(_savePositions, 180000); // every 3 minutes
-  } catch(e) { console.warn('[Pandora Firebase] init failed:', e); }
-}
-
-function loadBiomeState() {
-  fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value').then(snap => {
-    const s = snap.val();
-    if (!s || (s.tick || 0) < 200) return; // nothing meaningful saved yet
-
-    tick           = s.tick           || 0;
-    currentTier    = s.currentTier    || 0;
-    peakComplexity = s.peakComplexity || 0;
-    peakTick       = s.peakTick       || 0;
-    interventions  = s.interventions  || 0;
-    worldStatus    = s.worldStatus    || 'active';
-
-    if (s.tierAchieved) {
-      s.tierAchieved.forEach((v, i) => { if (i < tierAchieved.length) tierAchieved[i] = v; });
-    }
-    if (currentTier > 0) {
-      document.getElementById('v-tier').textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
-    }
-    if (worldStatus === 'dead') {
-      const el = document.getElementById('world-state');
-      if (el) { el.textContent = 'DEAD WORLD'; el.className = 'dead'; }
-    }
-
-    const ago = Math.round((Date.now() - (s.lastUpdated || Date.now())) / 60000);
-    speak('OBSERVER', `Resuming from Firebase: t=${s.tick}, T${s.currentTier}, cx=${(s.peakComplexity||0).toFixed(3)}. Last active ${ago > 0 ? ago + ' minute' + (ago!==1?'s':'')+' ago' : 'moments ago'}.`);
-    speak('NARRATOR', `This world was not starting from zero. It carries ${s.tick.toLocaleString()} ticks of history. We continue where the last observer left off.`);
-  }).catch(e => console.warn('[Pandora Firebase] state load failed:', e));
-}
-
-function loadGlobalKnowledge() {
-  fbDb.ref('pandora/knowledge').limitToLast(200).once('value').then(snap => {
-    const data = snap.val();
-    if (!data) return;
-    const entries = Object.values(data).sort((a, b) => (a.ts||0) - (b.ts||0));
-    try { localStorage.setItem(K_KEY, JSON.stringify(entries)); } catch(e) {}
-  }).catch(e => {});
-}
-
-function loadAgentRanks() {
-  fbDb.ref(`pandora/biomes/${BIOME_ID}/agents`).once('value').then(snap => {
-    const saved = snap.val();
-    if (!saved) return;
-    for (const name of ['OBSERVER', 'ANALYST', 'NARRATOR']) {
-      if (saved[name]) {
-        AGENT_STATE[name].xp         = saved[name].xp         || 0;
-        AGENT_STATE[name].rank       = saved[name].rank       || 'STUDENT';
-        AGENT_STATE[name].successful = saved[name].successful || 0;
-        AGENT_STATE[name].failed     = saved[name].failed     || 0;
-      }
-    }
-    updateRankDisplay();
-  }).catch(e => {});
-}
-
-let _fbLastSave = 0;
-
-function saveToFirebase() {
-  if (!fbDb) return;
-  if (tick - _fbLastSave < 500) return;
-  _fbLastSave = tick;
-
-  const cx = hist.length ? hist[hist.length-1] : 0;
-
-  fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).set({
-    tick, currentTier, peakComplexity, peakTick, interventions, worldStatus,
-    tierAchieved:  [...tierAchieved],
-    bonds:         BONDS.size,
-    complexity:    parseFloat(cx.toFixed(4)),
-    maxChain:      maxChainLength(latestComps),
-    lastUpdated:   Date.now(),
-  }).catch(e => {});
-
-  fbDb.ref(`pandora/biomes/${BIOME_ID}/agents`).set({
-    OBSERVER: {xp: AGENT_STATE.OBSERVER.xp, rank: AGENT_STATE.OBSERVER.rank, successful: AGENT_STATE.OBSERVER.successful, failed: AGENT_STATE.OBSERVER.failed},
-    ANALYST:  {xp: AGENT_STATE.ANALYST.xp,  rank: AGENT_STATE.ANALYST.rank,  successful: AGENT_STATE.ANALYST.successful,  failed: AGENT_STATE.ANALYST.failed},
-    NARRATOR: {xp: AGENT_STATE.NARRATOR.xp, rank: AGENT_STATE.NARRATOR.rank, successful: AGENT_STATE.NARRATOR.successful, failed: AGENT_STATE.NARRATOR.failed},
-  }).catch(e => {});
-
-  fbDb.ref('pandora/stats/totalTicks').transaction(t => (t || 0) + 500).catch(() => {});
-}
-
-function writeKnowledgeToFirebase(entry) {
-  if (!fbDb) return;
-  try { fbDb.ref('pandora/knowledge').push(entry); } catch(e) {}
-}
-
-
-// ── Position persistence ──────────────────────────────────────────────────────
-// Saves full particle state to Firebase on unload + every 3 min.
-// On next visit, _restorePositions() is called before init() — no clock reset.
-
-function _savePositions() {
-  if (!fbDb || A.length === 0) return;
-  try {
-    fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).set({
-      px:          A.map(a => Math.round(a.x * 10) / 10),
-      py:          A.map(a => Math.round(a.y * 10) / 10),
-      types:       A.map(a => a.type),
-      bonds:       [...BONDS].map(k => k.split(',').map(Number)),
-      tick,
-      currentTier,
-      peakComplexity: (typeof peakComplexity !== 'undefined' ? peakComplexity : 0),
-      peakTick:       (typeof peakTick       !== 'undefined' ? peakTick       : 0),
-      interventions:  (typeof interventions  !== 'undefined' ? interventions  : 0),
-      worldStatus,
-      tierAchieved: [...tierAchieved],
-      ts: Date.now()
-    });
-  } catch(e) {}
-}
-
-function _restorePositions(pos) {
-  A.length = 0;
-  for (let i = 0; i < pos.px.length; i++) {
-    A.push({
-      id: i, idx: i,
-      x: pos.px[i], y: pos.py[i], vx: 0, vy: 0,
-      type: pos.types[i], bonds: new Set(), hot: false, hotT: 0
-    });
-  }
-  BONDS.clear();
-  for (const [bi, bj] of (pos.bonds || [])) {
-    if (bi < A.length && bj < A.length) {
-      BONDS.add(bkey(bi, bj));
-      A[bi].bonds.add(bj);
-      A[bj].bonds.add(bi);
-    }
-  }
-  tick        = pos.tick        || 0;
-  currentTier = pos.currentTier || 0;
-  if (typeof peakComplexity !== 'undefined') peakComplexity = pos.peakComplexity || 0;
-  if (typeof peakTick       !== 'undefined') peakTick       = pos.peakTick       || 0;
-  if (typeof interventions  !== 'undefined') interventions  = pos.interventions  || 0;
-  worldStatus = pos.worldStatus || 'active';
-  if (pos.tierAchieved) pos.tierAchieved.forEach((v, i) => {
-    tierAchieved[i] = v;  // no length cap — allow T0-T20+
-  });
-  if (currentTier > 0) {
-    const el = document.getElementById('v-tier');
-    if (el) el.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
-  }
-  if (worldStatus === 'dead') {
-    const el = document.getElementById('world-state');
-    if (el) { el.textContent = 'DEAD WORLD'; el.className = 'dead'; }
-  }
-  // Restore tier flash label so HUD shows immediately
-  const tierEl = document.getElementById('v-tier');
-  if (tierEl && currentTier > 0) tierEl.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
-}
-
-// ── Main loop ─────────────────────────────────────────────────
-let lastUITick = 0;
-const UI_INTERVAL = 12;
-
-function loop() {
-  requestAnimationFrame(loop);
-
-  // Dead worlds stay dead — no auto-rebirth timer
-
-  for (let s = 0; s < SPEED_VAL; s++) update(); // always run local physics
-
-  if (tick - lastUITick >= UI_INTERVAL) {
-    lastUITick = tick;
-    const { cx, mxl, brn, rings } = updateUI();
-    render(latestComps, brn, rings);
-    runAgentConversations();
-  } else {
-    render(latestComps, countBranching(), countRings(latestComps));
-  }
-}
-
-// Start immediately — canvas never waits for network
-init();
-_connectSim();
-loop();
-
-// Firebase loads in background (100ms delay so first frame renders first)
-setTimeout(async function _pandoraResume() {
-  if (typeof firebase === 'undefined' || typeof FB_CONFIG === 'undefined') return;
-  try {
-    const _fa = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
-    fbDb      = firebase.database();
-    // ── Step 0: determine correct generation FIRST ───────────────────────────
-    const _urlG = parseInt(new URLSearchParams(window.location.search).get('g') || '0');
-    const _curGenSnap = await Promise.race([
-      fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).once('value'),
-      new Promise(r => setTimeout(() => r(null), 3000))
-    ]);
-    const _fbGen = _curGenSnap ? (_curGenSnap.val() || 1) : 1;
-
-    if (!_urlG) {
-      if (_fbGen > 1) {
-        const _f = window.location.pathname.split('/').pop().split('?')[0];
-        window.location.replace(`${_f}?g=${_fbGen}`);
-        return;
-      }
-      _generation = 1;
-    } else {
-      _generation = _urlG;
-      try {
-        await fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).transaction(cur => {
-          return (!cur || cur < _generation) ? _generation : cur;
-        });
-      } catch(e) { /* non-critical */ }
-    }
-    _updateGenDisplay();
-
-    // ── Step 1: try to restore live positions (only if world is still active) ─
-    const snap = await Promise.race([
-      fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value'),
-      new Promise(r => setTimeout(() => r(null), 3000))
-    ]);
-    const pos = snap ? snap.val() : null;
-    const pxArr = pos && pos.px ? (Array.isArray(pos.px) ? pos.px : Object.values(pos.px)) : null;
-    let _posRestored = false;
-    if (pxArr && pxArr.length >= 5 && pos.worldStatus !== 'dead') {
-      pos.px = pxArr;
-      pos.py = pos.py ? (Array.isArray(pos.py) ? pos.py : Object.values(pos.py)) : pxArr.map(()=>0);
-      pos.types = pos.types ? (Array.isArray(pos.types) ? pos.types : Object.values(pos.types)) : [];
-      _restorePositions(pos);
-      _posRestored = true;
-      const wsLbl = document.getElementById('ws-lbl');
-      if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
-    } else {
-      // No live positions — check for inherited seed from parent generation first
-      if (_generation > 1) {
-        const _seedSnap = await Promise.race([
-          fbDb.ref(`pandora/biomes/${BIOME_ID}/genome/${_generation}/seed`).once('value'),
-          new Promise(r => setTimeout(() => r(null), 2000))
-        ]);
-        const _seed = _seedSnap ? _seedSnap.val() : null;
-        const _seedPx = _seed && _seed.px ? (Array.isArray(_seed.px) ? _seed.px : Object.values(_seed.px)) : null;
-        if (_seedPx && _seedPx.length >= 5) {
-          _seed.px    = _seedPx;
-          _seed.py    = _seed.py    ? (Array.isArray(_seed.py)    ? _seed.py    : Object.values(_seed.py))    : _seedPx.map(()=>0);
-          _seed.types = _seed.types ? (Array.isArray(_seed.types) ? _seed.types : Object.values(_seed.types)) : [];
-          _restorePositions(_seed);
-          _posRestored = true;
-          // Update Firebase so homepage shows correct inherited tier immediately
-          try {
-            await fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
-              currentTier: currentTier, worldStatus: 'active', generation: _generation
-            });
-          } catch(e) {}
-          const wsLbl = document.getElementById('ws-lbl');
-          if (wsLbl) wsLbl.textContent = `GEN ${_generation} — INHERITED T${currentTier}`;
-        }
-      }
-      if (!_posRestored) {
-        // No seed either — restore at least tick/tier from /state so HUD is correct
-        const stSnap = await Promise.race([
-          fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value'),
-          new Promise(r => setTimeout(() => r(null), 2000))
-        ]);
-        const st = stSnap ? stSnap.val() : null;
-        if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead' && tick < 50) {
-          tick        = st.tick        || 0;
-          currentTier = st.currentTier || 0;
-          if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
-          if (typeof peakTick       !== 'undefined') peakTick = Math.max(st.peakTick||0, tick - 100);
-          if (typeof interventions  !== 'undefined') interventions  = st.interventions  || 0;
-          if (st.tierAchieved) st.tierAchieved.forEach((v,i)=>{ if(i<tierAchieved.length) tierAchieved[i]=v; });
-          if (currentTier > 0) {
-            const tv = document.getElementById('v-tier');
-            if (tv) tv.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
-          }
-          const wsLbl = document.getElementById('ws-lbl');
-          if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
-        }
-      }
-    }
-
-    // ── Step 2: load genome for this generation ───────────────────────────────
-    try {
-
-      // Step 3: load this generation's genome from /genome/N
-      const genomeSnap = await Promise.race([
-        fbDb.ref(`pandora/biomes/${BIOME_ID}/genome/${_generation}`).once('value'),
-        new Promise(r => setTimeout(() => r(null), 2000))
-      ]);
-      const savedGenome = genomeSnap ? genomeSnap.val() : null;
-      if (savedGenome && typeof savedGenome === 'object') {
-        _genome = { n1:1, n2:1, n3:1, noiseScale:1, ...savedGenome };
-        if (_posRestored) {
-          const wsLbl = document.getElementById('ws-lbl');
-          if (wsLbl) wsLbl.textContent = _generation > 1 ? `GEN ${_generation} — LIVE` : 'RESUMING WORLD';
-        } else {
-        worldStatus     = 'active';
-        currentTier     = 0;
-        tick            = 0;
-        if (typeof peakComplexity  !== 'undefined') peakComplexity  = 0;
-        if (typeof peakTick        !== 'undefined') peakTick        = 0;
-        if (typeof interventions   !== 'undefined') interventions   = 0;
-        if (typeof hist            !== 'undefined') hist.length     = 0;
-        if (typeof tierAchieved    !== 'undefined') tierAchieved.fill(false);
-        if (typeof totalBondsFormed !== 'undefined') totalBondsFormed = 0;
-        const _wsEl = document.getElementById('world-state');
-        if (_wsEl) { _wsEl.textContent = ''; _wsEl.className = ''; }
-        init(_genome);
-        if (typeof A !== 'undefined' && A.length === 0) init();
-        const wsLbl = document.getElementById('ws-lbl');
-        if (wsLbl) wsLbl.textContent = _generation > 1 ? `GEN ${_generation} — EVOLVED` : 'RESUMING WORLD';
-        } // end else (!_posRestored)
-      }
-      _updateGenDisplay();
-    } catch(e) { console.warn('[Pandora] genome load error:', e); }
-    if (typeof initFirebase === 'function') initFirebase();
-  } catch(e) { console.warn('[Pandora] resume error:', e); }
-}, 100);
-
-// ── Scientist Knowledge Evolution: scientists learn from all prior generations ─
-// Fires 5s after load so the world is running before the briefing begins.
-setTimeout(async function _loadScientistMemory() {
-  if (typeof fbDb === 'undefined' || !fbDb) return;
-  if (typeof _generation === 'undefined' || _generation <= 1) return;
-  try {
-    const archSnap = await Promise.race([
-      fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).limitToLast(10).once('value'),
-      new Promise(r => setTimeout(() => r(null), 4000))
-    ]);
-    if (!archSnap || !archSnap.val()) return;
-    const archives = Object.values(archSnap.val());
-    if (!archives.length) return;
-
-    const maxPeakTier = Math.max(...archives.map(a => a.maxTier || a.peakTier || 0));
-    const lastArc     = archives[archives.length - 1];
-    const avgTier     = (archives.reduce((s,a) => s + (a.maxTier || a.peakTier || 0), 0) / archives.length).toFixed(1);
-    const isGraduation = lastArc.deathReason && lastArc.deathReason.includes('graduation');
-
-    // Brief the scientists — staggered for natural dialogue feel
-    await new Promise(r => setTimeout(r, 1500));
-    if (typeof speak === 'function') {
-      speak('OBSERVER',
-        `Generation ${_generation}. Archive sync complete: ${archives.length} prior generation${archives.length!==1?'s':''} on record. Peak tier across history: T${maxPeakTier}.`);
-      await new Promise(r => setTimeout(r, 900));
-
-      speak('ANALYST',
-        `Last generation: T${lastArc.maxTier||lastArc.peakTier||0} — "${lastArc.deathReason||'unknown'}". ` +
-        `Average peak: T${avgTier}. ` +
-        (isGraduation
-          ? `Graduated by choice. Molecular state inherited. We continue from where they left off.`
-          : `Died before graduation. Genome evolved to compensate. We carry their learnings.`));
-      await new Promise(r => setTimeout(r, 1200));
-
-      if (isGraduation && maxPeakTier >= 10) {
-        speak('NARRATOR',
-          `${archives.length} generation${archives.length!==1?'s':''} of complexity-building brought us here. ` +
-          `The molecular structure we inherited is not a starting point — it is a compressed history. ` +
-          `T${maxPeakTier} is the floor, not the ceiling.`);
-      } else if (maxPeakTier >= 8) {
-        speak('NARRATOR',
-          `${archives.length} generation${archives.length!==1?'s':''} explored this chemistry before us. ` +
-          `Their highest achievement: T${maxPeakTier}. We build on that inheritance. ` +
-          `Every generation is a memory the chemistry keeps.`);
-      } else {
-        speak('NARRATOR',
-          `Generation ${_generation}. The genome has evolved ${archives.length} time${archives.length!==1?'s':''}. ` +
-          `Prior generations reached T${maxPeakTier}. ` +
-          `This chemistry has not yet found its ceiling.`);
-      }
-    }
-
-    // Award accumulated institutional knowledge as XP
-    if (typeof awardXP === 'function') {
-      awardXP('OBSERVER', archives.length * 6, `${archives.length}-generation institutional memory`);
-      awardXP('ANALYST',  archives.length * 9, 'Cross-generation data synthesis');
-    }
-
-    // Log the briefing to knowledge system
-    if (typeof writeKnowledge === 'function') {
-      writeKnowledge({
-        type:              'scientist_briefing',
-        generation:        _generation,
-        prior_generations: archives.length,
-        peak_tier_ever:    maxPeakTier,
-        avg_tier:          parseFloat(avgTier),
-        last_death_reason: lastArc.deathReason || 'unknown',
-        inherited:         isGraduation,
-        summary: `GEN ${_generation} scientists briefed on ${archives.length} prior gen(s). ` +
-                 `Historical peak: T${maxPeakTier}. ${isGraduation?'Molecular state inherited.':'Genome evolved from death.'}`
-      });
-    }
-  } catch(e) { console.warn('[Pandora] scientist memory error:', e); }
-}, 5000);
+    document.getElementById('v-gen').textContent=`GEN ${currentGen}`;
+    animate();
+  }catch(e){console.error('Resume failed:',e);init(_genome);animate();}
+},800);
+
+setTimeout(async function _loadScientistMemory(){
+  if(currentGen<2)return;
+  try{
+    const snap=await db.ref(`${ROOT}/archives`).once('value');
+    if(!snap.val())return;
+    const archs=Object.values(snap.val());
+    const maxT=Math.max(...archs.map(a=>a.maxTier||0));
+    const avgT=(archs.reduce((s,a)=>s+(a.maxTier||0),0)/archs.length).toFixed(1);
+    _addAgentMsg(SCIENTISTS[0],`Archive briefing — ${archs.length} generations. Peak T${maxT}, avg T${avgT}.`);
+    if(maxT>=8)_addAgentMsg(SCIENTISTS[1],`Mixed-type order achieved historically. Reinforcing bonding parameters.`);
+    if(maxT>=10)_addAgentMsg(SCIENTISTS[2],`Compartmentalisation confirmed in history. Intervention protocols on standby.`);
+  }catch(e){}
+},5200);
 </script>
-  <div id='ws-status' style='position:fixed;bottom:20px;right:20px;z-index:9999;font-family:monospace;font-size:10px;letter-spacing:0.12em;color:rgba(255,255,255,0.50);pointer-events:none;transition:opacity 1.0s;'>
-    <div id='ws-lbl' style='margin-bottom:5px;'>LOADING ENGINE</div>
-    <div style='width:220px;height:2px;background:rgba(255,255,255,0.10);border-radius:2px;overflow:hidden;'>
-      <div id='ws-bar' style='width:0%;height:100%;background:rgba(255,255,255,0.55);border-radius:2px;transition:width 0.35s ease;'></div>
-    </div>
-    <div id='ws-pct' style='margin-top:4px;text-align:right;'>0%</div>
-  </div>
-  <script>
-  (function(){
-    const stages=[
-      {to:18,label:'INITIALISING',spd:1.8},
-      {to:42,label:'CONNECTING',spd:0.9},
-      {to:68,label:'HANDSHAKE',spd:0.5},
-      {to:88,label:'RECEIVING STATE',spd:0.25},
-      {to:96,label:'CALIBRATING',spd:0.08}
-    ];
-    let p=0,si=0;
-    function tick(){
-      if(!document.getElementById('ws-bar'))return;
-      if(typeof _wsReady!=='undefined'&&_wsReady)return;
-      const st=stages[si]||stages[stages.length-1];
-      if(p<st.to){p+=st.spd*(0.6+Math.random()*0.8);}
-      else if(si<stages.length-1){si++;}
-      const bar=document.getElementById('ws-bar');
-      const pct=document.getElementById('ws-pct');
-      const lbl=document.getElementById('ws-lbl');
-      if(bar)bar.style.width=Math.min(p,96)+'%';
-      if(pct)pct.textContent=Math.round(Math.min(p,96))+'%';
-      if(lbl)lbl.textContent=stages[si]?stages[si].label:'CALIBRATING';
-      setTimeout(tick,90);
-    }
-    setTimeout(tick,120);
-  })();
-  </script>
 </body>
 </html>
