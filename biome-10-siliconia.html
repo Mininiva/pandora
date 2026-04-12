@@ -178,6 +178,9 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
                  background: rgba(255,210,80,0.03); }
 .ae-type.levelup { background: rgba(255,210,80,0.15); color: rgba(255,210,80,0.9); }
 </style>
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -1005,12 +1008,14 @@ function readKnowledge() {
   try { return JSON.parse(localStorage.getItem(K_KEY) || '[]'); } catch(e) { return []; }
 }
 function writeKnowledge(entry) {
+  const full = {...entry, biome_id: BIOME_ID, biome: BIOME_NAME, tick, ts: Date.now()};
   try {
     const k = readKnowledge();
-    k.push({...entry, biome_id: BIOME_ID, biome: BIOME_NAME, tick, ts: Date.now()});
+    k.push(full);
     if (k.length > 400) k.splice(0, k.length - 400);
     localStorage.setItem(K_KEY, JSON.stringify(k));
   } catch(e) {}
+  writeKnowledgeToFirebase(full);
 }
 function getOtherBiomeFacts() {
   return readKnowledge().filter(e => e.biome_id !== BIOME_ID).slice(-12);
@@ -1477,6 +1482,127 @@ document.addEventListener('keydown', e => {
   if (e.key === '0')                   SPEED_VAL = 4;
   SPEED = SPEED_VAL;
 });
+
+
+// ═══════════════════════════════════════════════════════════════
+//  FIREBASE PERSISTENCE
+//
+//  Every visitor continues the simulation from wherever the last
+//  visitor left off. State, knowledge, and agent ranks are shared
+//  globally — no world ever resets after its first run.
+//
+//  DB structure:
+//    pandora/biomes/{id}/state      — simulation state snapshot
+//    pandora/biomes/{id}/agents     — agent XP / ranks
+//    pandora/knowledge              — cross-biome discovery log
+// ═══════════════════════════════════════════════════════════════
+
+const FB_CONFIG = {
+  apiKey:            'AIzaSyANFCI2Uyehrezru2TxZ8jOP_V9lVSYkGA',
+  authDomain:        'pandora-68637.firebaseapp.com',
+  databaseURL:       'https://pandora-68637-default-rtdb.firebaseio.com',
+  projectId:         'pandora-68637',
+  storageBucket:     'pandora-68637.firebasestorage.app',
+  messagingSenderId: '244482446708',
+  appId:             '1:244482446708:web:7bec4962611f8c4a224821',
+};
+
+let fbDb = null;
+
+function initFirebase() {
+  try {
+    if (typeof firebase === 'undefined') return;
+    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
+    fbDb = firebase.database();
+    loadBiomeState();
+    loadGlobalKnowledge();
+    loadAgentRanks();
+  } catch(e) { console.warn('[Pandora Firebase] init failed:', e); }
+}
+
+function loadBiomeState() {
+  fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value').then(snap => {
+    const s = snap.val();
+    if (!s || (s.tick || 0) < 200) return; // nothing meaningful saved yet
+
+    tick           = s.tick           || 0;
+    currentTier    = s.currentTier    || 0;
+    peakComplexity = s.peakComplexity || 0;
+    peakTick       = s.peakTick       || 0;
+    interventions  = s.interventions  || 0;
+    worldStatus    = s.worldStatus    || 'active';
+
+    if (s.tierAchieved) {
+      s.tierAchieved.forEach((v, i) => { if (i < tierAchieved.length) tierAchieved[i] = v; });
+    }
+    if (currentTier > 0) {
+      document.getElementById('v-tier').textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
+    }
+    if (worldStatus === 'dead') {
+      const el = document.getElementById('world-state');
+      if (el) { el.textContent = 'DEAD WORLD'; el.className = 'dead'; }
+    }
+
+    const ago = Math.round((Date.now() - (s.lastUpdated || Date.now())) / 60000);
+    speak('OBSERVER', `Resuming from Firebase: t=${s.tick}, T${s.currentTier}, cx=${(s.peakComplexity||0).toFixed(3)}. Last active ${ago > 0 ? ago + ' minute' + (ago!==1?'s':'')+' ago' : 'moments ago'}.`);
+    speak('NARRATOR', `This world was not starting from zero. It carries ${s.tick.toLocaleString()} ticks of history. We continue where the last observer left off.`);
+  }).catch(e => console.warn('[Pandora Firebase] state load failed:', e));
+}
+
+function loadGlobalKnowledge() {
+  fbDb.ref('pandora/knowledge').limitToLast(200).once('value').then(snap => {
+    const data = snap.val();
+    if (!data) return;
+    const entries = Object.values(data).sort((a, b) => (a.ts||0) - (b.ts||0));
+    try { localStorage.setItem(K_KEY, JSON.stringify(entries)); } catch(e) {}
+  }).catch(e => {});
+}
+
+function loadAgentRanks() {
+  fbDb.ref(`pandora/biomes/${BIOME_ID}/agents`).once('value').then(snap => {
+    const saved = snap.val();
+    if (!saved) return;
+    for (const name of ['OBSERVER', 'ANALYST', 'NARRATOR']) {
+      if (saved[name]) {
+        AGENT_STATE[name].xp         = saved[name].xp         || 0;
+        AGENT_STATE[name].rank       = saved[name].rank       || 'STUDENT';
+        AGENT_STATE[name].successful = saved[name].successful || 0;
+        AGENT_STATE[name].failed     = saved[name].failed     || 0;
+      }
+    }
+    updateRankDisplay();
+  }).catch(e => {});
+}
+
+let _fbLastSave = 0;
+
+function saveToFirebase() {
+  if (!fbDb) return;
+  if (tick - _fbLastSave < 500) return;
+  _fbLastSave = tick;
+
+  const cx = hist.length ? hist[hist.length-1] : 0;
+
+  fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).set({
+    tick, currentTier, peakComplexity, peakTick, interventions, worldStatus,
+    tierAchieved:  [...tierAchieved],
+    bonds:         BONDS.size,
+    complexity:    parseFloat(cx.toFixed(4)),
+    maxChain:      maxChainLength(latestComps),
+    lastUpdated:   Date.now(),
+  }).catch(e => {});
+
+  fbDb.ref(`pandora/biomes/${BIOME_ID}/agents`).set({
+    OBSERVER: {xp: AGENT_STATE.OBSERVER.xp, rank: AGENT_STATE.OBSERVER.rank, successful: AGENT_STATE.OBSERVER.successful, failed: AGENT_STATE.OBSERVER.failed},
+    ANALYST:  {xp: AGENT_STATE.ANALYST.xp,  rank: AGENT_STATE.ANALYST.rank,  successful: AGENT_STATE.ANALYST.successful,  failed: AGENT_STATE.ANALYST.failed},
+    NARRATOR: {xp: AGENT_STATE.NARRATOR.xp, rank: AGENT_STATE.NARRATOR.rank, successful: AGENT_STATE.NARRATOR.successful, failed: AGENT_STATE.NARRATOR.failed},
+  }).catch(e => {});
+}
+
+function writeKnowledgeToFirebase(entry) {
+  if (!fbDb) return;
+  try { fbDb.ref('pandora/knowledge').push(entry); } catch(e) {}
+}
 
 // ── Main loop ─────────────────────────────────────────────────
 let lastUITick = 0;

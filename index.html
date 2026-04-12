@@ -1467,6 +1467,140 @@ setTimeout(() => {
   initMiniSims();
   runMiniSims();
 }, 100);
+
+// ── Firebase: live world states ────────────────────────────
+// On load: read all biome states from Firebase and update cards
+// so every visitor sees the REAL accumulated tier/status of each world.
+const FB_CFG = {
+  apiKey:            'AIzaSyANFCI2Uyehrezru2TxZ8jOP_V9lVSYkGA',
+  authDomain:        'pandora-68637.firebaseapp.com',
+  databaseURL:       'https://pandora-68637-default-rtdb.firebaseio.com',
+  projectId:         'pandora-68637',
+  storageBucket:     'pandora-68637.firebasestorage.app',
+  messagingSenderId: '244482446708',
+  appId:             '1:244482446708:web:7bec4962611f8c4a224821',
+};
+
+function initIndexFirebase() {
+  if (typeof firebase === 'undefined') return;
+  try {
+    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CFG);
+    const db  = firebase.database();
+
+    // Load all biome states in one read
+    db.ref('pandora/biomes').once('value').then(snap => {
+      const data = snap.val();
+      if (!data) return;
+
+      let deadCount = 0, maxTier = 0, maxTierBiome = null;
+
+      Object.entries(data).forEach(([idStr, biome]) => {
+        const id    = parseInt(idStr);
+        const state = biome.state;
+        if (!state) return;
+
+        const card = document.querySelector(`[data-id="${id}"]`);
+        if (!card) return;
+
+        const tier   = state.currentTier || 0;
+        const status = state.worldStatus  || 'active';
+        const cx     = state.complexity   || 0;
+        const s      = ts(tier);
+
+        // Update tier badge
+        const tierEl = card.querySelector('.card-tier');
+        if (tierEl) {
+          tierEl.style.border     = `1px solid ${s[3]}`;
+          tierEl.style.background = s[1];
+          tierEl.style.color      = s[2];
+          const tNum  = tierEl.querySelector('.t-num');
+          const tName = tierEl.querySelector('.t-name');
+          if (tNum)  tNum.textContent  = `T${tier}`;
+          if (tName) tName.textContent = TIER_NAMES[tier] || '—';
+        }
+
+        // Update tier progress bar
+        const fill = card.querySelector('.tier-progress-fill');
+        if (fill) {
+          fill.style.width      = `${Math.round((tier/12)*100)}%`;
+          fill.style.background = s[0];
+        }
+
+        // Update complexity bar
+        const cxFill = document.getElementById(`cxfill-${id}`);
+        if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(cx * 20))}%`;
+
+        // Update status
+        const dot    = card.querySelector('.sdot');
+        const stLbl  = card.querySelector('.status-indicator span');
+        if (status === 'dead') {
+          card.classList.add('dead');
+          card.style.borderColor = '#4a1a1a';
+          const strip = card.querySelector('.card-strip');
+          if (strip) strip.style.background = '#2a0808';
+          if (dot)   dot.className = 'sdot dead';
+          if (stLbl) { stLbl.textContent = 'DEAD'; stLbl.style.color = s[2]; }
+          deadCount++;
+        } else {
+          if (dot)   dot.className = `sdot ${status}`;
+          if (stLbl) stLbl.textContent = status === 'active' ? 'ACTIVE' : 'FORMING';
+        }
+
+        if (tier > maxTier) { maxTier = tier; maxTierBiome = {id, tier, status}; }
+
+        // Seed the BioMini with real tier so mini-sim starts from correct level
+        const sim = MINI[id];
+        if (sim && tier > sim.tier) { sim.tier = tier; }
+      });
+
+      // Update hero stats with real data
+      const totalDead = Object.values(data).filter(b => b.state?.worldStatus === 'dead').length;
+      const totalActive = Object.values(data).filter(b => b.state).length;
+      const elDead = document.getElementById('s-dead');
+      if (elDead) elDead.textContent = totalDead;
+
+      // Update hero world if Firebase has a better candidate
+      if (maxTierBiome && maxTier > 0) {
+        const topB = BIOMES.find(b => b.id === maxTierBiome.id) || BIOMES[0];
+        const s2   = ts(maxTier);
+        const tierLabel = document.getElementById('hero-tier');
+        if (tierLabel) {
+          tierLabel.textContent    = `T${maxTier} — ${TIER_NAMES[maxTier]}`;
+          tierLabel.style.color    = s2[2];
+          tierLabel.style.borderColor = s2[3];
+          tierLabel.style.background  = s2[1];
+        }
+        const heroName = document.getElementById('hero-name');
+        if (heroName) heroName.textContent = topB.name;
+      }
+
+      console.log(`[Pandora] Firebase: loaded ${Object.keys(data).length} biome states.`);
+    }).catch(e => console.warn('[Pandora Firebase] index load failed:', e));
+
+    // Real-time listener: update hero dead count as worlds die
+    db.ref('pandora/biomes').on('child_changed', snap => {
+      const state = snap.val()?.state;
+      if (state?.worldStatus === 'dead') {
+        const card = document.querySelector(`[data-id="${snap.key}"]`);
+        if (card) {
+          card.classList.add('dead');
+          const dot = card.querySelector('.sdot');
+          if (dot) dot.className = 'sdot dead';
+          const stLbl = card.querySelector('.status-indicator span');
+          if (stLbl) stLbl.textContent = 'DEAD';
+        }
+      }
+    });
+
+  } catch(e) { console.warn('[Pandora Firebase] index init failed:', e); }
+}
+
+// Load Firebase states 500ms after page render
+setTimeout(initIndexFirebase, 500);
 </script>
+
+<!-- Firebase SDK (loaded last so it doesn't block rendering) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </body>
 </html>
