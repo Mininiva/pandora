@@ -773,9 +773,17 @@ function updateUI() {
 }
 
 // ── Vitality / stagnation engine ──────────────────────────────
-const STAGNATION_WINDOW = 1400;  // slightly longer than Terra — Si is slower
-const COMPLEXITY_FLOOR  = 0.6;
+//
+//  A world is stagnant when complexity fails to improve MEANINGFULLY.
+//  Tiny thermal noise no longer resets the clock — must beat peak by
+//  MEANINGFUL_DELTA (6%) to count as genuine growth.
+//  Hard death at HARD_DEATH_TICK if T2 was never reached.
+
+const STAGNATION_WINDOW = 800;   // ticks without meaningful growth
+const COMPLEXITY_FLOOR  = 0.35;  // definitively stagnant below this
+const MEANINGFUL_DELTA  = 0.06;  // must beat peak by 6% to reset clock
 const MAX_INTERVENTIONS = 3;
+const HARD_DEATH_TICK   = 7000;  // if still T0/T1 at this tick → declare dead
 
 let peakComplexity  = 0;
 let peakTick        = 0;
@@ -818,33 +826,44 @@ const PERTURBATION_TYPES = [
   }
 ];
 
+function declareDead(reason) {
+  worldStatus = 'dead';
+  const el = document.getElementById('world-state');
+  el.textContent = 'DEAD WORLD';
+  el.className   = 'dead';
+  logE(reason);
+  agentSay('ANALYST',  'Complexity has not recovered. All interventions exhausted.');
+  agentSay('NARRATOR', 'Silicon is patient. It tried to become something. The temperature had other plans. We archive Siliconia now. Its chemistry will inform its children.');
+}
+
 function checkVitality(cx) {
   if (worldStatus === 'dead') return;
 
-  if (cx > peakComplexity) {
+  // Meaningful growth = must beat current peak by MEANINGFUL_DELTA
+  if (cx > peakComplexity * (1 + MEANINGFUL_DELTA)) {
     peakComplexity = cx;
     peakTick       = tick;
     if (worldStatus === 'perturbed') {
       worldStatus = 'active';
       document.getElementById('world-state').className  = '';
       document.getElementById('world-state').textContent = '';
-      logE('complexity rising — siliconia responding to perturbation');
-      agentSay('ANALYST', 'Recovery confirmed. Network complexity rising. The perturbation worked.');
+      logE('meaningful complexity growth — world responding to perturbation');
+      agentSay('ANALYST', 'Recovery confirmed. Complexity growing beyond previous peak. The perturbation worked.');
     }
   }
 
-  const stagnant = (tick - peakTick > STAGNATION_WINDOW) &&
-                   (cx < COMPLEXITY_FLOOR || tick - peakTick > STAGNATION_WINDOW);
+  // Hard death: if T2 never reached and we've been running too long
+  if (!tierAchieved[2] && tick > HARD_DEATH_TICK) {
+    declareDead('T2 never reached — Si-O chain formation failed — DEAD WORLD');
+    agentSay('NARRATOR', `${HARD_DEATH_TICK} ticks. No persistent chain ever formed. Some worlds choose inertness. We respect that.`);
+    return;
+  }
+
+  const stagnant = tick - peakTick > STAGNATION_WINDOW;
   if (!stagnant) return;
 
   if (interventions >= MAX_INTERVENTIONS) {
-    worldStatus = 'dead';
-    const el = document.getElementById('world-state');
-    el.textContent = 'DEAD WORLD';
-    el.className   = 'dead';
-    logE('thermodynamic equilibrium — silicon network dissolved — DEAD WORLD');
-    agentSay('ANALYST',  'Complexity has not recovered. All interventions exhausted.');
-    agentSay('NARRATOR', 'Silicon is patient. It tried to become something. The temperature had other plans. We archive Siliconia now. Its chemistry will inform its children.');
+    declareDead('thermodynamic equilibrium — silicon network dissolved — DEAD WORLD');
     return;
   }
 
