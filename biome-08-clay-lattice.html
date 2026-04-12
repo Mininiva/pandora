@@ -703,6 +703,16 @@ function _setTier(t){
   tierHistory.push(t);drawTierGraph();logE(`▲ TIER ${t} — ${BC.tierNames[t]}`);
   _announceTier(t);
   updateTierExplanation(t);
+  // ── Persist evolutionary peak — survives death/generation resets ──
+  // peakTier lives at pandora/biomes/{id}/peakTier (biome root, not in /state).
+  // It ONLY increases. The homepage and worker use this as the authoritative
+  // display tier so evolutionary progress is never lost across generations.
+  try{
+    db.ref(`pandora/biomes/${BIOME_ID}/peakTier`).transaction(prev => {
+      const p = prev || 0;
+      return t > p ? t : undefined; // undefined = don't overwrite if not higher
+    });
+  }catch(e){}
 }
 
 // ── SCIENTIFIC TIER ANNOUNCEMENTS ────────────────────────────

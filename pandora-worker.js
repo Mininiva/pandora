@@ -499,7 +499,7 @@ async function initBiomeSim(bid) {
   const def = BIOME_DEFS[String(bid)];
   if (!def) return;
 
-  let state = null, genome = null;
+  let state = null, genome = null, savedPeakTier = 0;
   if (db) {
     try {
       const [stSnap, bmSnap] = await Promise.all([
@@ -510,6 +510,8 @@ async function initBiomeSim(bid) {
       const bm  = bmSnap.val() || {};
       const gen = bm.currentGeneration || 1;
       genome = bm.genome ? (bm.genome[String(gen)] || null) : null;
+      // peakTier is the all-time high across all generations — use as hard floor
+      savedPeakTier = bm.peakTier || state?.currentTier || 0;
     } catch(e) {}
   }
 
@@ -520,8 +522,8 @@ async function initBiomeSim(bid) {
   lastSave[bid]      = Date.now();
   tierStaleTicks[bid] = 0;
   lastTierCheck[bid]  = sim.getTier();
-  // Record the Firebase-confirmed tier as the floor — worker will never write lower
-  tierFloor[bid]     = state?.currentTier || 0;
+  // tierFloor = max(current state tier, all-time peakTier) — worker NEVER writes lower
+  tierFloor[bid]     = savedPeakTier;
 }
 
 // ── Main simulation loop ──────────────────────────────────────────────────────
@@ -560,15 +562,22 @@ function startLoop() {
       }
 
       // Periodic Firebase save
-      // IMPORTANT: worker physics is simplified (capped at T12). Never overwrite
-      // a higher tier saved by the full simulation. Apply tierFloor to protect
-      // T13+ values that the full Three.js simulation may have written.
+      // Worker physics is simplified (capped T12). tierFloor = all-time peakTier.
+      // Never write a currentTier lower than the floor.
+      // If worker achieves a new high, update both floor and peakTier.
       if (db && now - (lastSave[bid] || 0) > SAVE_MS) {
-        const snap = sim.getSnapshot();
-        const idStr = String(bid);
-        const floor = tierFloor[bid] || 0;
-        if (snap.currentTier < floor) snap.currentTier = floor;
-        else tierFloor[bid] = snap.currentTier;  // worker beat the floor — update it
+        const snap   = sim.getSnapshot();
+        const idStr  = String(bid);
+        const floor  = tierFloor[bid] || 0;
+        if (snap.currentTier < floor) {
+          snap.currentTier = floor;   // protect all-time peak
+        } else if (snap.currentTier > floor) {
+          tierFloor[bid] = snap.currentTier;
+          // Persist new peak at biome root (survives generation resets)
+          db.ref(`pandora/biomes/${idStr}/peakTier`)
+            .transaction(prev => snap.currentTier > (prev||0) ? snap.currentTier : undefined)
+            .catch(() => {});
+        }
         db.ref(`pandora/biomes/${idStr}/state`).update(snap).catch(() => {});
         lastSave[bid] = now;
       }

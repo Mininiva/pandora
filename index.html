@@ -1836,12 +1836,19 @@ function initIndexFirebase() {
         const id = parseInt(idStr);
         _biomeCurrentGen[id] = biome.currentGeneration || 1;
 
+        // Use peakTier (all-time high across all generations) as the display tier.
+        // currentTier resets to 0 each generation — peakTier never goes backwards.
+        // Merge into state object so _applyBiomeState receives the right value.
+        const stateCopy = { ...(biome.state || {}) };
+        const peakTier  = biome.peakTier || stateCopy.currentTier || 0;
+        stateCopy.currentTier = Math.max(stateCopy.currentTier || 0, peakTier);
+
         // Apply state to DOM via the canonical function
-        _applyBiomeState(id, biome.state, _biomeCurrentGen[id]);
+        _applyBiomeState(id, stateCopy, _biomeCurrentGen[id]);
 
         // Seed BioMini from real tier
         const sim = MINI[id];
-        const t = biome.state?.currentTier || 0;
+        const t = stateCopy.currentTier;
         if (sim && t > sim.tier) sim.tier = t;
 
         if (t > maxTier) { maxTier = t; maxTierBiome = { id, tier: t }; }
@@ -2032,12 +2039,17 @@ function initIndexFirebase() {
     });
 
     // Real-time listener — delegate everything to _applyBiomeState()
+    // Always use peakTier as the floor so evolutionary progress is never lost.
     db.ref('pandora/biomes').on('child_changed', snap => {
       const val   = snap.val();
       const state = val?.state;
       if (!state) return;
       const id = parseInt(snap.key);
-      _applyBiomeState(id, state, val?.currentGeneration);
+      // Merge peakTier into state — never display lower than all-time high
+      const stateCopy = { ...state };
+      const peak = val?.peakTier || 0;
+      stateCopy.currentTier = Math.max(stateCopy.currentTier || 0, peak);
+      _applyBiomeState(id, stateCopy, val?.currentGeneration);
       rebuildTierBar();
     });
 
