@@ -1776,6 +1776,78 @@ function initIndexFirebase() {
 
 // Load Firebase states 500ms after page render
 setTimeout(initIndexFirebase, 500);
+
+// ── Background simulation worker ──────────────────────────────────────────
+// Every visitor to this page contributes compute to ALL 6 biomes.
+// The worker runs the real particle physics in a background thread,
+// reads from and writes to Firebase, and skips any biome that already
+// has a dedicated visitor running it (no conflicts).
+let _bgWorker = null;
+let _workerStats = {};
+
+function startBackgroundWorker() {
+  if (typeof Worker === 'undefined') return; // not supported
+  try {
+    _bgWorker = new Worker('pandora-worker.js');
+    _bgWorker.postMessage({ type: 'start' });
+
+    _bgWorker.onmessage = function(e) {
+      const { type, stats, biomes } = e.data;
+
+      if (type === 'ready') {
+        const el = document.getElementById('s-compute');
+        if (el) el.textContent = `${biomes.length} WORLDS`;
+        console.log(`[Pandora Worker] Running background simulation for ${biomes.length} biomes.`);
+      }
+
+      if (type === 'stats') {
+        _workerStats = stats;
+        // Update live rate display from background worker (when no active visitors)
+        let totalRate = 0;
+        for (const s of Object.values(stats)) {
+          totalRate += 8 * 20; // TICK_BATCH * WORKER_HZ≈20
+        }
+        const rateEl = document.getElementById('s-rate');
+        if (rateEl && !rateEl._hasLiveVisitor) {
+          if (totalRate >= 1000) rateEl.textContent = (totalRate/1000).toFixed(1)+'K/s';
+          else rateEl.textContent = Math.round(totalRate)+'/s';
+        }
+
+        // Update biome cards with worker's live stats
+        for (const [idStr, snap] of Object.entries(stats)) {
+          const id = parseInt(idStr);
+          const card = document.querySelector(`[data-id="${id}"]`);
+          if (!card) continue;
+          const tier = snap.currentTier || 0;
+          const s2 = ts(tier);
+          const tNum  = card.querySelector('.t-num');
+          const tName = card.querySelector('.t-name');
+          if (tNum)  tNum.textContent  = `T${tier}`;
+          if (tName) tName.textContent = TIER_NAMES[tier] || '—';
+          const fill = card.querySelector('.tier-progress-fill');
+          if (fill) {
+            fill.style.width      = `${Math.round((tier/12)*100)}%`;
+            fill.style.background = s2[0];
+          }
+        }
+      }
+    };
+
+    _bgWorker.onerror = function(e) {
+      console.warn('[Pandora Worker] Error:', e.message);
+    };
+
+    // Clean up when page unloads
+    window.addEventListener('beforeunload', () => {
+      if (_bgWorker) { _bgWorker.postMessage({ type: 'stop' }); _bgWorker.terminate(); }
+    });
+  } catch(e) {
+    console.warn('[Pandora Worker] Could not start background simulation:', e);
+  }
+}
+
+// Start background worker 2s after page load (let Firebase init first)
+setTimeout(startBackgroundWorker, 2000);
 </script>
 
 <!-- Firebase SDK (loaded last so it doesn't block rendering) -->
