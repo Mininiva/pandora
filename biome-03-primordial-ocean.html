@@ -70,15 +70,32 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
 #gl { font-size:10px; letter-spacing:3px; color:rgba(65,120,165,0.65); margin-bottom:6px; }
 #gc { display:block; border:1px solid rgba(50,90,130,0.14); border-radius:3px; }
 #elog { position:fixed; bottom:24px; left:312px; z-index:10; font-size:11px; line-height:1.85; color:rgba(120,180,215,0.75); width:250px; }
-#explode-btn {
+#explode-panel {
   position:fixed; bottom:24px; right:24px; z-index:20;
-  font-family:'Courier New',monospace; font-size:11px; letter-spacing:2px;
-  padding:7px 16px; cursor:pointer;
-  background:rgba(8,20,40,0.85); border:1px solid rgba(60,120,200,0.35);
-  color:rgba(120,185,255,0.75); transition:all 0.2s;
+  font-family:'Courier New',monospace; font-size:10px; letter-spacing:2px;
+  display:flex; align-items:center; gap:10px;
+  padding:8px 14px;
+  background:rgba(8,20,40,0.88); border:1px solid rgba(60,120,200,0.35);
+  color:rgba(100,170,220,0.75);
 }
-#explode-btn:hover { border-color:rgba(80,160,255,0.7); color:rgba(170,220,255,0.95); background:rgba(20,50,100,0.5); }
-#explode-btn.active { border-color:rgba(255,160,80,0.7); color:rgba(255,200,120,0.95); background:rgba(50,30,10,0.6); }
+.ep-label { white-space:nowrap; }
+#explode-slider {
+  width:120px; cursor:pointer; vertical-align:middle;
+  -webkit-appearance:none; appearance:none;
+  height:2px; border-radius:1px;
+  background:rgba(60,120,200,0.35); outline:none;
+  accent-color:rgba(110,190,255,0.9);
+}
+#explode-slider::-webkit-slider-thumb {
+  -webkit-appearance:none; appearance:none;
+  width:10px; height:10px; border-radius:50%;
+  background:rgba(110,190,255,0.9); cursor:pointer;
+}
+#explode-slider::-moz-range-thumb {
+  width:10px; height:10px; border-radius:50%;
+  background:rgba(110,190,255,0.9); cursor:pointer; border:none;
+}
+#explode-val { width:28px; text-align:right; color:rgba(170,220,255,0.9); font-size:11px; }
 #tier-explain {
   position:fixed; bottom:70px; right:24px; z-index:20; width:280px;
   font-family:'Courier New',monospace; font-size:10px; line-height:1.7;
@@ -121,7 +138,12 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
     <canvas id="gc" width="242" height="80"></canvas>
   </div>
 </div>
-<button id="explode-btn" onclick="toggleExplode()" title="Spread clusters apart for visibility">⊕ EXPLODE VIEW</button>
+<div id="explode-panel">
+  <span class="ep-label">⊕ SEPARATION</span>
+  <input id="explode-slider" type="range" min="0" max="3" step="0.05" value="0"
+         oninput="setExplodeFactor(this.value)" title="Drag to separate individual atoms">
+  <span id="explode-val">—</span>
+</div>
 <div id="tier-explain" style="display:none"></div>
 <div id="int-panel" style="display:none">
   <div class="int-label">⚗ Scientific Intervention</div>
@@ -1054,51 +1076,70 @@ function updateTierExplanation(t){
   el._hideTimer=setTimeout(()=>{el.style.display='none';},12000);
 }
 
-// ── EXPLODE VIEW ─────────────────────────────────────────────
-let _explodeActive=false;
+// ── SEPARATION SLIDER ────────────────────────────────────────
+// Slider controls a two-level radial expansion:
+//   Level 1 — clusters expand away from the world centroid
+//   Level 2 — individual atoms expand away from their cluster centroid
+// Physics is paused while factor > 0 so forces don't fight the spread.
+// Original positions are snapshotted on first touch and restored at 0.
 let _origPositions=null;
-function toggleExplode(){
-  const btn=document.getElementById('explode-btn');
-  if(_explodeActive){
-    // Restore original positions
+let _pausePhysics=false;
+let _explodeFactor=0;
+
+function setExplodeFactor(v){
+  _explodeFactor=parseFloat(v)||0;
+  const lbl=document.getElementById('explode-val');
+  if(lbl) lbl.textContent=_explodeFactor>0?_explodeFactor.toFixed(1)+'×':'—';
+
+  if(_explodeFactor<=0){
+    // Restore physics positions
     if(_origPositions){
       particles.forEach((p,i)=>{
         if(_origPositions[i]){p.x=_origPositions[i][0];p.y=_origPositions[i][1];p.z=_origPositions[i][2];}
       });
       _origPositions=null;
     }
-    _explodeActive=false;
-    btn.classList.remove('active');
-    btn.textContent='⊕ EXPLODE VIEW';
-  } else {
-    // Snapshot positions
-    _origPositions=particles.map(p=>[p.x,p.y,p.z]);
-    // Get components and spread them in a sphere
-    const comps=getComponents();
-    const spread=BC.worldR*0.85;
-    const nC=comps.length;
-    comps.forEach((comp,ci)=>{
-      if(comp.length===0)return;
-      // Find component centroid
-      let cx=0,cy=0,cz=0;
-      comp.forEach(i=>{cx+=particles[i].x;cy+=particles[i].y;cz+=particles[i].z;});
-      cx/=comp.length;cy/=comp.length;cz/=comp.length;
-      // Assign a unique position on a sphere using Fibonacci lattice
-      const phi=Math.acos(1-2*(ci+0.5)/nC);
-      const theta=Math.PI*(1+Math.sqrt(5))*ci;
-      const r=spread*(comp.length===1?0.95:0.6+0.35*(comp.length/(_lastMaxClus||1)));
-      const tx=r*Math.sin(phi)*Math.cos(theta);
-      const ty=r*Math.sin(phi)*Math.sin(theta);
-      const tz=r*Math.cos(phi);
-      // Translate all atoms in this component
-      const dx=tx-cx,dy=ty-cy,dz=tz-cz;
-      comp.forEach(i=>{particles[i].x+=dx;particles[i].y+=dy;particles[i].z+=dz;});
-    });
-    _explodeActive=true;
-    btn.classList.add('active');
-    btn.textContent='✕ RESTORE VIEW';
+    _pausePhysics=false;
+    renderBonds();updateInstancedMeshes();
+    return;
   }
-  // Force a render update
+
+  // Pause physics so forces don't fight the slider
+  _pausePhysics=true;
+
+  // Snapshot original positions exactly once (reused for all slider moves)
+  if(!_origPositions) _origPositions=particles.map(p=>[p.x,p.y,p.z]);
+
+  // Global centroid from original positions
+  let gcx=0,gcy=0,gcz=0;
+  _origPositions.forEach(([x,y,z])=>{gcx+=x;gcy+=y;gcz+=z;});
+  const n=_origPositions.length||1;
+  gcx/=n;gcy/=n;gcz/=n;
+
+  // Components are derived from bond graph (not spatial — works on any positions)
+  const comps=getComponents();
+  const cf=_explodeFactor*1.6;   // cluster-level push factor
+  const pf=_explodeFactor*0.55;  // within-cluster atom push factor
+
+  comps.forEach(comp=>{
+    if(!comp.length)return;
+    // Cluster centroid in original space
+    let ccx=0,ccy=0,ccz=0;
+    comp.forEach(i=>{ccx+=_origPositions[i][0];ccy+=_origPositions[i][1];ccz+=_origPositions[i][2];});
+    ccx/=comp.length;ccy/=comp.length;ccz/=comp.length;
+    // Level 1: push cluster radially from world centre
+    const ncx=gcx+(ccx-gcx)*(1+cf);
+    const ncy=gcy+(ccy-gcy)*(1+cf);
+    const ncz=gcz+(ccz-gcz)*(1+cf);
+    // Level 2: push each atom radially from its cluster centre
+    comp.forEach(i=>{
+      const ox=_origPositions[i][0],oy=_origPositions[i][1],oz=_origPositions[i][2];
+      particles[i].x=ncx+(ox-ccx)*(1+pf);
+      particles[i].y=ncy+(oy-ccy)*(1+pf);
+      particles[i].z=ncz+(oz-ccz)*(1+pf);
+    });
+  });
+
   renderBonds();updateInstancedMeshes();
 }
 function checkGraduation(){
@@ -1293,14 +1334,20 @@ const STEPS=2;
 function animate(){
   requestAnimationFrame(animate);
   if(_isDead){controls.update();renderer.render(scene,camera);return;}
-  for(let s=0;s<STEPS;s++){
-    physicsStep(_genome);
-    if(_tick%3===0)updateBonds(_genome);
-    _tick++;
+  if(!_pausePhysics){
+    // Normal physics — skip entirely while separation slider is active
+    for(let s=0;s<STEPS;s++){
+      physicsStep(_genome);
+      if(_tick%3===0)updateBonds(_genome);
+      _tick++;
+    }
+    uiTick++;renderBonds();updateInstancedMeshes();
+    if(_tick%160<STEPS){detectStructures();checkTiers();}
+    checkGraduation();checkVitality();checkIntervention();tickIntervention();checkIonFlush();
+  } else {
+    // Physics paused — only update camera/render so user can inspect the exploded view
+    controls.update();renderer.render(scene,camera);return;
   }
-  uiTick++;renderBonds();updateInstancedMeshes();
-  if(_tick%160<STEPS){detectStructures();checkTiers();}
-  checkGraduation();checkVitality();checkIntervention();tickIntervention();checkIonFlush();
   if(uiTick%45===0)calcThermo();
   // Save to Firebase every ~300 uiTicks OR immediately on tier change
   if(uiTick%300===0||currentTier!==_lastSavedTier) saveState();
