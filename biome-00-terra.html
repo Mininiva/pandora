@@ -890,6 +890,25 @@ function checkVitality(cx) {
     el.textContent = 'DEAD WORLD';
     el.className   = 'dead';
     logE('thermodynamic equilibrium — no complexity pathway — DEAD WORLD');
+    // Inject return-to-Pandora button
+    const _btnId = 'return-to-pandora-btn';
+    if (!document.getElementById(_btnId)) {
+      const btn = document.createElement('a');
+      btn.id        = _btnId;
+      btn.href      = 'index.html';
+      btn.innerHTML = '← RETURN TO PANDORA';
+      btn.style.cssText = [
+        'position:fixed','bottom:40px','left:50%','transform:translateX(-50%)',
+        'background:rgba(255,255,255,0.08)','border:1px solid rgba(255,255,255,0.3)',
+        'color:#fff','font-family:monospace','font-size:13px','letter-spacing:0.12em',
+        'padding:10px 24px','border-radius:4px','text-decoration:none',
+        'cursor:pointer','z-index:9999','backdrop-filter:blur(6px)',
+        'transition:background 0.2s',
+      ].join(';');
+      btn.onmouseenter = () => btn.style.background = 'rgba(255,255,255,0.18)';
+      btn.onmouseleave = () => btn.style.background = 'rgba(255,255,255,0.08)';
+      document.body.appendChild(btn);
+    }
     return;
   }
 

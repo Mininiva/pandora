@@ -516,8 +516,12 @@ function maintainBonds() {
     const i  = parseInt(key.slice(0, c));
     const j  = parseInt(key.slice(c + 1));
     if (!A[i] || !A[j]) { snap.push([i, j]); continue; }
-    const dx = A[j].x - A[i].x;
-    const dy = A[j].y - A[i].y;
+    let dx = A[j].x - A[i].x;
+    let dy = A[j].y - A[i].y;
+    if (dx >  W * 0.5) dx -= W;
+    if (dx < -W * 0.5) dx += W;
+    if (dy >  H * 0.5) dy -= H;
+    if (dy < -H * 0.5) dy += H;
     const d2 = dx * dx + dy * dy;
     if (d2 > BOND_MAX_D2) { snap.push([i, j]); continue; }  // over-stretched → snap
     const d       = Math.sqrt(d2) + 0.001;
@@ -968,6 +972,25 @@ function declareDead(reason) {
   const el = document.getElementById('world-state');
   el.textContent = 'DEAD WORLD';
   el.className   = 'dead';
+  // Inject return-to-Pandora button
+  const _btnId = 'return-to-pandora-btn';
+  if (!document.getElementById(_btnId)) {
+    const btn = document.createElement('a');
+    btn.id        = _btnId;
+    btn.href      = 'index.html';
+    btn.innerHTML = '← RETURN TO PANDORA';
+    btn.style.cssText = [
+      'position:fixed','bottom:40px','left:50%','transform:translateX(-50%)',
+      'background:rgba(255,255,255,0.08)','border:1px solid rgba(255,255,255,0.3)',
+      'color:#fff','font-family:monospace','font-size:13px','letter-spacing:0.12em',
+      'padding:10px 24px','border-radius:4px','text-decoration:none',
+      'cursor:pointer','z-index:9999','backdrop-filter:blur(6px)',
+      'transition:background 0.2s',
+    ].join(';');
+    btn.onmouseenter = () => btn.style.background = 'rgba(255,255,255,0.18)';
+    btn.onmouseleave = () => btn.style.background = 'rgba(255,255,255,0.08)';
+    document.body.appendChild(btn);
+  }
   logE(reason);
   agentSay('NARRATOR', 'Boronia had the geometry right. The bond angles matched carbon\'s own. But the thermodynamics did not favor it. Or the quantum mechanics whispered a different song. We archive this elegant failure.');
 }
@@ -1784,7 +1807,7 @@ function loop() {
       triggerRebirth();
       return;
     }
-    if (el) el.textContent = `DEAD WORLD  ·  REBIRTH IN ${Math.ceil(msLeft / 1000)}s`;
+    // countdown text removed — button shown instead
   }
 
   for (let s = 0; s < SPEED_VAL; s++) update();
