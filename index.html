@@ -178,9 +178,16 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 }
 /* tier progress arc */
 .tier-progress{
-  width:100%;height:2px;background:rgba(255,255,255,0.06);margin-bottom:10px;
+  width:100%;height:2px;background:rgba(255,255,255,0.06);margin-bottom:5px;
 }
 .tier-progress-fill{height:100%;transition:width 0.3s;}
+/* generation lifecycle progress */
+.gen-progress{width:100%;height:2px;background:rgba(255,255,255,0.04);margin-bottom:8px;position:relative;}
+.gen-progress-fill{height:100%;transition:width 1.2s;opacity:0.5;}
+.gen-progress-label{
+  position:absolute;right:0;top:-12px;
+  font-size:8px;letter-spacing:1px;color:rgba(80,130,180,0.55);
+}
 
 .card-footer{display:flex;align-items:center;justify-content:space-between;}
 .status-indicator{display:flex;align-items:center;gap:5px;font-size:14px;letter-spacing:2px;}
@@ -708,6 +715,10 @@ function makeCard(b) {
       </div>
       <div class="tier-progress">
         <div class="tier-progress-fill" style="width:${pct}%;background:${s[0]};opacity:0.6"></div>
+      </div>
+      <div class="gen-progress">
+        <div class="gen-progress-fill" id="genprog-${b.id}" style="width:0%;background:${s[0]}"></div>
+        <div class="gen-progress-label" id="genlabel-${b.id}">GEN —</div>
       </div>
       <div class="card-footer">
         <div class="status-indicator">
@@ -1653,6 +1664,15 @@ function initIndexFirebase() {
         const cxFill = document.getElementById(`cxfill-${id}`);
         if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(cx * 20))}%`;
 
+        // Update generation progress bar — tick progress within current gen lifecycle
+        // ~35000 ticks = one full generation lifecycle before stagnation death
+        const tick = state.tick || 0;
+        const genPct = Math.min(100, Math.round((tick / 35000) * 100));
+        const genProg = document.getElementById(`genprog-${id}`);
+        const genLbl  = document.getElementById(`genlabel-${id}`);
+        if (genProg) { genProg.style.width = `${genPct}%`; genProg.style.background = s[0]; }
+        if (genLbl)  { genLbl.textContent = `GEN ${state.generation || 1}  ${genPct}%`; }
+
         // Update status
         const dot    = card.querySelector('.sdot');
         const stLbl  = card.querySelector('.status-indicator span');
@@ -1915,6 +1935,16 @@ function initIndexFirebase() {
       if (state.complexity !== undefined) {
         const cxFill = document.getElementById(`cxfill-${id}`);
         if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(state.complexity * 20))}%`;
+      }
+
+      // Update generation progress bar
+      if (state.tick !== undefined) {
+        const genPct2 = Math.min(100, Math.round((state.tick / 35000) * 100));
+        const genProg2 = document.getElementById(`genprog-${id}`);
+        const genLbl2  = document.getElementById(`genlabel-${id}`);
+        const s3 = ts(tier);
+        if (genProg2) { genProg2.style.width = `${genPct2}%`; genProg2.style.background = s3[0]; }
+        if (genLbl2)  { genLbl2.textContent = `GEN ${state.generation || 1}  ${genPct2}%`; }
       }
 
       // Handle dead

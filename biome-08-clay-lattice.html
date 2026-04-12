@@ -70,6 +70,24 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
 #gl { font-size:10px; letter-spacing:3px; color:rgba(65,120,165,0.65); margin-bottom:6px; }
 #gc { display:block; border:1px solid rgba(50,90,130,0.14); border-radius:3px; }
 #elog { position:fixed; bottom:24px; left:312px; z-index:10; font-size:11px; line-height:1.85; color:rgba(120,180,215,0.75); width:250px; }
+#explode-btn {
+  position:fixed; bottom:24px; right:24px; z-index:20;
+  font-family:'Courier New',monospace; font-size:11px; letter-spacing:2px;
+  padding:7px 16px; cursor:pointer;
+  background:rgba(8,20,40,0.85); border:1px solid rgba(60,120,200,0.35);
+  color:rgba(120,185,255,0.75); transition:all 0.2s;
+}
+#explode-btn:hover { border-color:rgba(80,160,255,0.7); color:rgba(170,220,255,0.95); background:rgba(20,50,100,0.5); }
+#explode-btn.active { border-color:rgba(255,160,80,0.7); color:rgba(255,200,120,0.95); background:rgba(50,30,10,0.6); }
+#tier-explain {
+  position:fixed; bottom:70px; right:24px; z-index:20; width:280px;
+  font-family:'Courier New',monospace; font-size:10px; line-height:1.7;
+  padding:12px 14px; background:rgba(4,12,24,0.90);
+  border:1px solid rgba(60,110,180,0.25); color:rgba(140,195,235,0.80);
+}
+#tier-explain .te-title { font-size:11px; letter-spacing:2px; color:rgba(180,220,255,0.9); margin-bottom:6px; }
+#tier-explain .te-row { color:rgba(100,160,210,0.65); margin-bottom:2px; }
+#tier-explain .te-row span { color:rgba(160,210,255,0.9); }
 </style>
 </head>
 <body>
@@ -81,6 +99,10 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
   <div><span class="hk">PARTICLES</span><span class="hv" id="v-np">—</span></div>
   <div><span class="hk">BONDS</span><span class="hv" id="v-nb">—</span></div>
   <div><span class="hk">MAX CLUSTER</span><span class="hv" id="v-mx">—</span></div>
+  <div style="border-top:1px solid rgba(50,90,130,0.18);margin-top:5px;padding-top:5px;"></div>
+  <div><span class="hk">TEMPERATURE</span><span class="hv" id="v-temp">—</span></div>
+  <div><span class="hk">PRESSURE</span><span class="hv" id="v-pres">—</span></div>
+  <div><span class="hk">COMPLEXITY</span><span class="hv" id="v-cx">—</span></div>
 </div>
 <div id="title">PANDORA</div>
 <div id="subtitle">CLAY LATTICE · 3D</div>
@@ -99,6 +121,8 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
     <canvas id="gc" width="242" height="80"></canvas>
   </div>
 </div>
+<button id="explode-btn" onclick="toggleExplode()" title="Spread clusters apart for visibility">⊕ EXPLODE VIEW</button>
+<div id="tier-explain" style="display:none"></div>
 <div id="int-panel" style="display:none">
   <div class="int-label">⚗ Scientific Intervention</div>
   <div class="int-name" id="int-name">—</div>
@@ -147,8 +171,8 @@ const BC = {
     '✦ Sentience'
   ],
   // World physics
-  worldR:      154,
-  nBase:       1950,
+  worldR:      167,
+  nBase:       2475,
   thermalNoise:0.12,
   bondCut:     22,
   bondSpring:  0.14,
@@ -182,7 +206,7 @@ const BC = {
   sunInt:      1.8,
   fillColor:   0x301808,
   bondColor:   0x705030,
-  cameraZ:     277,
+  cameraZ:     300,
   rotateSpeed: 0.35,
 };
 
@@ -234,8 +258,8 @@ scene.add(new THREE.Mesh(
   new THREE.MeshBasicMaterial({color:0x1a3050,wireframe:true,transparent:true,opacity:0.06})
 ));
 
-// Bond lines
-const MAX_BL=8000;
+// Bond lines — capacity scales with particle count (avg 2 bonds/particle upper bound)
+const MAX_BL=Math.ceil(BC.nBase*4.5);
 const bPos=new Float32Array(MAX_BL*6);
 const bGeo=new THREE.LineSegmentsGeometry();
 bGeo.setPositions(bPos);
@@ -255,7 +279,8 @@ window.addEventListener('resize',()=>{
 });
 
 // InstancedMesh — one mesh per particle type, all instances rendered in one draw call
-const INST_CAP=Math.ceil(BC.nBase*0.5);
+// Extra headroom for ion flushes (particles can exceed nBase by ~15%)
+const INST_CAP=Math.ceil(BC.nBase*0.65);
 const iMeshes=BC.types.map((t,ti)=>{
   const im=new THREE.InstancedMesh(
     new THREE.SphereGeometry(t[2],8,6),
@@ -439,6 +464,58 @@ function renderBonds(){
   bLines.visible=idx>0;
 }
 
+// ── THERMODYNAMICS ───────────────────────────────────────────
+let _tempVal='—', _presVal='—';
+function calcThermo(){
+  if(!particles.length) return;
+  let ke=0, wallN=0, virial=0;
+  const wLim=BC.worldR*0.78;
+  for(const p of particles){
+    ke+=p.vx*p.vx+p.vy*p.vy+p.vz*p.vz;
+    if(Math.sqrt(p.x*p.x+p.y*p.y+p.z*p.z)>wLim) wallN++;
+  }
+  // Temperature: mean kinetic energy, normalised so ~1.0 at thermal equilibrium
+  const T=(ke/particles.length);
+  _tempVal=(T*28).toFixed(1)+' TU';
+  // Pressure: fraction near boundary × density proxy
+  const rho=particles.length/(4/3*Math.PI*BC.worldR**3);
+  _presVal=(wallN/particles.length*100).toFixed(1)+'%  ρ='+rho.toFixed(4);
+}
+
+// ── TARGETED ION FLUSH ───────────────────────────────────────
+// At high tiers (T11+) when stagnant, inject purposeful minority ions
+// to break symmetry and enable mixed-cluster tier advancement.
+let _flushCooldown=0;
+function checkIonFlush(){
+  if(_isDead||_flushCooldown>0){if(_flushCooldown>0)_flushCooldown--;return;}
+  if(currentTier<11)return;
+  if(_stagnTicks<350)return;
+  // Count type distribution — find under-represented types
+  const tc=new Array(BC.types.length).fill(0);
+  particles.forEach(p=>tc[p.type]++);
+  const order=[...tc.keys()].sort((a,b)=>tc[a]-tc[b]); // minority first
+  // Flush count grows with tier: T11→20, T15→40, T18→55
+  const nFlush=Math.min(60,20+Math.floor((currentTier-10)*4));
+  for(let k=0;k<nFlush;k++){
+    // 50% minority type, 30% second-minority, 20% third — forces mixed cluster formation
+    const roll=Math.random();
+    const ti=roll<0.50?order[0]:roll<0.80?order[1%order.length]:order[2%order.length];
+    const phi=Math.acos(2*Math.random()-1),th=Math.random()*Math.PI*2;
+    // Inject inside the active region (not at boundary)
+    const r=BC.worldR*(0.20+0.55*Math.random());
+    const sp=BC.thermalNoise*5;
+    particles.push({
+      x:r*Math.sin(phi)*Math.cos(th),y:r*Math.sin(phi)*Math.sin(th),z:r*Math.cos(phi),
+      vx:(Math.random()-0.5)*sp,vy:(Math.random()-0.5)*sp,vz:(Math.random()-0.5)*sp,
+      type:ti,bonds:new Set(),id:particles.length
+    });
+  }
+  _flushCooldown=700;
+  _stagnTicks=Math.floor(_stagnTicks*0.4); // partial reset — don't suppress stagnation check entirely
+  logE(`⚡ Ion flush T${currentTier}: +${nFlush} ions [${order.slice(0,3).map(t=>BC.types[t][0]).join('+')}]`);
+  _addAgentMsg(SCIENTISTS[_tick%SCIENTISTS.length],`T${currentTier} stagnation. Targeted flush: ${nFlush} minority ions seeded to force mixed-cluster symmetry breaking.`);
+}
+
 // ── STRUCTURE DETECTION ──────────────────────────────────────
 function getComponents(){
   const n=particles.length,vis=new Int8Array(n),comps=[];
@@ -554,6 +631,97 @@ function _setTier(t){
   document.getElementById('v-tier').textContent=`T${t} — ${BC.tierNames[t]}`;
   tierHistory.push(t);drawTierGraph();logE(`▲ TIER ${t} — ${BC.tierNames[t]}`);
   _addAgentMsg(SCIENTISTS[uiTick%3],`Tier ${t} confirmed: ${BC.tierNames[t]}.`);
+  updateTierExplanation(t);
+}
+
+// ── TIER EXPLANATION ─────────────────────────────────────────
+const TIER_WHY = [
+  'No bonds formed yet. All molecules are isolated monomers drifting in solution.',
+  'Total bond count ≥ 2. First inter-molecular contact observed.',
+  'A cluster of 3+ units detected. Short-range order is emerging.',
+  'Chains of 6+ units present. Directed polymerisation has begun.',
+  'At least one particle holds 3+ bonds, creating branch points in the network.',
+  'A cyclic ring structure detected — topological closure creates a stable loop.',
+  'Maximum cluster size ≥ 12. Dense local condensation has occurred.',
+  '3+ clusters each with 4+ members. Distributed self-assembly in progress.',
+  'A mixed-type cluster of 10+ units exists. Heterogeneous binding across species.',
+  'A mixed cluster of 16+ units. Early core-shell organisation: one type coats another.',
+  'A closed spherical compartment detected — the boundary layer is complete. Proto-cell candidate.',
+  'Max cluster ≥ 40. Macro-scale condensed phase has emerged.',
+  '3+ clusters each with 20+ units. Parallel independent assembly across the world.',
+  'Max cluster ≥ 70. A dominant super-cluster is consuming the environment.',
+  '3+ mixed clusters with 20+ units each. Multiple co-existing heterogeneous assemblies.',
+  'Max cluster ≥ 110 AND 4+ large clusters. The world is dominated by structured condensate.',
+  'Bond density > 1.4 AND 3+ clusters of 30+. High connectivity — information-dense network.',
+  'Max cluster ≥ 160 AND 3+ mixed clusters of 30+. Cross-type structural integration at scale.',
+  'Bond density > 1.7, max ≥ 140, 3+ clusters of 50+. Metabolic complexity threshold reached.',
+  '2+ mixed clusters of 80+ AND bond density > 1.6. Large heterogeneous assemblies co-existing.',
+  'Max ≥ 200, bond density > 2.0, 2+ clusters of 80+, sustained T19+ for 800 ticks. Peak complexity.'
+];
+function updateTierExplanation(t){
+  const el=document.getElementById('tier-explain');
+  if(!el)return;
+  const bd_n=particles.length>0?(_lastTotalBd/particles.length).toFixed(2):'—';
+  const why=TIER_WHY[t]||'—';
+  el.innerHTML=`
+    <div class="te-title">WHY T${t} — ${BC.tierNames[t].toUpperCase()}</div>
+    <div class="te-row">${why}</div>
+    <div class="te-row" style="margin-top:6px;color:rgba(80,140,180,0.5)">
+      mx=<span>${_lastMaxClus}</span> · bd=<span>${_lastTotalBd}</span> ·
+      bd/n=<span>${bd_n}</span> · comps=<span>${_lastComps?_lastComps.length:'—'}</span>
+    </div>`;
+  el.style.display='block';
+  // Auto-hide after 12 seconds
+  clearTimeout(el._hideTimer);
+  el._hideTimer=setTimeout(()=>{el.style.display='none';},12000);
+}
+
+// ── EXPLODE VIEW ─────────────────────────────────────────────
+let _explodeActive=false;
+let _origPositions=null;
+function toggleExplode(){
+  const btn=document.getElementById('explode-btn');
+  if(_explodeActive){
+    // Restore original positions
+    if(_origPositions){
+      particles.forEach((p,i)=>{
+        if(_origPositions[i]){p.x=_origPositions[i][0];p.y=_origPositions[i][1];p.z=_origPositions[i][2];}
+      });
+      _origPositions=null;
+    }
+    _explodeActive=false;
+    btn.classList.remove('active');
+    btn.textContent='⊕ EXPLODE VIEW';
+  } else {
+    // Snapshot positions
+    _origPositions=particles.map(p=>[p.x,p.y,p.z]);
+    // Get components and spread them in a sphere
+    const comps=getComponents();
+    const spread=BC.worldR*0.85;
+    const nC=comps.length;
+    comps.forEach((comp,ci)=>{
+      if(comp.length===0)return;
+      // Find component centroid
+      let cx=0,cy=0,cz=0;
+      comp.forEach(i=>{cx+=particles[i].x;cy+=particles[i].y;cz+=particles[i].z;});
+      cx/=comp.length;cy/=comp.length;cz/=comp.length;
+      // Assign a unique position on a sphere using Fibonacci lattice
+      const phi=Math.acos(1-2*(ci+0.5)/nC);
+      const theta=Math.PI*(1+Math.sqrt(5))*ci;
+      const r=spread*(comp.length===1?0.95:0.6+0.35*(comp.length/(_lastMaxClus||1)));
+      const tx=r*Math.sin(phi)*Math.cos(theta);
+      const ty=r*Math.sin(phi)*Math.sin(theta);
+      const tz=r*Math.cos(phi);
+      // Translate all atoms in this component
+      const dx=tx-cx,dy=ty-cy,dz=tz-cz;
+      comp.forEach(i=>{particles[i].x+=dx;particles[i].y+=dy;particles[i].z+=dz;});
+    });
+    _explodeActive=true;
+    btn.classList.add('active');
+    btn.textContent='✕ RESTORE VIEW';
+  }
+  // Force a render update
+  renderBonds();updateInstancedMeshes();
 }
 function checkGraduation(){
   if(currentTier>=19)_sustainedHigh20++;else _sustainedHigh20=0;
@@ -721,13 +889,18 @@ let _lastSavedTier=-1;
 function saveState(){
   try{
     const cx=particles.length>0?(_lastTotalBd/(particles.length+0.001)).toFixed(3):0;
+    const keRaw=particles.length>0?particles.reduce((s,p)=>s+p.vx*p.vx+p.vy*p.vy+p.vz*p.vz,0)/particles.length:0;
+    const wallN=particles.filter(p=>Math.sqrt(p.x*p.x+p.y*p.y+p.z*p.z)>BC.worldR*0.78).length;
     db.ref(`${ROOT}/state`).set({
       currentTier,
       worldStatus:_isDead?'dead':'active',
       complexity:parseFloat(cx),
       lastUpdated:Date.now(),
       tick:_tick,
-      generation:currentGen
+      generation:currentGen,
+      temperature:parseFloat((keRaw*28).toFixed(1)),
+      pressure:parseFloat((wallN/(particles.length||1)*100).toFixed(1)),
+      particleCount:particles.length
     });
     _lastSavedTier=currentTier;
   }catch(e){}
@@ -744,7 +917,8 @@ function animate(){
   }
   uiTick++;renderBonds();updateInstancedMeshes();
   if(_tick%160<STEPS){detectStructures();checkTiers();}
-  checkGraduation();checkVitality();checkIntervention();tickIntervention();
+  checkGraduation();checkVitality();checkIntervention();tickIntervention();checkIonFlush();
+  if(uiTick%45===0)calcThermo();
   // Save to Firebase every ~300 uiTicks OR immediately on tier change
   if(uiTick%300===0||currentTier!==_lastSavedTier) saveState();
   if(uiTick%15===0){
@@ -752,6 +926,10 @@ function animate(){
     document.getElementById('v-np').textContent=particles.length;
     document.getElementById('v-nb').textContent=_lastTotalBd;
     document.getElementById('v-mx').textContent=_lastMaxClus;
+    document.getElementById('v-temp').textContent=_tempVal;
+    document.getElementById('v-pres').textContent=_presVal;
+    const cxVal=particles.length>0?(_lastTotalBd/(particles.length+0.001)).toFixed(3):'—';
+    document.getElementById('v-cx').textContent=cxVal;
   }
   const ws=document.getElementById('world-state');
   if(_flashLabel&&uiTick-_flashTick<130){ws.textContent=_flashLabel;ws.className='flash';ws.style.opacity='1';}
