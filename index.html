@@ -1671,6 +1671,10 @@ function initIndexFirebase() {
 
         if (tier > maxTier) { maxTier = tier; maxTierBiome = {id, tier, status}; }
 
+        // ← THE KEY FIX: update BIOMES array so rebuildTierBar() sees real Firebase tiers
+        const bObj = BIOMES.find(x => x.id === id);
+        if (bObj && tier > 0) { bObj.tier = tier; bObj.status = status; }
+
         // Seed the BioMini with real tier so mini-sim starts from correct level
         const sim = MINI[id];
         if (sim && tier > sim.tier) { sim.tier = tier; }
@@ -1730,10 +1734,10 @@ function initIndexFirebase() {
         }
         const heroName = document.getElementById('hero-name');
         if (heroName) heroName.textContent = topB.name;
-        // Also update the ticker strip — this was the missing link
-        const sPeak = document.getElementById('s-peak');
-        if (sPeak) sPeak.textContent = `T${maxTier} · ${topB.name}`;
       }
+
+      // Rebuild tier distribution bar from Firebase-updated BIOMES array
+      rebuildTierBar();
 
       // ── Populate the real dead-worlds archive grid from Firebase archives ──
       const archiveGrid = document.getElementById('archive-grid');
