@@ -922,8 +922,32 @@ const PERTURBATION_TYPES = [
   }
 ];
 
+let _rebirthAt = -1;        // real-time timestamp for world rebirth
+const REBIRTH_DELAY_MS = 35000; // 35 seconds of death display before rebirth
+
+
+function triggerRebirth() {
+  // Archive the dead world to Firebase, then reload for a fresh generation
+  const archiveEntry = {
+    maxTier:         currentTier,
+    peakTick:        peakTick,
+    peakComplexity:  parseFloat(peakComplexity.toFixed(4)),
+    interventions:   interventions,
+    archivedAt:      Date.now(),
+    summary:         `T${currentTier} · ${tick.toLocaleString()} ticks · cx=${peakComplexity.toFixed(3)}`,
+  };
+  const archive = () => {
+    fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).push(archiveEntry)
+      .then(() => fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).remove())
+      .then(() => { speak('NARRATOR', 'Initiating world rebirth. A new generation will begin in moments.'); setTimeout(() => location.reload(), 1500); })
+      .catch(() => location.reload());
+  };
+  if (typeof fbDb !== 'undefined' && fbDb) { archive(); } else { location.reload(); }
+}
+
 function declareDead(reason) {
   worldStatus = 'dead';
+  _rebirthAt = Date.now() + REBIRTH_DELAY_MS;
   const el = document.getElementById('world-state');
   el.textContent = 'DEAD WORLD';
   el.className   = 'dead';
@@ -1621,11 +1645,24 @@ function initFirebase() {
     loadGlobalKnowledge();
     loadAgentRanks();
 
-  // Presence tracking — register this session in Firebase
+  // Presence tracking — register this session, count historic visitors
   const _sid = Math.random().toString(36).slice(2, 10);
   const _presRef = fbDb.ref(`pandora/presence/${_sid}`);
-  _presRef.set({ page: `biome-${BIOME_ID}`, connectedAt: Date.now() });
+  _presRef.set({ page: `biome-${BIOME_ID}`, connectedAt: Date.now(), ticksPerSec: 0 });
   _presRef.onDisconnect().remove();
+  fbDb.ref('pandora/stats/totalVisitors').transaction(n => (n || 0) + 1).catch(() => {});
+
+  // Periodically update ticksPerSec in presence so index can show live compute rate
+  let _lastTickSnapshot = 0, _lastTickTime = Date.now();
+  setInterval(() => {
+    const now = Date.now();
+    const elapsed = (now - _lastTickTime) / 1000;
+    const ticksDone = tick - _lastTickSnapshot;
+    const rate = elapsed > 0 ? Math.round(ticksDone / elapsed) : 0;
+    _lastTickSnapshot = tick;
+    _lastTickTime = now;
+    _presRef.update({ ticksPerSec: rate }).catch(() => {});
+  }, 5000); // report every 5 seconds
   } catch(e) { console.warn('[Pandora Firebase] init failed:', e); }
 }
 
@@ -1721,6 +1758,19 @@ const UI_INTERVAL = 12;
 
 function loop() {
   requestAnimationFrame(loop);
+
+  // Rebirth countdown: update display and trigger when time is up
+  if (_rebirthAt > 0) {
+    const msLeft = _rebirthAt - Date.now();
+    const el = document.getElementById('world-state');
+    if (msLeft <= 0) {
+      _rebirthAt = -1;
+      if (el) el.textContent = 'REBIRTHING…';
+      triggerRebirth();
+      return;
+    }
+    if (el) el.textContent = `DEAD WORLD  ·  REBIRTH IN ${Math.ceil(msLeft / 1000)}s`;
+  }
 
   for (let s = 0; s < SPEED_VAL; s++) update();
 

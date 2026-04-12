@@ -326,8 +326,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
     <div class="tick-item">ARCHIVED <span class="tick-val" id="s-dead">—</span></div>
     <div class="tick-item">FORMING <span class="tick-val" id="s-forming">—</span></div>
     <div class="tick-item">PEAK <span class="tick-val" id="s-peak">—</span></div>
-    <div class="tick-item">OBSERVERS <span class="tick-val" id="s-observers">—</span></div>
-    <div class="tick-item">COMPUTE <span class="tick-val" id="s-compute">—</span></div>
+    <div class="tick-item">LIVE NOW <span class="tick-val" id="s-live">—</span></div>
+    <div class="tick-item">ALL-TIME VISITS <span class="tick-val" id="s-seen">—</span></div>
+    <div class="tick-item">TICKS/S <span class="tick-val" id="s-rate">—</span></div>
+    <div class="tick-item">TOTAL COMPUTE <span class="tick-val" id="s-compute">—</span></div>
   </div>
 </div>
 
@@ -1579,19 +1581,45 @@ function initIndexFirebase() {
       console.log(`[Pandora] Firebase: loaded ${Object.keys(data).length} biome states.`);
     }).catch(e => console.warn('[Pandora Firebase] index load failed:', e));
 
-    // Presence tracking — register this browser session
+    // ── Presence: register this session ──────────────────────
     const _sid = Math.random().toString(36).slice(2, 10);
     const _presRef = db.ref(`pandora/presence/${_sid}`);
-    _presRef.set({ page: 'index', connectedAt: Date.now() });
+    _presRef.set({ page: 'index', connectedAt: Date.now(), ticksPerSec: 0 });
     _presRef.onDisconnect().remove();
 
-    // Live observer count (all pages combined)
+    // Increment all-time visitor counter
+    db.ref('pandora/stats/totalVisitors').transaction(n => (n || 0) + 1).catch(() => {});
+
+    // ── Live observer count ───────────────────────────────────
     db.ref('pandora/presence').on('value', snap => {
-      const el = document.getElementById('s-observers');
-      if (el) el.textContent = snap.numChildren() || 0;
+      const liveEl = document.getElementById('s-live');
+      const rateEl = document.getElementById('s-rate');
+      if (!snap.exists()) {
+        if (liveEl) liveEl.textContent = '0';
+        if (rateEl) rateEl.textContent = '0/s';
+        return;
+      }
+      const count = snap.numChildren();
+      if (liveEl) liveEl.textContent = count;
+
+      // Sum ticksPerSec across all active biome sessions
+      let totalRate = 0;
+      snap.forEach(child => {
+        totalRate += (child.val().ticksPerSec || 0);
+      });
+      if (rateEl) {
+        if (totalRate >= 1000) rateEl.textContent = (totalRate / 1000).toFixed(1) + 'K/s';
+        else                   rateEl.textContent = Math.round(totalRate) + '/s';
+      }
     });
 
-    // Cumulative compute ticks across all sessions ever
+    // ── All-time visitor count ────────────────────────────────
+    db.ref('pandora/stats/totalVisitors').on('value', snap => {
+      const el = document.getElementById('s-seen');
+      if (el) el.textContent = (snap.val() || 0).toLocaleString();
+    });
+
+    // ── Cumulative compute ticks ──────────────────────────────
     db.ref('pandora/stats/totalTicks').on('value', snap => {
       const el = document.getElementById('s-compute');
       if (!el) return;
@@ -1599,7 +1627,7 @@ function initIndexFirebase() {
       if (t >= 1e9)      el.textContent = (t / 1e9).toFixed(2) + 'B';
       else if (t >= 1e6) el.textContent = (t / 1e6).toFixed(1) + 'M';
       else if (t >= 1e3) el.textContent = Math.round(t / 1e3) + 'K';
-      else               el.textContent = t;
+      else               el.textContent = t || 0;
     });
 
     // Real-time listener: update hero dead count as worlds die
