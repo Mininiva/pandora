@@ -492,27 +492,89 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 // ══════════════════════════════════════════════════════════════
 
 const TIER_NAMES = [
+  // T0-T12 (homepage labels)
   'Inert','Molecular Activity','Persistent Structures','Reaction Diversity',
   'Spatial Heterogeneity','Spontaneous Assembly','Sustained Complexity',
   'Coupled Reactions','Emergent Catalysis','Boundary Formation',
-  'Closed Compartment','Interior Differentiation','Protocell Stability'
+  'Closed Compartment','Interior Differentiation','Protocell Stability',
+  // T13-T20
+  'Colony','Differentiation','Signalling','Memory','Symbiosis','Metabolism','Directed Motion','Peak Complexity',
+  // T21-T30: Replication & Metabolic
+  'Replication','Encapsulation','Division','Heredity','Catalysis',
+  'Gradient Sensing','Proto-Metabolism','Adaptive Response','Cooperation','Colonial Intelligence',
+  // T31-T40: Organismal & Autonomous
+  'Specialisation','Communication','Collective Memory','Proto-Immune','Hierarchy',
+  'Energy Storage','Repair','Growth Regulation','Proto-Nervous','Autonomy',
+  // T41-T50: Cognitive & Sentience
+  'Sensation','Perception','Memory Consolidation','Learning','Proto-Prediction',
+  'Individual Identity','Social Interaction','Language','Self-Model','✦ Sentience'
 ];
 
-// [glow-color, bg, text, border]
+// [glow-color, bg, text, border] — 51 entries (T0-T50)
+// Colour gradient: deep red → blue → teal → green → gold → amber → orange → magenta → violet → white
 const TS = [
+  // T0-T4: cool dark — pre-life
   ['#3d1515','rgba(18,6,6,0.9)','#8a5050','rgba(80,25,25,0.4)'],
   ['#1a3055','rgba(6,12,24,0.9)','#5090c0','rgba(30,70,120,0.4)'],
   ['#1e4070','rgba(6,14,28,0.9)','#60a8e0','rgba(35,85,150,0.4)'],
   ['#106060','rgba(5,18,20,0.9)','#40c0c0','rgba(18,85,85,0.4)'],
   ['#126040','rgba(5,18,14,0.9)','#40b888','rgba(18,90,60,0.4)'],
+  // T5-T9: blue-teal — first structures
   ['#158040','rgba(5,22,14,0.9)','#50d078','rgba(20,110,60,0.4)'],
   ['#1a8820','rgba(6,22,8,0.9)','#60e050','rgba(25,120,32,0.4)'],
   ['#229010','rgba(7,24,6,0.9)','#70e838','rgba(32,128,18,0.4)'],
   ['#2a9010','rgba(8,24,4,0.9)','#85e828','rgba(40,128,16,0.4)'],
   ['#357a10','rgba(10,22,4,0.9)','#98d820','rgba(52,115,14,0.4)'],
+  // T10-T14: green-gold — cell-like
   ['#406010','rgba(12,18,4,0.9)','#aec018','rgba(68,100,12,0.4)'],
   ['#484808','rgba(14,14,4,0.9)','#c0a818','rgba(82,82,10,0.4)'],
   ['#503808','rgba(16,10,4,0.9)','#d09020','rgba(100,65,10,0.4)'],
+  ['#502808','rgba(16,8,4,0.9)','#d87820','rgba(108,55,10,0.4)'],
+  ['#502005','rgba(18,7,3,0.9)','#e06018','rgba(120,45,8,0.4)'],
+  // T15-T19: amber-orange — colonial
+  ['#601808','rgba(20,6,4,0.9)','#e85020','rgba(140,35,10,0.4)'],
+  ['#701010','rgba(22,5,4,0.9)','#f04028','rgba(160,20,12,0.4)'],
+  ['#801008','rgba(24,4,3,0.9)','#f83028','rgba(180,16,10,0.4)'],
+  ['#880820','rgba(26,4,8,0.9)','#f82048','rgba(200,10,28,0.4)'],
+  ['#900840','rgba(28,4,16,0.9)','#f81870','rgba(220,8,50,0.4)'],
+  // T20-T24: red-magenta — peak complexity
+  ['#980870','rgba(30,4,26,0.9)','#f018a0','rgba(240,6,80,0.4)'],
+  ['#8808a0','rgba(28,4,32,0.9)','#e020d0','rgba(200,8,120,0.4)'],
+  ['#7010b0','rgba(24,5,36,0.9)','#c030e8','rgba(160,12,180,0.4)'],
+  ['#6018c0','rgba(20,6,40,0.9)','#a040f8','rgba(120,18,220,0.4)'],
+  ['#5020c8','rgba(16,7,42,0.9)','#8060ff','rgba(90,24,248,0.4)'],
+  // T25-T29: violet — metabolic
+  ['#4028c0','rgba(14,8,42,0.9)','#6888ff','rgba(60,30,240,0.4)'],
+  ['#3038b8','rgba(10,10,40,0.9)','#50a8ff','rgba(40,50,230,0.4)'],
+  ['#2048b0','rgba(8,14,38,0.9)','#40c0ff','rgba(25,70,220,0.4)'],
+  ['#1858a8','rgba(6,18,36,0.9)','#38d8ff','rgba(20,95,210,0.4)'],
+  ['#1068a0','rgba(5,22,34,0.9)','#30f0f0','rgba(16,120,200,0.4)'],
+  // T30-T34: cyan — colonial intelligence
+  ['#0878a0','rgba(4,26,34,0.9)','#28f8d8','rgba(12,150,190,0.4)'],
+  ['#0888a0','rgba(4,28,34,0.9)','#28f8c0','rgba(10,160,180,0.4)'],
+  ['#0898a0','rgba(4,30,34,0.9)','#28f8a8','rgba(8,170,170,0.4)'],
+  ['#08a090','rgba(4,32,30,0.9)','#28f890','rgba(8,180,150,0.4)'],
+  ['#08a870','rgba(4,34,24,0.9)','#30f870','rgba(8,190,120,0.4)'],
+  // T35-T39: green-teal — autonomous
+  ['#10a850','rgba(5,34,18,0.9)','#40f060','rgba(14,195,80,0.4)'],
+  ['#18a830','rgba(6,34,10,0.9)','#58e850','rgba(22,200,40,0.4)'],
+  ['#28a810','rgba(8,34,4,0.9)','#78e038','rgba(35,205,16,0.4)'],
+  ['#40a808','rgba(12,34,3,0.9)','#98d828','rgba(55,208,10,0.4)'],
+  ['#58a810','rgba(16,34,4,0.9)','#bcd020','rgba(85,210,15,0.4)'],
+  // T40-T44: yellow-white — cognitive dawn
+  ['#78a818','rgba(22,34,5,0.9)','#ddc820','rgba(120,212,20,0.4)'],
+  ['#98a820','rgba(30,34,6,0.9)','#f0c020','rgba(160,212,16,0.4)'],
+  ['#b0a028','rgba(36,32,8,0.9)','#f8b020','rgba(200,200,14,0.4)'],
+  ['#c09028','rgba(40,28,8,0.9)','#ffa020','rgba(240,190,12,0.4)'],
+  ['#d07828','rgba(44,24,8,0.9)','#ff9020','rgba(255,175,10,0.4)'],
+  // T45-T49: gold → bright
+  ['#d86028','rgba(46,18,8,0.9)','#ff8030','rgba(255,155,12,0.4)'],
+  ['#e04830','rgba(48,14,10,0.9)','#ff7040','rgba(255,130,15,0.4)'],
+  ['#e83038','rgba(50,10,12,0.9)','#ff6050','rgba(255,100,18,0.4)'],
+  ['#f01848','rgba(52,6,16,0.9)','#ff5068','rgba(255,65,22,0.4)'],
+  ['#f00860','rgba(54,3,22,0.9)','#ff4088','rgba(255,30,28,0.4)'],
+  // T50: ✦ Sentience — pure radiant white-gold
+  ['#ffe060','rgba(60,55,10,0.95)','#ffffa0','rgba(255,240,60,0.6)'],
 ];
 
 // Tracks current active generation per real biome id (loaded from Firebase)

@@ -37,13 +37,13 @@ const FB_CONFIG = {
   appId:             '1:244482446708:web:7bec4962611f8c4a224821',
 };
 
-const MAX_BIOMES_PER_WORKER = 10;
+const MAX_BIOMES_PER_WORKER = 17;      // cover all live biomes on a single visitor
 const HEARTBEAT_MS          = 25000;
 const STALE_THRESHOLD_MS    = 75000;
 const CLAIM_RETRY_MS        = 60000;
 const TICK_BATCH            = 8;       // physics ticks per interval
 const LOOP_HZ               = 50;      // interval ms → ~160 ticks/s per biome
-const SAVE_MS               = 60000;   // save state to Firebase every 60s
+const SAVE_MS               = 20000;   // save state to Firebase every 20s
 const POST_MS               = 1000;    // post stats to main thread every 1s
 const STAGNATION_DEATH      = 28000;   // ticks without tier change → death (~175s at 160tps)
 

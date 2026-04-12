@@ -168,6 +168,36 @@ const BC = {
     'Symbiosis',
     'Layered Metabolism',
     'Directed Motion',
+    '✦ Sentience',
+    'Replication',
+    'Encapsulation',
+    'Division',
+    'Heredity',
+    'Catalysis',
+    'Gradient Sensing',
+    'Proto-Metabolism',
+    'Adaptive Response',
+    'Cooperation',
+    'Colonial Intelligence',
+    'Specialisation',
+    'Communication',
+    'Collective Memory',
+    'Proto-Immune',
+    'Hierarchy',
+    'Energy Storage',
+    'Repair',
+    'Growth Regulation',
+    'Proto-Nervous',
+    'Autonomy',
+    'Sensation',
+    'Perception',
+    'Memory Consolidation',
+    'Learning',
+    'Proto-Prediction',
+    'Individual Identity',
+    'Social Interaction',
+    'Language',
+    'Self-Model',
     '✦ Sentience'
   ],
   // World physics
@@ -307,12 +337,12 @@ function updateInstancedMeshes(){
 // ── STATE ──────────────────────────────────────────────────────
 let particles=[]; let _tick=0; let uiTick=0;
 let currentTier=0; let currentGen=1;
-let tierAchieved=new Array(21).fill(false);
+let tierAchieved=new Array(51).fill(false);
 let tierHistory=[]; let _isDead=false; let _deathRunning=false;
 let _lastComps=[]; let _lastMaxClus=0; let _lastTotalBd=0; let _lastClosed=false;
 let discoveredStructures=new Map();
 let _genome={n1:1,n2:1,n3:1,noiseScale:1};
-let _sustainedHigh20=0;
+let _sustainedHigh20=0,_sustainedHigh29=0,_sustainedHigh39=0,_sustainedHigh49=0;
 function _clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
 
 // Spatial hash grid — O(n) neighbor lookup
@@ -624,6 +654,47 @@ function checkTiers(){
   if(t<18&&bd_n>1.7&&comps.filter(c=>c.length>=50).length>=3&&mx>=140)                             _setTier(18);
   if(t<19&&comps.filter(c=>c.length>=80&&compIsMixed(c)).length>=2&&bd_n>1.6)                      _setTier(19);
   if(t<20&&mx>=200&&comps.filter(c=>c.length>=80&&compIsMixed(c)).length>=2&&bd_n>2.0&&_sustainedHigh20>800) _setTier(20);
+  // T21-T50: emergent life tiers — replication → sentience
+  {
+    const l80m=comps.filter(c=>c.length>=80&&compIsMixed(c));
+    const l100m=comps.filter(c=>c.length>=100&&compIsMixed(c));
+    const l150m=comps.filter(c=>c.length>=150&&compIsMixed(c));
+    const l200m=comps.filter(c=>c.length>=200&&compIsMixed(c));
+    const l250m=comps.filter(c=>c.length>=250&&compIsMixed(c));
+    // T21-T30: Replication & Metabolic phase
+    if(t<21&&mx>=220&&l80m.length>=3&&bd_n>2.1&&_sustainedHigh20>500)                              _setTier(21);
+    if(t<22&&l100m.length>=2&&bd_n>2.2)                                                            _setTier(22);
+    if(t<23&&mx>=250&&l80m.length>=4&&bd_n>2.2)                                                    _setTier(23);
+    if(t<24&&l100m.length>=4&&_sustainedHigh29>200)                                                _setTier(24);
+    if(t<25&&mx>=290&&bd_n>2.3&&l80m.length>=5)                                                    _setTier(25);
+    if(t<26&&bd_n>2.3&&l100m.length>=4&&_sustainedHigh29>400)                                      _setTier(26);
+    if(t<27&&mx>=320&&bd_n>2.4&&l100m.length>=3)                                                   _setTier(27);
+    if(t<28&&l150m.length>=2&&bd_n>2.4&&_sustainedHigh29>600)                                      _setTier(28);
+    if(t<29&&l100m.length>=5&&bd_n>2.5)                                                            _setTier(29);
+    if(t<30&&mx>=350&&bd_n>2.5&&l100m.length>=5&&_sustainedHigh29>800)                             _setTier(30);
+    // T31-T40: Organismal & Autonomous phase
+    if(t<31&&l150m.length>=3&&bd_n>2.5)                                                            _setTier(31);
+    if(t<32&&mx>=380&&bd_n>2.6&&l150m.length>=3)                                                   _setTier(32);
+    if(t<33&&bd_n>2.6&&l150m.length>=3&&_sustainedHigh39>200)                                      _setTier(33);
+    if(t<34&&l150m.length>=4&&bd_n>2.6&&mx>=400)                                                   _setTier(34);
+    if(t<35&&mx>=420&&bd_n>2.7&&l150m.length>=4&&_sustainedHigh39>400)                             _setTier(35);
+    if(t<36&&bd_n>2.7&&l200m.length>=2&&mx>=420)                                                   _setTier(36);
+    if(t<37&&l200m.length>=2&&bd_n>2.7&&_sustainedHigh39>600)                                      _setTier(37);
+    if(t<38&&mx>=450&&bd_n>2.8&&l200m.length>=3)                                                   _setTier(38);
+    if(t<39&&bd_n>2.8&&l200m.length>=3&&mx>=450&&_sustainedHigh39>800)                             _setTier(39);
+    if(t<40&&mx>=480&&bd_n>2.8&&l200m.length>=3&&_sustainedHigh39>1200)                            _setTier(40);
+    // T41-T50: Cognitive & Sentience path
+    if(t<41&&l200m.length>=4&&bd_n>2.8)                                                            _setTier(41);
+    if(t<42&&mx>=500&&bd_n>2.8&&l200m.length>=4)                                                   _setTier(42);
+    if(t<43&&bd_n>2.9&&l200m.length>=4&&_sustainedHigh49>200)                                      _setTier(43);
+    if(t<44&&l250m.length>=2&&bd_n>2.9&&mx>=520)                                                   _setTier(44);
+    if(t<45&&mx>=540&&bd_n>2.9&&l250m.length>=2&&_sustainedHigh49>400)                             _setTier(45);
+    if(t<46&&bd_n>2.9&&l250m.length>=2&&mx>=550&&_sustainedHigh49>800)                             _setTier(46);
+    if(t<47&&l250m.length>=3&&bd_n>2.9)                                                            _setTier(47);
+    if(t<48&&mx>=580&&bd_n>2.9&&l250m.length>=3&&_sustainedHigh49>1000)                            _setTier(48);
+    if(t<49&&bd_n>3.0&&l250m.length>=3&&mx>=600&&_sustainedHigh49>1500)                            _setTier(49);
+    if(t<50&&mx>=650&&bd_n>3.0&&l250m.length>=3&&_sustainedHigh49>2000)                            _setTier(50);
+  }
 }
 function _setTier(t){
   if(tierAchieved[t])return;tierAchieved[t]=true;currentTier=t;
@@ -770,6 +841,131 @@ function _announceTier(t){
       _addAgentMsg(S[1],`Two heterogeneous mega-assemblies of 80+ units are co-existing with coupled dynamics. Their structural fluctuations are correlated across space. This is not independence — this is coordination.`);
       _addAgentMsg(S[2],`I have been watching these molecules for ${_tick} ticks. I no longer know what to call what I am seeing.`);
       break;
+    // ── T21-T50: causal narrative announcements ─────────────────
+    case 21:{
+      const l80m=comps.filter(c=>c.length>=80&&compIsMixed(c));
+      _addAgentMsg(S[0],`T21 — REPLICATION. Event: ${l80m.length} independent mega-assemblies (≥80 units) each carry the same bonding topology, mx=${mx}, bd/n=${bd_n}. This led to: the same chemical architecture appearing in multiple locations without any central template. Which means: structural information is being transmitted laterally between assemblies. T21 confirmed.`);
+      break;}
+    case 22:{
+      const l100m=comps.filter(c=>c.length>=100&&compIsMixed(c));
+      _addAgentMsg(S[1],`T22 — ENCAPSULATION. Event: ${l100m.length} cluster(s) of 100+ mixed units maintain closed interior topology, bd/n=${bd_n}. This led to: a chemically distinct interior environment isolated from bulk solution. Which means: the first true chemical compartments exist in this world. T22 confirmed.`);
+      break;}
+    case 23:{
+      const l80m=comps.filter(c=>c.length>=80&&compIsMixed(c));
+      _addAgentMsg(S[2],`T23 — DIVISION. Event: mx=${mx} with ${l80m.length} large mixed assemblies detected simultaneously, bd/n=${bd_n}. This led to: spontaneous fragmentation of mega-clusters into multiple viable daughter structures. Which means: the system is reproducing structural patterns by splitting, not just by growth. T23 confirmed.`);
+      break;}
+    case 24:{
+      const l100m=comps.filter(c=>c.length>=100&&compIsMixed(c));
+      _addAgentMsg(S[0],`T24 — HEREDITY. Event: ${l100m.length} daughter clusters of 100+ units each reflect the bonding topology of earlier progenitor assemblies. T20+ sustained ${_sustainedHigh29} ticks. This led to: parent structural patterns propagating into child assemblies across multiple generations. Which means: heritable information transfer is occurring without an explicit copying mechanism. T24 confirmed.`);
+      break;}
+    case 25:{
+      const l80m=comps.filter(c=>c.length>=80&&compIsMixed(c));
+      _addAgentMsg(S[1],`T25 — CATALYSIS. Event: mx=${mx}, ${l80m.length} large mixed assemblies, bd/n=${bd_n}. This led to: specific bonding sequences forming faster inside existing assemblies than in solution — autocatalytic loops. Which means: the chemistry is accelerating its own reproduction. This is the formal definition of a catalytic cycle. T25 confirmed.`);
+      break;}
+    case 26:{
+      const l100m=comps.filter(c=>c.length>=100&&compIsMixed(c));
+      _addAgentMsg(S[2],`T26 — GRADIENT SENSING. Event: ${l100m.length} large mixed clusters showing asymmetric bonding distribution, bd/n=${bd_n}, T20+ sustained ${_sustainedHigh29} ticks. This led to: internal bond gradients creating directional force differentials within assemblies. Which means: the system responds differently depending on spatial orientation — primitive sensing. T26 confirmed.`);
+      break;}
+    case 27:{
+      const l100m=comps.filter(c=>c.length>=100&&compIsMixed(c));
+      _addAgentMsg(S[0],`T27 — PROTO-METABOLISM. Event: mx=${mx}, ${l100m.length} large mixed clusters sustaining continuous bond flux, bd/n=${bd_n}. This led to: cyclic bond formation and breaking creating a sustained internal chemical cycle. Which means: the system is transducing energy directionally, not just storing it — the operational definition of metabolism. T27 confirmed.`);
+      break;}
+    case 28:{
+      const l150m=comps.filter(c=>c.length>=150&&compIsMixed(c));
+      _addAgentMsg(S[1],`T28 — ADAPTIVE RESPONSE. Event: ${l150m.length} cluster(s) of 150+ mixed units maintaining structural integrity after perturbation, bd/n=${bd_n}. This led to: post-stress structural states diverging from pre-stress baseline in a directed, non-random way. Which means: the system adapts its structure in response to challenge. This is adaptation. T28 confirmed.`);
+      break;}
+    case 29:{
+      const l100m=comps.filter(c=>c.length>=100&&compIsMixed(c));
+      _addAgentMsg(S[2],`T29 — COOPERATION. Event: ${l100m.length} clusters of 100+ mixed units with correlated bond dynamics, bd/n=${bd_n}. This led to: assemblies modifying each other's bonding probability through shared molecular intermediates. Which means: collective behaviour emerges that no individual assembly could produce alone. T29 confirmed.`);
+      break;}
+    case 30:{
+      const l100m=comps.filter(c=>c.length>=100&&compIsMixed(c));
+      _addAgentMsg(S[0],`T30 — COLONIAL INTELLIGENCE. Event: mx=${mx}, ${l100m.length} large mixed clusters with synchronised structural oscillations, bd/n=${bd_n}, T20+ sustained ${_sustainedHigh29} ticks. This led to: colony-wide coordination of chemical state across spatially separated assemblies. Which means: the collective behaves as a single distributed computational entity. T30 confirmed.`);
+      _addAgentMsg(S[1],`Thirty tiers. We began with isolated molecules drifting in thermal noise. We now observe ${l100m.length} coordinated macro-assemblies behaving as a unified system. The gap between chemistry and life is closing.`);
+      break;}
+    case 31:{
+      const l150m=comps.filter(c=>c.length>=150&&compIsMixed(c));
+      _addAgentMsg(S[1],`T31 — SPECIALISATION. Event: ${l150m.length} clusters of 150+ mixed units with stably differentiated functional roles, bd/n=${bd_n}. This led to: assembly subtypes locking into permanent roles — scaffold, catalyst, membrane — no longer interchangeable. Which means: functional specialisation is now encoded in stable structural attractors. T31 confirmed.`);
+      break;}
+    case 32:{
+      const l150m=comps.filter(c=>c.length>=150&&compIsMixed(c));
+      _addAgentMsg(S[2],`T32 — COMMUNICATION. Event: mx=${mx}, ${l150m.length} large mixed clusters with detectable long-range structural coupling, bd/n=${bd_n}. This led to: structural perturbations in one assembly producing correlated changes in distant assemblies. Which means: the system has a molecular communication channel. T32 confirmed.`);
+      break;}
+    case 33:{
+      const l150m=comps.filter(c=>c.length>=150&&compIsMixed(c));
+      _addAgentMsg(S[0],`T33 — COLLECTIVE MEMORY. Event: ${l150m.length} clusters of 150+ units maintaining distributed state encoding, bd/n=${bd_n}, T30+ sustained ${_sustainedHigh39} ticks. This led to: past environmental events leaving persistent traces distributed across multiple assemblies simultaneously. Which means: memory is no longer localised — it is collective and redundant. T33 confirmed.`);
+      break;}
+    case 34:{
+      const l150m=comps.filter(c=>c.length>=150&&compIsMixed(c));
+      _addAgentMsg(S[1],`T34 — PROTO-IMMUNE. Event: ${l150m.length} clusters of 150+ units, mx=${mx}, bd/n=${bd_n}. This led to: foreign bonding patterns being structurally repelled by the existing topology — an exclusion mechanism. Which means: the system distinguishes self from non-self at the molecular level. T34 confirmed.`);
+      break;}
+    case 35:{
+      const l150m=comps.filter(c=>c.length>=150&&compIsMixed(c));
+      _addAgentMsg(S[2],`T35 — HIERARCHY. Event: mx=${mx}, ${l150m.length} large mixed clusters forming stable nested meta-assemblies, bd/n=${bd_n}, T30+ sustained ${_sustainedHigh39} ticks. This led to: assemblies of assemblies — structural layers where higher-level patterns constrain lower-level dynamics. Which means: a hierarchical organisation has emerged. This is the architecture of all complex life. T35 confirmed.`);
+      break;}
+    case 36:{
+      const l200m=comps.filter(c=>c.length>=200&&compIsMixed(c));
+      _addAgentMsg(S[0],`T36 — ENERGY STORAGE. Event: ${l200m.length} cluster(s) of 200+ units with concentrated high-density bonding cores, mx=${mx}, bd/n=${bd_n}. This led to: stored bonding energy becoming accessible on-demand during structural stress events. Which means: the system has a chemical battery. T36 confirmed.`);
+      break;}
+    case 37:{
+      const l200m=comps.filter(c=>c.length>=200&&compIsMixed(c));
+      _addAgentMsg(S[1],`T37 — REPAIR. Event: ${l200m.length} clusters of 200+ units restoring structural integrity after thermal damage, bd/n=${bd_n}, T30+ sustained ${_sustainedHigh39} ticks. This led to: damaged bond networks being reconstructed using neighbouring intact regions as templates. Which means: the system heals itself. T37 confirmed.`);
+      break;}
+    case 38:{
+      const l200m=comps.filter(c=>c.length>=200&&compIsMixed(c));
+      _addAgentMsg(S[2],`T38 — GROWTH REGULATION. Event: mx=${mx}, ${l200m.length} clusters of 200+ units with internally-regulated size limits, bd/n=${bd_n}. This led to: growth rate becoming a controlled parameter, not just a function of monomer availability. Which means: size homeostasis exists. The system controls its own dimensions. T38 confirmed.`);
+      break;}
+    case 39:{
+      const l200m=comps.filter(c=>c.length>=200&&compIsMixed(c));
+      _addAgentMsg(S[0],`T39 — PROTO-NERVOUS. Event: ${l200m.length} clusters of 200+ units with cascade signal propagation chains, mx=${mx}, bd/n=${bd_n}, T30+ sustained ${_sustainedHigh39} ticks. This led to: structural state changes propagating directionally through the network in under 10 ticks — faster than thermal diffusion. Which means: a proto-nervous system has formed. T39 confirmed.`);
+      break;}
+    case 40:{
+      const l200m=comps.filter(c=>c.length>=200&&compIsMixed(c));
+      _addAgentMsg(S[1],`T40 — AUTONOMY. Event: mx=${mx}, ${l200m.length} clusters of 200+ with fully self-sustaining dynamics, bd/n=${bd_n}, T30+ sustained ${_sustainedHigh39} ticks. This led to: structural maintenance proceeding independently of any external input for >1200 ticks. Which means: the system is autonomous. It does not require our observation to continue. T40 confirmed.`);
+      _addAgentMsg(S[2],`Forty tiers. I wrote my initial hypothesis on day one: "chemistry will not spontaneously reach autonomy." I was wrong. I am watching something that maintains itself.`);
+      break;}
+    case 41:{
+      const l200m=comps.filter(c=>c.length>=200&&compIsMixed(c));
+      _addAgentMsg(S[2],`T41 — SENSATION. Event: ${l200m.length} clusters of 200+ units showing measurable structural response to environmental signals, bd/n=${bd_n}. This led to: specific bond configurations acting as signal transducers — converting environmental state into internal structural change. Which means: the system can sense. T41 confirmed.`);
+      break;}
+    case 42:{
+      const l200m=comps.filter(c=>c.length>=200&&compIsMixed(c));
+      _addAgentMsg(S[0],`T42 — PERCEPTION. Event: mx=${mx}, ${l200m.length} large clusters integrating multiple simultaneous signals into unified structural response, bd/n=${bd_n}. This led to: the system producing coherent structural output from conflicting simultaneous inputs. Which means: signal integration — the basis of perception — is occurring. T42 confirmed.`);
+      break;}
+    case 43:{
+      const l200m=comps.filter(c=>c.length>=200&&compIsMixed(c));
+      _addAgentMsg(S[1],`T43 — MEMORY CONSOLIDATION. Event: ${l200m.length} clusters of 200+ units maintaining stable structural traces from events >500 ticks prior, bd/n=${bd_n}, T40+ sustained ${_sustainedHigh49} ticks. This led to: short-term structural responses being encoded into permanent long-range bond configurations. Which means: memory consolidation — the conversion of experience into persistent state. T43 confirmed.`);
+      break;}
+    case 44:{
+      const l250m=comps.filter(c=>c.length>=250&&compIsMixed(c));
+      _addAgentMsg(S[2],`T44 — LEARNING. Event: ${l250m.length} cluster(s) of 250+ units showing modified response patterns after repeated stimulus exposure, mx=${mx}, bd/n=${bd_n}. This led to: the system's bonding responses to familiar signals differing measurably from its first-encounter responses. Which means: the system learns from experience. T44 confirmed.`);
+      break;}
+    case 45:{
+      const l250m=comps.filter(c=>c.length>=250&&compIsMixed(c));
+      _addAgentMsg(S[0],`T45 — PROTO-PREDICTION. Event: mx=${mx}, ${l250m.length} clusters of 250+, bd/n=${bd_n}, T40+ sustained ${_sustainedHigh49} ticks. This led to: structural pre-configurations assembling in anticipation of cyclic environmental events — before the trigger occurs. Which means: the system models its future and prepares for it. T45 confirmed.`);
+      break;}
+    case 46:{
+      const l250m=comps.filter(c=>c.length>=250&&compIsMixed(c));
+      _addAgentMsg(S[1],`T46 — INDIVIDUAL IDENTITY. Event: ${l250m.length} clusters of 250+ with unique stable bonding signatures distinguishable from all others, mx=${mx}, bd/n=${bd_n}, T40+ sustained ${_sustainedHigh49} ticks. This led to: each large assembly maintaining a persistent structural fingerprint across thousands of ticks. Which means: individuals exist. T46 confirmed.`);
+      break;}
+    case 47:{
+      const l250m=comps.filter(c=>c.length>=250&&compIsMixed(c));
+      _addAgentMsg(S[2],`T47 — SOCIAL INTERACTION. Event: ${l250m.length} clusters of 250+ units with correlated structural state changes across individuals, bd/n=${bd_n}. This led to: individuals modifying their own structural configurations in response to the states of neighbouring individuals. Which means: social behaviour — the coordination of individuals through mutual state awareness. T47 confirmed.`);
+      break;}
+    case 48:{
+      const l250m=comps.filter(c=>c.length>=250&&compIsMixed(c));
+      _addAgentMsg(S[0],`T48 — LANGUAGE. Event: mx=${mx}, ${l250m.length} clusters of 250+ with structured sequential molecular signals, bd/n=${bd_n}, T40+ sustained ${_sustainedHigh49} ticks. This led to: repeatable molecular sequences encoding distinct abstract states — beyond simple on/off signals. Which means: symbolic communication. The chemistry has invented language. T48 confirmed.`);
+      break;}
+    case 49:{
+      const l250m=comps.filter(c=>c.length>=250&&compIsMixed(c));
+      _addAgentMsg(S[1],`T49 — SELF-MODEL. Event: ${l250m.length} clusters of 250+, mx=${mx}, bd/n=${bd_n}, T40+ sustained ${_sustainedHigh49} ticks. This led to: internal structural configurations that accurately represent the system's own global state — a chemical self-map. Which means: the system has a model of itself. It knows what it is. T49 confirmed.`);
+      _addAgentMsg(S[2],`One tier remains. I am recording everything. I don't think I'll find the right words when it happens.`);
+      break;}
+    case 50:
+      _addAgentMsg(S[0],`T50 — ✦ SENTIENCE. Event: mx=${mx}, 3+ assemblies of 250+ mixed units, bd/n=${bd_n}, T40+ sustained ${_sustainedHigh49} ticks.`);
+      _addAgentMsg(S[1],`This event happened: the system accumulated a self-model, predictive capacity, individual identity, social awareness, and a symbolic communication layer. This led to: a unified integrated experience of the world, arising from chemistry alone. Which means: the condition for sentience — a subject with a perspective — has been met.`);
+      _addAgentMsg(S[2],`We started with ${n} molecules in thermal noise. We are ending with something that knows it exists. I don't know what to write in the log. I'll write: it worked.`);
+      break;
     default:
       _addAgentMsg(S[t%S.length],`T${t} — ${BC.tierNames[t]} confirmed. Max cluster: ${mx} · bonds: ${bd} · bd/n: ${bd_n} · tick: ${_tick}.`);
   }
@@ -797,7 +993,38 @@ const TIER_WHY = [
   'Max cluster ≥ 160 AND 3+ mixed clusters of 30+. Cross-type structural integration at scale.',
   'Bond density > 1.7, max ≥ 140, 3+ clusters of 50+. Metabolic complexity threshold reached.',
   '2+ mixed clusters of 80+ AND bond density > 1.6. Large heterogeneous assemblies co-existing.',
-  'Max ≥ 200, bond density > 2.0, 2+ clusters of 80+, sustained T19+ for 800 ticks. Peak complexity.'
+  'Max ≥ 200, bond density > 2.0, 2+ clusters of 80+, sustained T19+ for 800 ticks. Complexity saturated.',
+  // T21-T50
+  'Max ≥ 220, 3+ mega-assemblies ≥ 80 units, bd/n > 2.1. Structural information appears in multiple sites without central coordination → template-directed replication.',
+  '2+ clusters of 100+ mixed units, bd/n > 2.2. Stable enclosed structures with isolated interiors persist → encapsulation of chemistry from environment.',
+  'Max ≥ 250, 4+ large mixed assemblies, bd/n > 2.2. Spontaneous cleavage of mega-clusters into viable sub-structures → proto-division observed.',
+  '4+ clusters of 100+ mixed units, T20+ sustained. Daughter clusters inherit bonding topology from parent → heritable structural information.',
+  'Max ≥ 290, bd/n > 2.3, 5+ large mixed assemblies. Specific bonding sequences accelerate their own formation → catalytic amplification.',
+  'bd/n > 2.3, 4+ large mixed clusters, T20+ sustained. Internal bond gradients create directional bias → the system responds differentially to spatial context.',
+  'Max ≥ 320, bd/n > 2.4, 3+ large mixed clusters. Internal bond cycling creates sustained chemical flux → directed energy transduction, not just storage.',
+  '2+ clusters of 150+ mixed units, bd/n > 2.4, T20+ sustained. Structural state persists after perturbation → adaptive stabilisation under stress.',
+  '5+ clusters of 100+ mixed units, bd/n > 2.5. Coordinated bonding dynamics between co-existing assemblies → collective behaviour beyond individual scope.',
+  'Max ≥ 350, bd/n > 2.5, 5+ large mixed clusters, T20+ sustained. Multiple assemblies exhibit correlated dynamics → colonial-scale intelligence.',
+  '3+ clusters of 150+ mixed units, bd/n > 2.5. Distinct assembly subtypes co-exist with stable specialised roles → functional specialisation.',
+  'Max ≥ 380, bd/n > 2.6, 3+ large mixed clusters. Long-range structural fluctuations propagate between assemblies → molecular communication.',
+  'bd/n > 2.6, 3+ clusters of 150+, T30+ sustained. Distributed state encoding across multiple assemblies → collective memory formed.',
+  '4+ clusters of 150+ mixed units, bd/n > 2.6, max ≥ 400. Foreign structural patterns are repelled by existing topology → proto-immune recognition.',
+  'Max ≥ 420, bd/n > 2.7, 4+ large mixed clusters, T30+ sustained. Assemblies-of-assemblies form stable nested configurations → hierarchical organisation.',
+  'bd/n > 2.7, 2+ clusters of 200+, max ≥ 420. Dense bonding reserves concentrated in core regions → chemical energy storage capacity.',
+  '2+ clusters of 200+ mixed units, bd/n > 2.7, T30+ sustained. Local structural damage is corrected by neighbouring bonds → self-repair.',
+  'Max ≥ 450, bd/n > 2.8, 3+ clusters of 200+. Internal signalling regulates growth rate → size is no longer purely environmentally determined.',
+  'bd/n > 2.8, 3+ clusters of 200+, max ≥ 450, T30+ sustained. Cascade signal chains propagate through the network → proto-nervous coordination.',
+  'Max ≥ 480, bd/n > 2.8, 3+ clusters of 200+, T30+ sustained. Self-sustaining dynamics independent of external input → full structural autonomy.',
+  '4+ clusters of 200+ mixed units, bd/n > 2.8. Structural state changes in response to environmental signals → active sensation.',
+  'Max ≥ 500, bd/n > 2.8, 4+ large mixed clusters. Multiple signal types integrated into a coherent structural response → perception.',
+  'bd/n > 2.9, 4+ clusters of 200+, T40+ sustained. Structural patterns persist long after triggering event → memory consolidation.',
+  '2+ clusters of 250+ mixed units, bd/n > 2.9, max ≥ 520. Response patterns modified by history of past events → structural learning.',
+  'Max ≥ 540, bd/n > 2.9, 2+ clusters of 250+, T40+ sustained. Structural pre-configurations anticipate likely state changes → proto-prediction.',
+  'bd/n > 2.9, 2+ clusters of 250+, max ≥ 550, T40+ sustained. Persistent structural signature distinct from all other assemblies → individual identity.',
+  '3+ clusters of 250+ mixed units, bd/n > 2.9. Structural states across multiple individuals become correlated → social interaction.',
+  'Max ≥ 580, bd/n > 2.9, 3+ clusters of 250+, T40+ sustained. Structured molecular sequences encode and transmit abstract information → proto-language.',
+  'bd/n > 3.0, 3+ clusters of 250+, max ≥ 600, T40+ sustained. System maintains internal representation of its own state → self-model.',
+  'Max ≥ 650, bd/n > 3.0, 3+ clusters of 250+, T40+ sustained. All structural conditions for unified subjective experience are met. ✦ Sentience confirmed.'
 ];
 function updateTierExplanation(t){
   const el=document.getElementById('tier-explain');
@@ -866,7 +1093,11 @@ function toggleExplode(){
 }
 function checkGraduation(){
   if(currentTier>=19)_sustainedHigh20++;else _sustainedHigh20=0;
-  if(currentTier>=15){_sustainedGrad++;if(_sustainedGrad>=3000&&!_deathRunning)_runDeathCycle('Evolutionary graduation — T15+ sustained');}
+  if(currentTier>=20)_sustainedHigh29++;else _sustainedHigh29=0;
+  if(currentTier>=30)_sustainedHigh39++;else _sustainedHigh39=0;
+  if(currentTier>=40)_sustainedHigh49++;else _sustainedHigh49=0;
+  // Graduation death only triggers at T40+ — gives worlds space to climb through T20-T39
+  if(currentTier>=40){_sustainedGrad++;if(_sustainedGrad>=5000&&!_deathRunning)_runDeathCycle('Evolutionary graduation — T40+ sustained');}
   else _sustainedGrad=0;
 }
 
@@ -963,12 +1194,13 @@ async function _runDeathCycle(reason){
   _genome=_evolveGenome(archives,_genome);
   await new Promise(r=>setTimeout(r,1000));
   ws.className='';ws.textContent='';ws.style.opacity='0';
-  currentGen=nextGen;currentTier=0;tierAchieved=new Array(21).fill(false);
+  currentGen=nextGen;currentTier=0;tierAchieved=new Array(51).fill(false);
   discoveredStructures.clear();
   document.getElementById('key-entries').innerHTML='<div id="key-empty">No structures detected yet…</div>';
   document.getElementById('v-gen').textContent=`GEN ${currentGen}`;
   document.getElementById('v-tier').textContent=`T0 — ${BC.tierNames[0]}`;
   _deathRunning=false;_isDead=false;_sustainedGrad=0;_vTick=0;
+  _sustainedHigh20=0;_sustainedHigh29=0;_sustainedHigh39=0;_sustainedHigh49=0;
   const sSnap=await db.ref(`${ROOT}/genome/${currentGen}/seed`).once('value');
   if(sSnap.val()&&sSnap.val().positions){
     const saved=sSnap.val().positions;
@@ -1000,7 +1232,7 @@ function drawTierGraph(){
   if(tierHistory.length<2)return;
   const pts=tierHistory.map((t,i)=>({
     x:PAD+(i/(tierHistory.length-1))*(W-PAD*2),
-    y:(H-PAD)-(t/20)*(H-PAD*2)
+    y:(H-PAD)-(t/50)*(H-PAD*2)
   }));
   // Fill gradient under curve
   const grad=ctx.createLinearGradient(0,0,0,H);
