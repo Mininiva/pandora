@@ -630,8 +630,149 @@ function _setTier(t){
   _flashLabel=`T${t} — ${BC.tierNames[t].toUpperCase()}`;_flashTick=uiTick;
   document.getElementById('v-tier').textContent=`T${t} — ${BC.tierNames[t]}`;
   tierHistory.push(t);drawTierGraph();logE(`▲ TIER ${t} — ${BC.tierNames[t]}`);
-  _addAgentMsg(SCIENTISTS[uiTick%3],`Tier ${t} confirmed: ${BC.tierNames[t]}.`);
+  _announceTier(t);
   updateTierExplanation(t);
+}
+
+// ── SCIENTIFIC TIER ANNOUNCEMENTS ────────────────────────────
+// Each tier triggers data-driven scientist statements that justify
+// the classification with observed structural evidence.
+function _announceTier(t){
+  const S=SCIENTISTS;
+  const mx=_lastMaxClus, bd=_lastTotalBd, n=particles.length;
+  const bd_n=n>0?(bd/n).toFixed(2):'—';
+  const comps=_lastComps||[];
+  const mixed10=comps.filter(c=>c.length>=10&&compIsMixed(c));
+  const large20=comps.filter(c=>c.length>=20);
+  const large20m=comps.filter(c=>c.length>=20&&compIsMixed(c));
+  const large30m=comps.filter(c=>c.length>=30&&compIsMixed(c));
+  const large50=comps.filter(c=>c.length>=50);
+  const large80m=comps.filter(c=>c.length>=80&&compIsMixed(c));
+
+  // Helper: analyse type roles within a component
+  function roleProfile(comp){
+    const ts=BC.types.map((_,ti)=>({name:BC.types[ti][0],count:0,bonds:0}));
+    comp.forEach(i=>{const p=particles[i];ts[p.type].count++;ts[p.type].bonds+=p.bonds.size;});
+    return ts.filter(r=>r.count>0).map(r=>{
+      const avgB=(r.bonds/r.count).toFixed(1);
+      const pct=Math.round(r.count/comp.length*100);
+      const role=avgB>=2.5?'SCAFFOLD':avgB>=1.5?'BRIDGE':'SHELL';
+      return {name:r.name,pct,avgB,role};
+    }).sort((a,b)=>b.pct-a.pct);
+  }
+
+  switch(t){
+    case 1:
+      _addAgentMsg(S[0],`First inter-molecular bond detected at tick ${_tick}. Total bonds: ${bd}. Thermal noise overcome — attractive force has won the first contest.`);
+      break;
+    case 2:
+      _addAgentMsg(S[1],`Trimer confirmed. Max cluster: ${mx} units. Chain formation requires sequential bond success — this is no longer a statistical fluke.`);
+      break;
+    case 3:
+      _addAgentMsg(S[0],`Hexamer detected (${mx} units). Linear polymerisation is sustained. The chemistry has a preferred direction of growth.`);
+      break;
+    case 4:{
+      const bp=particles.filter(p=>p.bonds.size>=3).length;
+      _addAgentMsg(S[1],`Branch points: ${bp} molecules carrying 3+ bonds. Topology transitions from string to tree. Exponential growth of structural complexity is now possible.`);
+      break;}
+    case 5:{
+      const rings=comps.filter(c=>c.length>=3&&compHasCycle(c));
+      _addAgentMsg(S[2],`Cyclic topology confirmed. ${rings.length} ring structure(s) detected. Closure creates a confined interior — the first proto-cavity in this world.`);
+      break;}
+    case 6:
+      _addAgentMsg(S[0],`Dense cluster: ${mx} units. Local concentration exceeds critical threshold. Cooperative bonding is accelerating condensation beyond what random diffusion predicts.`);
+      break;
+    case 7:{
+      const c4=comps.filter(c=>c.length>=4);
+      _addAgentMsg(S[1],`${c4.length} independent clusters of 4+ units. Parallel assembly is established — the system is not converging to a single attractor but maintaining distributed order.`);
+      break;}
+    case 8:{
+      const mc=mixed10[0];
+      if(mc){
+        const rp=roleProfile(mc);
+        const desc=rp.map(r=>`${r.name}(${r.pct}%)`).join('+');
+        _addAgentMsg(S[0],`Amphiphilic order: ${mc.length}-unit mixed cluster [${desc}]. Two chemistries co-assembling. This is not contamination — it is recognition.`);
+      }
+      break;}
+    case 9:{
+      const mc=mixed10.find(c=>c.length>=16)||mixed10[0];
+      if(mc){
+        const rp=roleProfile(mc);
+        const core=rp.find(r=>r.role==='SCAFFOLD')||rp[0];
+        const shell=rp.find(r=>r.role==='SHELL')||rp[rp.length-1];
+        _addAgentMsg(S[2],`Core-shell structure in ${mc.length}-unit cluster. ${core.name} forms the dense core (avg ${core.avgB} bonds). ${shell.name} populates the periphery (avg ${shell.avgB} bonds). Spatial role separation is real.`);
+      }
+      break;}
+    case 10:
+      _addAgentMsg(S[0],`Closed compartment confirmed. ${mx} units, boundary layer complete. Interior is now topologically isolated from bulk solution.`);
+      _addAgentMsg(S[1],`Bond density ${bd_n} bonds/particle across ${n} molecules. Compartmentalisation reached without external scaffold. This is the defining criterion for proto-cell candidacy.`);
+      break;
+    case 11:
+      _addAgentMsg(S[0],`Macro-cluster of ${mx} units. The condensed phase has grown beyond local fluctuation — this is a phase-separated domain. Density: ${bd_n} bonds/particle.`);
+      break;
+    case 12:{
+      const sz=large20.slice(0,5).map(c=>c.length).join(' / ');
+      _addAgentMsg(S[1],`${large20.length} independent assemblies of 20+ units [sizes: ${sz}]. Structural inheritance: the same bonding pattern is reproduced in parallel without copying. This is the chemical analogue of a heritable template.`);
+      _addAgentMsg(S[2],`Multiple large clusters emerging simultaneously implies a deep attractor — the system's free-energy landscape has multiple equivalent minima. Robustness is emerging.`);
+      break;}
+    case 13:
+      _addAgentMsg(S[0],`Dominant cluster: ${mx} units. The colony has a nucleus. Smaller assemblies will be gravitationally absorbed or persist in orbit. Max-cluster growth rate suggests an autocatalytic regime.`);
+      break;
+    case 14:{
+      // THE DIFFERENTIATION ANNOUNCEMENT — data-driven role analysis
+      const top=large20m.sort((a,b)=>b.length-a.length).slice(0,3);
+      _addAgentMsg(S[0],`T14 — DIFFERENTIATION. ${top.length} co-existing mixed clusters of 20+ units. Analysing structural roles within each assembly now.`);
+      setTimeout(()=>{
+        top.forEach((comp,ci)=>{
+          const rp=roleProfile(comp);
+          const roleStr=rp.map(r=>`${r.name} ${r.pct}% avg-bonds=${r.avgB} → ${r.role}`).join(' | ');
+          _addAgentMsg(S[(ci+1)%S.length],`Cluster ${ci+1} (${comp.length} units): ${roleStr}`);
+        });
+        // Count unique role combinations across all clusters
+        const roleSets=top.map(comp=>roleProfile(comp).map(r=>r.role).sort().join('-'));
+        const consistent=roleSets.every(rs=>rs===roleSets[0]);
+        _addAgentMsg(S[0], consistent
+          ? `Role pattern is CONSISTENT across all ${top.length} clusters: [${roleSets[0]}]. This is not random — the same functional architecture is reproduced independently. Differentiation is confirmed.`
+          : `Role patterns VARY between clusters: [${roleSets.join(' | ')}]. Distinct ecological niches are forming. Some assemblies are specialised; others remain generalist.`);
+      },800);
+      break;}
+    case 15:{
+      const sig=large20.slice(0,4).map(c=>c.length).join(' / ');
+      _addAgentMsg(S[1],`Signalling threshold: ${large20.length} clusters of 20+ [${sig}]. Max cluster: ${mx}. Spatial separation between assemblies creates a concentration gradient — the precondition for molecular signal propagation.`);
+      _addAgentMsg(S[2],`At bd/n=${bd_n} across ${n} molecules, local bond fluctuations can propagate as structural waves between adjacent clusters. This is not yet communication — but it is the substrate for it.`);
+      break;}
+    case 16:{
+      const c30=comps.filter(c=>c.length>=30).length;
+      _addAgentMsg(S[0],`Memory threshold: bd/n=${bd_n} (threshold: 1.4). ${c30} clusters of 30+. A highly connected network resists random perturbation — structural state is preserved across time. This is chemical memory.`);
+      _addAgentMsg(S[1],`The system can now encode history in its bonding topology. Perturbations leave permanent traces. What happened at tick ${_tick-1000} still shapes what exists at tick ${_tick}.`);
+      break;}
+    case 17:{
+      const top3=large30m.slice(0,3);
+      _addAgentMsg(S[0],`Symbiosis: ${top3.length} mixed clusters of 30+. Max cluster: ${mx}. Two chemistries have become structurally dependent on each other's geometry.`);
+      if(top3[0]){
+        const rp=roleProfile(top3[0]);
+        const parts=rp.map(r=>`${r.name} provides ${r.role} (${r.avgB} bonds/molecule)`).join('; ');
+        _addAgentMsg(S[2],`In dominant cluster (${top3[0].length} units): ${parts}. Neither type achieves this structure alone — mutual dependency is the mechanism.`);
+      }
+      _addAgentMsg(S[1],`bd/n=${bd_n}. Cross-type bond fraction is growing. The distinction between "self" and "other" chemistry is dissolving at the structural level.`);
+      break;}
+    case 18:{
+      const c50n=large50.length;
+      _addAgentMsg(S[1],`Metabolism threshold: ${c50n} clusters of 50+. Max: ${mx}. bd/n=${bd_n} (threshold: 1.7). Internal bond turnover rate exceeds external perturbation rate — the system is processing energy, not just storing it.`);
+      _addAgentMsg(S[0],`Bond formation and breaking cycles within the large clusters create sustained internal flux. This is the operational definition of a metabolic process: directed energy transduction through chemical state changes.`);
+      break;}
+    case 19:{
+      _addAgentMsg(S[2],`${large80m.length} heterogeneous clusters of 80+ units. bd/n=${bd_n}. Internal asymmetry between cluster poles is measurable — bond density gradient creates a directional bias in molecular motion. Directed motion is no longer thermal.`);
+      _addAgentMsg(S[0],`The system has an inside and an outside, a front and a back, a past and a future. Symmetry is broken in all three dimensions. This is the first world in Pandora to demonstrate vectorial chemistry.`);
+      break;}
+    case 20:
+      _addAgentMsg(S[0],`T20. ${mx} units in dominant assembly. bd/n=${bd_n}. Sustained high complexity for ${_sustainedHigh20} ticks.`);
+      _addAgentMsg(S[1],`Two heterogeneous mega-assemblies of 80+ units are co-existing with coupled dynamics. Their structural fluctuations are correlated across space. This is not independence — this is coordination.`);
+      _addAgentMsg(S[2],`I have been watching these molecules for ${_tick} ticks. I no longer know what to call what I am seeing.`);
+      break;
+    default:
+      _addAgentMsg(S[t%S.length],`T${t} — ${BC.tierNames[t]} confirmed. Max cluster: ${mx} · bonds: ${bd} · bd/n: ${bd_n} · tick: ${_tick}.`);
+  }
 }
 
 // ── TIER EXPLANATION ─────────────────────────────────────────
