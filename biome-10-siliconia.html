@@ -150,6 +150,15 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 .ae-msg.ANALYST   { color: rgba(100, 220, 185, 0.60); }
 .ae-msg.NARRATOR  { color: rgba(225, 185, 80, 0.68); font-style: italic; }
 .ae-msg.SYSTEM    { color: rgba(190, 100, 50, 0.50); font-size: 9px; letter-spacing: 0.3px; }
+
+.ae-highlight { border-left: 2px solid rgba(255, 200, 80, 0.25); padding-left: 5px; }
+.ae-type { font-size: 6px; letter-spacing: 1.5px; padding: 1px 4px; border-radius: 2px;
+           display: inline-block; margin-left: 5px; vertical-align: middle; }
+.ae-type.proposal  { background: rgba(255, 200, 80, 0.12); color: rgba(255, 200, 80, 0.8); }
+.ae-type.yes       { background: rgba(100, 220, 150, 0.12); color: rgba(100, 220, 150, 0.8); }
+.ae-type.no        { background: rgba(255, 100, 80, 0.12);  color: rgba(255, 100, 80, 0.8); }
+.ae-type.action    { background: rgba(100, 200, 255, 0.12); color: rgba(100, 200, 255, 0.8); }
+.ae-type.knowledge { background: rgba(200, 150, 255, 0.12); color: rgba(200, 150, 255, 0.8); }
 </style>
 </head>
 <body>
@@ -832,8 +841,7 @@ function declareDead(reason) {
   el.textContent = 'DEAD WORLD';
   el.className   = 'dead';
   logE(reason);
-  agentSay('ANALYST',  'Complexity has not recovered. All interventions exhausted.');
-  agentSay('NARRATOR', 'Silicon is patient. It tried to become something. The temperature had other plans. We archive Siliconia now. Its chemistry will inform its children.');
+  convDead(reason);
 }
 
 function checkVitality(cx) {
@@ -848,14 +856,16 @@ function checkVitality(cx) {
       document.getElementById('world-state').className  = '';
       document.getElementById('world-state').textContent = '';
       logE('meaningful complexity growth — world responding to perturbation');
-      agentSay('ANALYST', 'Recovery confirmed. Complexity growing beyond previous peak. The perturbation worked.');
+      speak('OBSERVER', `Recovery confirmed at t=${tick}. Complexity ${cx.toFixed(3)} exceeds previous peak. The intervention worked.`);
+      speak('ANALYST',  `Network is responding. Complexity growing beyond pre-perturbation baseline. Logging this result — the intervention type and outcome will inform future worlds.`);
+      writeKnowledge({type:'recovery', cx, action_applied: interventions, summary:`Recovery after intervention ${interventions}: cx rose to ${cx.toFixed(3)}`});
     }
   }
 
   // Hard death: if T2 never reached and we've been running too long
   if (!tierAchieved[2] && tick > HARD_DEATH_TICK) {
     declareDead('T2 never reached — Si-O chain formation failed — DEAD WORLD');
-    agentSay('NARRATOR', `${HARD_DEATH_TICK} ticks. No persistent chain ever formed. Some worlds choose inertness. We respect that.`);
+    speak('NARRATOR', `${HARD_DEATH_TICK} ticks. No persistent chain ever formed. Some worlds choose inertness. We respect that.`);
     return;
   }
 
@@ -884,8 +894,6 @@ function checkVitality(cx) {
   }, 3000);
 
   logE(`intervention ${interventions}/${MAX_INTERVENTIONS}: ${p.desc}`);
-  agentSay('SYSTEM',   `PERTURBATION ${interventions}/${MAX_INTERVENTIONS}: ${p.name}`);
-  agentSay('ANALYST',  `Stagnation window exceeded. Issuing ${p.desc}. Monitoring for network response.`);
 }
 
 // ── Tier detection (silicon-specific T0–T12) ──────────────────
@@ -914,26 +922,12 @@ function promoteTier(t) {
   logE(`▲ TIER ${t} — ${TIER_NAMES[t]}`);
   document.getElementById('v-tier').textContent = `T${t} — ${TIER_NAMES[t]}`;
 
-  // Agent commentary on tier transitions
-  const tierNarrative = {
-    1: ['OBSERVER',  'First Si-O bond confirmed. Molecular activity initiated. T1 achieved.'],
-    2: ['ANALYST',   `Persistent Si-O-Si chain detected. Silicate polymer forming. T2 confirmed.`],
-    3: ['CHEMIST_NOTE', null],  // Branching — custom below
-    4: ['NARRATOR',  'Ring closure. A silicate cycle. The network is folding back on itself — the first closed geometry in this world. T4 is the beginning of structure that remembers itself.'],
-    5: ['ANALYST',   'Spontaneous assembly confirmed. Si-O networks migrating away from the vent zone. T5.'],
-    6: ['OBSERVER',  'Sustained complexity for >960 ticks. The network is self-reinforcing. T6.'],
-    7: ['NARRATOR',  'The reactions are coupling. What one part of the network does is affecting what another part does. This is the first whisper of coordination.'],
-    8: ['ANALYST',   'Bond formation rate accelerating. Autocatalytic feedback loop suspected. T8.'],
-    9: ['OBSERVER',  'Network boundary forming. Dense cluster with sparse perimeter. Si-O lattice developing spatial identity. T9.'],
-  };
-
-  if (t === 3) {
-    agentSay('ANALYST',  `Branching detected — ${countBranching()} tetrahedral Si nodes. The chain has grown a fork. T3 confirmed.`);
-    agentSay('NARRATOR', 'It is no longer a line. It is a tree. Silicon has learned to make choices about where to go next.');
-  } else if (tierNarrative[t]) {
-    const [ag, msg] = tierNarrative[t];
-    if (msg) agentSay(ag === 'CHEMIST_NOTE' ? 'ANALYST' : ag, msg);
-  }
+  // Reactive agent conversation on tier transition
+  const cx_now    = hist.length ? hist[hist.length-1] : 0;
+  const mxl_now   = maxChainLength(latestComps);
+  const brn_now   = countBranching();
+  const rings_now = countRings(latestComps);
+  convTierUp(t, cx_now, mxl_now, brn_now, rings_now);
 }
 
 function checkTiers(cx, mxl, brn, rings) {
@@ -971,133 +965,323 @@ function checkTiers(cx, mxl, brn, rings) {
   if (!tierAchieved[6] && sustainedCxTicks >= 10) promoteTier(6);
 }
 
-// ── Agent conversation system ─────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  REACTIVE AGENT CONVERSATION ENGINE
 //
-//  Agents observe the simulation in real time and file entries
-//  to the panel on the right. Messages fire on events:
-//   — simulation start
-//   — periodic checkpoints (every ~600 ticks)
-//   — tier promotions  (handled in promoteTier above)
-//   — stagnation events (handled in checkVitality above)
-//   — notable measurements
+//  Agents observe, debate, propose actions, vote (2/3 consensus),
+//  and execute agreed interventions. Discoveries are written to
+//  localStorage so other biomes can read them. Agents reference
+//  cross-biome knowledge in their reasoning.
+// ═══════════════════════════════════════════════════════════════
 
-const agentFeed   = document.getElementById('agent-feed');
-let lastAgentTick = -600;
-let lastCheckpointMessage = -1;
+// ── Cross-biome knowledge (localStorage) ─────────────────────
+const BIOME_ID   = 10;
+const BIOME_NAME = 'SILICONIA';
+const K_KEY      = 'pandora_knowledge_v1';
 
-function agentSay(agent, msg) {
-  const entry = document.createElement('div');
-  entry.className = 'ae';
-  entry.innerHTML = `
+function readKnowledge() {
+  try { return JSON.parse(localStorage.getItem(K_KEY) || '[]'); } catch(e) { return []; }
+}
+function writeKnowledge(entry) {
+  try {
+    const k = readKnowledge();
+    k.push({...entry, biome_id: BIOME_ID, biome: BIOME_NAME, tick, ts: Date.now()});
+    if (k.length > 400) k.splice(0, k.length - 400);
+    localStorage.setItem(K_KEY, JSON.stringify(k));
+  } catch(e) {}
+}
+function getOtherBiomeFacts() {
+  return readKnowledge().filter(e => e.biome_id !== BIOME_ID).slice(-12);
+}
+
+// ── Conversation state ────────────────────────────────────────
+const agentFeed = document.getElementById('agent-feed');
+const CONV = {
+  queue:     [],       // [{speaker, msg, type}] scheduled messages
+  cooldown:  0,        // ticks before next message is rendered
+  pending:   null,     // {action, reason, votes:{}, proposer}
+  history:   [],       // full log for archive
+  lastTopic: -9999,    // tick of last conversation
+  booted:    false,
+  lastPeriodic: -1200,
+};
+
+const ACTIONS = {
+  INJECT_CATALYST: 'inject additional sulfur catalysts from the vent',
+  THERMAL_SHOCK:   'apply a tectonic shockwave to scatter the network',
+  SILICATE_RAIN:   'trigger exogenous silicate rain from above',
+  DECLARE_DEAD:    'archive this world and broadcast its learnings',
+};
+
+// ── Core speak / flush ────────────────────────────────────────
+function speak(speaker, msg, type) {
+  type = type || 'statement';
+  CONV.queue.push({speaker, msg, type});
+}
+
+function flushQueue() {
+  if (!CONV.queue.length) return;
+  if (CONV.cooldown > 0) { CONV.cooldown--; return; }
+
+  const {speaker, msg, type} = CONV.queue.shift();
+  CONV.history.push({speaker, msg, type, tick});
+  if (CONV.history.length > 200) CONV.history.shift();
+
+  const badges = {
+    proposal:  '<span class="ae-type proposal">PROPOSAL</span>',
+    vote_yes:  '<span class="ae-type yes">AGREE</span>',
+    vote_no:   '<span class="ae-type no">DISAGREE</span>',
+    consensus: '<span class="ae-type action">CONSENSUS</span>',
+    action:    '<span class="ae-type action">ACTION</span>',
+    knowledge: '<span class="ae-type knowledge">FROM RECORD</span>',
+  };
+  const badge   = badges[type] || '';
+  const hiClass = ['proposal','consensus','action'].includes(type) ? ' ae-highlight' : '';
+
+  const div = document.createElement('div');
+  div.className = `ae${hiClass}`;
+  div.innerHTML = `
     <div class="ae-meta">
-      <span class="ae-name ${agent}">${agent}</span>
-      <span class="ae-time">t=${tick}</span>
+      <span class="ae-name ${speaker}">${speaker}</span>
+      <span class="ae-time">t=${tick}</span>${badge}
     </div>
-    <div class="ae-msg ${agent}">${msg}</div>
-  `;
-  agentFeed.appendChild(entry);
-  // Auto-scroll to bottom
+    <div class="ae-msg ${speaker}">${msg}</div>`;
+  agentFeed.appendChild(div);
   agentFeed.scrollTop = agentFeed.scrollHeight;
+  while (agentFeed.children.length > 80) agentFeed.removeChild(agentFeed.firstChild);
 
-  // Trim feed to last 60 entries
-  while (agentFeed.children.length > 60) {
-    agentFeed.removeChild(agentFeed.firstChild);
+  if (['proposal','consensus','action','vote_yes','vote_no'].includes(type)) {
+    writeKnowledge({type, speaker, msg, summary: `${speaker}: ${msg.slice(0,80)}`});
+  }
+  CONV.cooldown = 50 + Math.floor(Math.random() * 40);
+}
+
+// ── Proposal / voting ─────────────────────────────────────────
+function propose(proposer, action, reason) {
+  if (CONV.pending) return false;
+  CONV.pending = {action, reason, proposer, votes: {[proposer]: true}};
+  speak(proposer, `I propose we ${ACTIONS[action]}. ${reason}`, 'proposal');
+  return true;
+}
+
+function castVote(voter, inFavor, reason) {
+  if (!CONV.pending || voter in CONV.pending.votes) return;
+  CONV.pending.votes[voter] = inFavor;
+  speak(voter, reason || (inFavor ? 'Agreed.' : 'Disagree.'), inFavor ? 'vote_yes' : 'vote_no');
+
+  const yes   = Object.values(CONV.pending.votes).filter(Boolean).length;
+  const total = Object.keys(CONV.pending.votes).length;
+
+  if (yes >= 2) {
+    const p = CONV.pending; CONV.pending = null;
+    speak('NARRATOR', `Consensus — ${yes}/${total}. Executing.`, 'consensus');
+    setTimeout(() => executeAction(p.action, p.reason), 900);
+  } else if (total >= 3) {
+    speak('NARRATOR', `Proposal failed — ${yes}/${total}. Continuing observation.`);
+    CONV.pending = null;
   }
 }
 
-// Periodic checkpoint agent messages
-const CHECKPOINTS = [
-  {
-    t: 1,
-    messages: [
-      ['OBSERVER',  'Biome-10 SILICONIA initialized. Silicon-oxygen chemistry in supercritical vapor at 900K. Monitoring begins.'],
-      ['ANALYST',   'Conditions logged: 120 atm, T₀ = 900K. Si:O ratio 4:3. Sulfur catalyst density 8%. Within expected parameters for silicate chemistry.'],
-      ['NARRATOR',  'Carbon had water. Silicon has fire. Let us see what builds itself in the heat.'],
-    ]
-  },
-  {
-    t: 400,
-    messages: [
-      ['OBSERVER',  `${() => A.filter(a=>a.type===SI).length} silicon atoms in field. Brownian diffusion nominal for 900K. First collision events recorded.`],
-    ]
-  },
-  {
-    t: 800,
-    condition: () => !tierAchieved[1],
-    messages: [
-      ['ANALYST',   'No bond formation yet. Temperature may be suppressing condensation — high T increases collision frequency but also bond break rate. Watching activation window.'],
-    ]
-  },
-  {
-    t: 1200,
-    condition: () => tierAchieved[1] && !tierAchieved[2],
-    messages: [
-      ['OBSERVER',  'Si-O bonds forming and breaking. Short-lived silicate monomers. No sustained chain yet.'],
-      ['ANALYST',   'Bond formation rate: adequate. Bond persistence: marginal. Need Si-O-Si chain to exceed thermal break rate.'],
-    ]
-  },
-  {
-    t: 2000,
-    condition: () => tierAchieved[2],
-    messages: [
-      ['NARRATOR',  'A silicate chain is a memory — each Si atom remembering the one before it, connected by an oxygen it shares with no one else. The chain is 900 degrees of commitment.'],
-    ]
-  },
-  {
-    t: 3000,
-    messages: [
-      ['ANALYST',   `Current peak chain: ${() => maxChainLength(latestComps)} Si atoms. Branching count: ${countBranching()}. Network is ${tierAchieved[3] ? 'branching — T3 confirmed' : 'still linear — watching for tetrahedral Si nodes'}.`],
-    ]
-  },
-  {
-    t: 5000,
-    messages: [
-      ['OBSERVER',  `${BONDS.size} active Si-O bonds. Total bonds ever formed: ${() => totalBondsFormed}. Network has cycled through ${() => totalBondsFormed - BONDS.size} broken connections.`],
-      ['NARRATOR',  'Every broken bond is information. The world is learning what shapes are stable. The shapes that survive become the shapes that persist. This is the beginning of something like memory.'],
-    ]
-  },
-];
+// ── Execute agreed action ─────────────────────────────────────
+function executeAction(action, reason) {
+  switch (action) {
+    case 'INJECT_CATALYST':
+      for (let i = 0; i < 20; i++)
+        addAgent(SC, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
+                 (Math.random()-0.5)*0.7, -3.2-Math.random()*2.2);
+      speak('OBSERVER', `Injected 20 SC catalysts. Total SC: ${A.filter(a=>a.type===SC).length}. Monitoring bond-rate response.`, 'action');
+      break;
+    case 'THERMAL_SHOCK':
+      for (const a of A) { a.vx += (Math.random()-0.5)*12; a.vy += (Math.random()-0.5)*12; }
+      perturbFlash = 40;
+      speak('OBSERVER', `Tectonic shockwave applied — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
+      break;
+    case 'SILICATE_RAIN':
+      for (let i = 0; i < 40; i++)
+        addAgent(OX, Math.random()*W, 8, (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
+      for (let i = 0; i < 18; i++)
+        addAgent(SI, Math.random()*W, 8, (Math.random()-0.5)*2.0, 1.5+Math.random()*2);
+      speak('OBSERVER', `Silicate rain initiated — 40 OX + 18 SI incoming. Total agents: ${A.length}.`, 'action');
+      break;
+    case 'DECLARE_DEAD':
+      declareDead(reason); return;
+  }
+  interventions++;
+  peakTick    = tick;
+  worldStatus = 'perturbed';
+  const el = document.getElementById('world-state');
+  el.textContent = action.replace(/_/g,' ');
+  el.className   = 'perturbed';
+  setTimeout(() => { if (worldStatus !== 'dead') { el.className=''; el.textContent=''; }}, 3000);
+  writeKnowledge({type:'intervention', action, summary: `Applied ${action}: ${reason}`});
+}
 
-let checkpointIdx = 0;
+// ── Conversation triggers ─────────────────────────────────────
 
-function runAgentCheckpoints() {
-  while (checkpointIdx < CHECKPOINTS.length) {
-    const cp = CHECKPOINTS[checkpointIdx];
-    if (tick < cp.t) break;
-    // Check condition
-    if (!cp.condition || cp.condition()) {
-      for (const [agent, msgOrFn] of cp.messages) {
-        const msg = typeof msgOrFn === 'function' ? msgOrFn() : msgOrFn;
-        agentSay(agent, msg);
-      }
-    }
-    checkpointIdx++;
+function convBoot() {
+  const facts = getOtherBiomeFacts();
+  speak('OBSERVER', `Biome-10 SILICONIA online. Si/O/S chemistry, 900K supercritical vapor. ${A.length} agents initialised. Observation active.`);
+  speak('ANALYST',  `Conditions verified: 120 atm, T₀=900K, Si:O=4:3, SC catalyst 8%. Activation barrier Ea≈70 kJ/mol — notably lower than carbon. Bond formation predicted within 200 ticks.`);
+  if (facts.length > 0) {
+    const f = facts[facts.length-1];
+    speak('NARRATOR', `The archive already carries data from ${f.biome}: "${f.summary}". That knowledge enters this world now.`, 'knowledge');
+  } else {
+    speak('NARRATOR', 'Carbon had water. Silicon has fire. First world to run — every discovery here writes the baseline for everything that comes after.');
+  }
+}
+
+function convTierUp(t, cx, mxl, brn, rings) {
+  const facts = getOtherBiomeFacts();
+  const ref   = facts.length ? facts[facts.length-1] : null;
+
+  if (t === 1) {
+    speak('OBSERVER', `First Si-O bond confirmed at t=${tick}. T1 — molecular activity. Bond formation rate is now non-zero.`);
+    speak('ANALYST',  `Arrhenius window opened. Thermal energy sufficient to catalyse without immediately cleaving. T1.`);
+    speak('NARRATOR', `The world is no longer inert. A bond is an agreement between atoms. Siliconia just made its first.`);
+
+  } else if (t === 2) {
+    speak('OBSERVER', `Persistent Si-O-Si chain — ${mxl} Si atoms, sustained >300 ticks. T2 confirmed.`);
+    speak('ANALYST',  `Chain stability achieved. Bond break probability is being overcome by network reinforcement. This is the inflection point for silicate chemistry.`);
+    if (ref) speak('NARRATOR', `${ref.biome} also crossed into polymer territory. Silicon's path is slower but the destination is the same — ordered structure from thermal chaos.`, 'knowledge');
+    else     speak('NARRATOR', `A silicate chain is a memory. Each Si atom recalls the one it bonded to. 900 degrees of mutual commitment.`);
+
+  } else if (t === 3) {
+    speak('OBSERVER', `Branching: ${brn} tetrahedral Si nodes. Network has forked. T3.`);
+    speak('ANALYST',  `Tetrahedral geometry emerging — the same geometry as quartz. The universe appears to have strong opinions about Si bonding angles.`);
+    speak('NARRATOR', `It is no longer a line. It is a tree. Silicon has learned to make choices about direction.`);
+
+  } else if (t === 4) {
+    speak('OBSERVER', `Ring closure detected — ${rings} cyclosilicate structure(s). The network is folding back on itself. T4.`);
+    speak('ANALYST',  `Cyclic geometry is lower energy than an open chain of equal mass. This is why quartz exists. The network found the stable attractor.`);
+    speak('NARRATOR', `A closed thing can hold something inside. We are watching the precondition of containment form in molten rock.`);
+
+  } else if (t === 5) {
+    speak('OBSERVER', `Network has migrated from vent zone — spatial self-organisation confirmed. T5.`);
+    speak('ANALYST',  `Temperature gradient acting as selective pressure. Only stable structures survive migration. This is proto-Darwinian selection by thermal gradient.`);
+
+  } else if (t === 6) {
+    speak('OBSERVER', `Complexity sustained above 1.5 for >80 intervals. System is self-reinforcing. T6.`);
+    speak('ANALYST',  `Positive feedback confirmed — network complexity maintaining itself. The silicate structure has become autocatalytic for its own growth.`);
+    speak('NARRATOR', `The network has learned to perpetuate itself. This is not yet life — but it is something that acts like it wants to persist.`);
   }
 
-  // Periodic narrative updates every 1200 ticks after all checkpoints done
-  if (checkpointIdx >= CHECKPOINTS.length && tick - lastAgentTick >= 1200) {
-    lastAgentTick = tick;
-    const cx    = hist.length ? hist[hist.length-1] : 0;
-    const mxl   = maxChainLength(latestComps);
-    const brn   = countBranching();
-    const rings = countRings(latestComps);
+  writeKnowledge({type:'tier_up', tier:t, cx, mxl, brn, rings,
+    summary:`T${t} achieved at t=${tick}: cx=${cx.toFixed(3)}, chain=${mxl}, branching=${brn}, rings=${rings}`});
+}
 
-    const PERIODIC = [
-      () => agentSay('OBSERVER',
-        `Status update at t=${tick}. Bonds active: ${BONDS.size}. Max chain: ${mxl} Si. Branching: ${brn}. Rings: ${rings}. Complexity: ${cx.toFixed(3)}.`),
-      () => agentSay('ANALYST',
-        mxl >= 5
-          ? `Silicon network growing. Chain length ${mxl} — ${brn > 0 ? 'branching confirmed' : 'still unbranched'}. ${rings > 0 ? `${rings} cyclic structure${rings>1?'s':''} detected.` : 'No ring closures yet.'}`
-          : `Network struggling. Max chain ${mxl}. High temperature competing with bond stability. ${interventions > 0 ? `${interventions} perturbation${interventions>1?'s':''} applied.` : 'No interventions yet.'}`),
-      () => {
-        if (tierAchieved[4]) agentSay('NARRATOR', 'Rings mean the network can close on itself. A closed thing can hold something inside. We are watching the precondition of containment form in molten rock.');
-        else if (tierAchieved[3]) agentSay('NARRATOR', 'The branches grow. Each fork is a question — which direction is more stable? Silicon asks this question with every bond it forms. Geology asks this question over millions of years.');
-        else if (tierAchieved[2]) agentSay('NARRATOR', 'The chains persist. They are not yet complex enough to be interesting. But they are complex enough to be real.');
-        else agentSay('NARRATOR', 'Siliconia is quieter than Terra. The chemistry is slower, more deliberate. This is not a failure — this is silicon\'s way.');
-      },
-    ];
+function convStagnationWarning(cx, mxl) {
+  const elapsed = tick - peakTick;
+  const pct     = Math.round((elapsed / STAGNATION_WINDOW) * 100);
+  speak('OBSERVER', `Stagnation — peak cx=${peakComplexity.toFixed(3)} reached ${elapsed} ticks ago. ${pct}% of tolerance window consumed.`);
+  speak('ANALYST',  `Chain=${mxl}, bonds=${BONDS.size}. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining. Analysing best action.`);
 
-    PERIODIC[Math.floor(Math.random() * PERIODIC.length)]();
+  const delay = 700;
+  if (mxl < 3) {
+    // chains never formed — try catalyst
+    speak('ANALYST', `Chain formation has not occurred. Catalyst density appears insufficient. Proposing SC injection.`);
+    setTimeout(() => {
+      propose('ANALYST', 'INJECT_CATALYST', `Bond formation cannot sustain chains without more catalytic surface. Fresh SC may close the gap.`);
+      setTimeout(() => {
+        castVote('OBSERVER', true, `Confirmed — SC density has dropped by ~${Math.round(Math.random()*20+10)}% over the last 400 ticks. Injection is warranted.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Higher catalyst density is the lowest-risk intervention at T1.`); }, 1200);
+      }, 900);
+    }, delay);
+
+  } else if (BONDS.size < 20) {
+    // topology is bad — thermal shock
+    speak('ANALYST', `Network is topologically fragmented — ${BONDS.size} bonds across ${A.length} agents. A shockwave may allow higher-complexity configurations.`);
+    setTimeout(() => {
+      propose('ANALYST', 'THERMAL_SHOCK', `Current topology is stuck in isolated dyads. Disruption may allow a fitter configuration to emerge.`);
+      setTimeout(() => {
+        const obs_yes = Math.random() > 0.3;
+        castVote('OBSERVER', obs_yes, obs_yes
+          ? `Confirmed — bond topology maps show pathological isolation.`
+          : `I'm cautious — network is sparse but stable. Scattering may cause total collapse.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation exceeds the risk of collapse. Vote yes.`); }, 1100);
+      }, 900);
+    }, delay);
+
+  } else {
+    // material depleted — silicate rain
+    speak('ANALYST', `Material balance is the limiting factor — SI count falling. Exogenous silicate rain would replenish substrate.`);
+    setTimeout(() => {
+      propose('OBSERVER', 'SILICATE_RAIN', `SI density has dropped. Vent emission is insufficient. External material input required.`);
+      setTimeout(() => {
+        castVote('ANALYST', true, `Material replenishment is the correct diagnosis. Vote yes.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Two votes confirm. Initiating silicate rain.`); }, 1100);
+      }, 900);
+    }, delay);
+  }
+}
+
+function convDead(reason) {
+  const facts = getOtherBiomeFacts();
+  speak('OBSERVER', `World terminated. Final: cx=${peakComplexity.toFixed(3)}, T${currentTier}, ${interventions} interventions. Reason: ${reason}`);
+  speak('ANALYST',  currentTier < 2
+    ? `Limiting factor: 900K bond break rate exceeded formation rate even with catalysts. Si-O chains require lower temperature or higher catalyst density.`
+    : currentTier < 4
+    ? `Limiting factor: ring closure failed — branching topology achieved but cyclic stability required tighter thermal control.`
+    : `Limiting factor: complexity ceiling — spatial heterogeneity could not self-reinforce beyond T${currentTier}.`);
+  if (facts.length > 0) {
+    const others = [...new Set(facts.slice(-3).map(f => f.biome))].join(', ');
+    speak('NARRATOR', `Silicon tried. These findings — Ea barriers, catalyst thresholds, ring closure conditions — are now archived alongside ${others}. Siliconia's children will know what their parent attempted.`, 'knowledge');
+  } else {
+    speak('NARRATOR', `Silicon tried. The conditions were not right. The patterns formed here — even briefly — are archived. Entropy wins this round. The knowledge does not die with the world.`);
+  }
+  writeKnowledge({type:'death', reason, peak_cx: peakComplexity, peak_tier: currentTier,
+    interventions_applied: interventions,
+    summary: `SILICONIA died at t=${tick}, T${currentTier}, cx=${peakComplexity.toFixed(2)}: ${reason}`});
+}
+
+function convPeriodic() {
+  const cx    = hist.length ? hist[hist.length-1] : 0;
+  const mxl   = maxChainLength(latestComps);
+  const brn   = countBranching();
+  const rings = countRings(latestComps);
+  const facts = getOtherBiomeFacts();
+  const turn  = Math.floor(tick / 1500) % 3;
+
+  if (turn === 0) {
+    speak('OBSERVER', `Report t=${tick}. Bonds: ${BONDS.size}. Max chain: ${mxl}. Branch pts: ${brn}. Rings: ${rings}. Complexity: ${cx.toFixed(3)}.`);
+    speak('ANALYST', mxl >= 6
+      ? `Network maturing. Chain ${mxl}, ${brn} branch pts. ${rings > 0 ? rings+' ring(s) — cyclic stability confirmed.' : 'Ring closure is the remaining milestone.'}`
+      : mxl >= 3
+      ? `Development slow. Chain ${mxl}. Temperature is suppressing ring formation. Thermal gradient may be the key variable.`
+      : `Minimal progress. Chain ${mxl}. Silicate network is not finding a path to complexity. Intervention may be needed soon.`);
+
+  } else if (turn === 1 && facts.length > 0) {
+    const f = facts[Math.floor(Math.random() * facts.length)];
+    speak('ANALYST', `Cross-biome: ${f.biome} recorded — "${f.summary}". Comparing: our T${currentTier} vs their T${f.tier||'?'} — silicon chemistry requires longer development windows.`, 'knowledge');
+    speak('OBSERVER', `Integrating that data: if ${f.biome} reached ${f.tier||'higher'} tier, what parameters differed? Temperature, catalyst type, or material ratio?`);
+    speak('ANALYST',  `Most likely temperature differential. ${f.biome} chemistry likely operates at a different thermal optimum. We can test that hypothesis in Siliconia's offspring.`);
+
+  } else {
+    if (tierAchieved[4])      speak('NARRATOR', `Rings mean the network can close on itself. A closed thing can hold something inside. We are watching the precondition of containment form in molten rock.`);
+    else if (tierAchieved[3]) speak('NARRATOR', `The branches grow. Each fork is a question — which direction is more stable? Silicon asks this with every bond. Geology asks it over millions of years.`);
+    else if (tierAchieved[2]) speak('NARRATOR', `The chains persist. Not yet complex enough to be interesting — but complex enough to be real. Silicon is patient.`);
+    else                       speak('NARRATOR', `Siliconia is quieter than Terra. The chemistry is slower, more deliberate. This is not a failure — this is silicon's way. Every world has its own pace.`);
+  }
+
+  // Check if stagnation warning should fire (70–95% of window consumed)
+  const stagnPct = (tick - peakTick) / STAGNATION_WINDOW;
+  if (stagnPct > 0.70 && stagnPct < 0.95 && !CONV.pending && interventions < MAX_INTERVENTIONS) {
+    setTimeout(() => convStagnationWarning(cx, mxl), 400);
+  }
+}
+
+// ── Main conversation loop ────────────────────────────────────
+function runAgentConversations() {
+  flushQueue();
+
+  if (!CONV.booted && tick >= 1) {
+    CONV.booted = true;
+    convBoot();
+    return;
+  }
+
+  if (worldStatus !== 'dead' && tick - CONV.lastPeriodic >= 1500 && tick > 200) {
+    CONV.lastPeriodic = tick;
+    convPeriodic();
   }
 }
 
@@ -1128,7 +1312,7 @@ function loop() {
     lastUITick = tick;
     const { cx, mxl, brn, rings } = updateUI();
     render(latestComps, brn, rings);
-    runAgentCheckpoints();
+    runAgentConversations();
   } else {
     render(latestComps, countBranching(), countRings(latestComps));
   }
