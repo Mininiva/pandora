@@ -278,6 +278,7 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
   <div><span class="hk">RINGS</span>   <span class="hv" id="v-rings">—</span></div>
   <div><span class="hk">COMPLEXITY</span><span class="hv" id="v-cx">—</span></div>
   <div><span class="hk">TIER</span>    <span class="hv" id="v-tier">T0 — Inert</span></div>
+  <div><span class="hk">GENERATION</span><span class="hv" id="v-gen">GEN 1</span></div>
   <div><span class="hk">SPEED</span>   <span class="hv" id="v-speed">4×</span></div>
   <div><span class="hk">TIME</span>    <span class="hv" id="v-time">—</span></div>
 </div>
@@ -347,8 +348,13 @@ addEventListener('resize', resize);
 
 // ── Biome constants ───────────────────────────────────────────
 const T0     = 320;
-const NOISE  = 0.18;
+let   NOISE  = 0.18;
+const _BASE_NOISE = 0.18;
 const VENT_H = 0.40;
+
+const _BASE_N1 = 150;  // base BO count
+const _BASE_N2 = 130;  // base NB count
+const _BASE_N3 = 25;  // base WC count
 
 const lTemp = (x, y) =>
   T0 * (1 + VENT_H * Math.max(0, 1 - Math.hypot(x - W * 0.5, y - H) / (H * 0.6)));
@@ -457,11 +463,13 @@ function addAgent(type, x, y, vx, vy) {
   A.push(a);
 }
 
-function init() {
+function init(genome) {
+  const g = genome || _genome;
   A = []; BONDS.clear(); tick = 0; uid = 0;
-  for (let i = 0; i < 150; i++) addAgent(BO);
-  for (let i = 0; i < 130; i++) addAgent(NB);
-  for (let i = 0; i <  25; i++) addAgent(WC);
+  NOISE = _BASE_NOISE * g.noiseScale;
+  for (let i = 0; i < Math.round(_BASE_N1 * g.n1); i++) addAgent(BO);
+  for (let i = 0; i < Math.round(_BASE_N2 * g.n2); i++) addAgent(NB);
+  for (let i = 0; i < Math.round(_BASE_N3 * g.n3); i++) addAgent(WC);
 }
 
 // ── Spatial hash ──────────────────────────────────────────────
@@ -574,6 +582,205 @@ const BOND_MAX_D  = CELL * 3.0;    // bonds snap beyond this (≈ 96px at CELL=3
 const BOND_MAX_D2 = BOND_MAX_D * BOND_MAX_D;
 const BOND_REST   = 14;            // natural bond length (px)
 const BOND_K      = 0.008;         // gentle nudge — strong springs freeze the simulation
+
+// ══════════════════════════════════════════════════════════════
+// PANDORA EVOLUTION ENGINE — genome-driven rebirth cycle
+// ══════════════════════════════════════════════════════════════
+
+// Genome: multipliers applied to base particle counts & noise
+let _genome       = { n1: 1.0, n2: 1.0, n3: 1.0, noiseScale: 1.0 };
+let _generation   = 1;
+let _rebirthPhase = 0; // 0=live 1=dead 2=analyzing 3=evolving 4=spawning
+
+function _clamp(v, lo, hi) { return Math.max(lo, Math.min(v, hi)); }
+
+// Derive next genome from archive history + current genome
+function _evolveGenome(archives, genome) {
+  const g = { n1: genome.n1, n2: genome.n2, n3: genome.n3, noiseScale: genome.noiseScale };
+
+  if (!archives || archives.length === 0) {
+    // First death — apply small random nudge
+    g.n1         = _clamp(g.n1         * (0.97 + Math.random() * 0.06), 0.6, 1.9);
+    g.n2         = _clamp(g.n2         * (0.97 + Math.random() * 0.06), 0.6, 1.9);
+    g.n3         = _clamp(g.n3         * (0.97 + Math.random() * 0.06), 0.5, 2.2);
+    g.noiseScale = _clamp(g.noiseScale * (0.97 + Math.random() * 0.06), 0.6, 1.7);
+    return g;
+  }
+
+  const recent  = archives.slice(-5);
+  const avgTier = recent.reduce((s, a) => s + (a.maxTier || a.peakTier || 0), 0) / recent.length;
+  const last    = recent[recent.length - 1];
+  const reason  = (last.deathReason || last.reason || '').toLowerCase();
+
+  // Died at T0-T2: can't form basic bonds — boost primary atoms, reduce chaos
+  if (avgTier < 2) {
+    g.n1         = _clamp(g.n1 * 1.10, 0.6, 1.9);
+    g.n2         = _clamp(g.n2 * 1.05, 0.6, 1.9);
+    g.noiseScale = _clamp(g.noiseScale * 0.93, 0.6, 1.7);
+  }
+  // Stuck T2-T5: bonds forming but fragile — more catalysts + gentle energy boost
+  else if (avgTier < 5) {
+    g.n3         = _clamp(g.n3 * 1.12, 0.5, 2.2);
+    g.noiseScale = _clamp(g.noiseScale * 1.05, 0.6, 1.7);
+  }
+  // Reaching T5-T8: doing well — slight challenge increase
+  else if (avgTier < 8) {
+    g.n1         = _clamp(g.n1 * 0.98, 0.6, 1.9);
+    g.noiseScale = _clamp(g.noiseScale * 1.03, 0.6, 1.7);
+  }
+  // T8+: near protocell — preserve params, minimal mutation
+  else {
+    g.n1         = _clamp(g.n1 * 0.995, 0.6, 1.9);
+    g.n2         = _clamp(g.n2 * 0.995, 0.6, 1.9);
+  }
+
+  // Died of equilibrium: need more thermal perturbation
+  if (reason.includes('equilibrium')) {
+    g.noiseScale = _clamp(g.noiseScale * 1.14, 0.6, 1.7);
+    g.n3         = _clamp(g.n3 * 1.08, 0.5, 2.2);  // more catalysts
+  }
+  // Died early (short lived): try slightly fewer particles (less competition)
+  if ((last.peakTick || 0) < 5000 && avgTier < 3) {
+    g.n1 = _clamp(g.n1 * 0.94, 0.6, 1.9);
+    g.n2 = _clamp(g.n2 * 0.94, 0.6, 1.9);
+  }
+
+  // Random mutation ±4% on all genes — keeps evolution exploratory
+  g.n1         = _clamp(g.n1         * (0.96 + Math.random() * 0.08), 0.6, 1.9);
+  g.n2         = _clamp(g.n2         * (0.96 + Math.random() * 0.08), 0.6, 1.9);
+  g.n3         = _clamp(g.n3         * (0.96 + Math.random() * 0.08), 0.5, 2.2);
+  g.noiseScale = _clamp(g.noiseScale * (0.96 + Math.random() * 0.08), 0.6, 1.7);
+
+  return g;
+}
+
+// Update the HUD generation display
+function _updateGenDisplay() {
+  const el = document.getElementById('v-gen');
+  if (el) el.textContent = `GEN ${_generation}`;
+  document.title = document.title.replace(/ — GEN \d+$/, '') + ` — GEN ${_generation}`;
+}
+
+// Phase labels shown on the dead-world overlay
+const _PHASES = ['', 'DEAD WORLD', 'ANALYZING LEARNINGS...', `EVOLVING GENERATION...`, 'SPAWNING NEW GENERATION...'];
+
+function _setDeadLabel(text) {
+  const el = document.getElementById('world-state');
+  if (el) el.textContent = text;
+}
+
+// Full death → archive → evolve → rebirth pipeline
+async function _runDeathCycle(deathReason) {
+  _rebirthPhase = 1;
+  _setDeadLabel('DEAD WORLD');
+
+  // --- Phase 1: archive immediately ---
+  const archiveEntry = {
+    generation:      _generation,
+    maxTier:         currentTier,
+    peakTier:        currentTier,
+    peakTick:        peakTick,
+    peakComplexity:  parseFloat(peakComplexity.toFixed(4)),
+    interventions:   interventions,
+    deathReason:     deathReason,
+    genome:          { ..._genome },
+    archivedAt:      Date.now(),
+    summary:         `GEN ${_generation} · T${currentTier} · ${tick.toLocaleString()} ticks · cx=${peakComplexity.toFixed(3)} · ${deathReason}`,
+  };
+
+  if (typeof fbDb !== 'undefined' && fbDb) {
+    try {
+      await fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).push(archiveEntry);
+      await fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
+        worldStatus:    'dead',
+        currentTier,
+        generation:     _generation,
+        peakComplexity: parseFloat(peakComplexity.toFixed(4)),
+        archivedAt:     Date.now()
+      });
+      await fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).remove();
+    } catch(e) { console.warn('[Pandora] archive failed:', e); }
+  }
+
+  // --- Phase 2: 8s "Analyzing learnings" ---
+  await new Promise(r => setTimeout(r, 4000));
+  _rebirthPhase = 2;
+  _setDeadLabel('ANALYZING LEARNINGS...');
+
+  await new Promise(r => setTimeout(r, 6000));
+
+  // --- Phase 3: evolve genome ---
+  _rebirthPhase = 3;
+  let nextGenome = { ..._genome };
+  let nextGen    = _generation + 1;
+
+  if (typeof fbDb !== 'undefined' && fbDb) {
+    try {
+      const [archSnap, genSnap] = await Promise.all([
+        Promise.race([
+          fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).limitToLast(5).once('value'),
+          new Promise(r => setTimeout(() => r(null), 3000))
+        ]),
+        Promise.race([
+          fbDb.ref(`pandora/biomes/${BIOME_ID}/genome`).once('value'),
+          new Promise(r => setTimeout(() => r(null), 2000))
+        ])
+      ]);
+      const archives     = archSnap ? Object.values(archSnap.val() || {}) : [archiveEntry];
+      const savedGenome  = genSnap  ? (genSnap.val() || _genome)           : _genome;
+      nextGenome = _evolveGenome(archives, savedGenome);
+      nextGen    = archives.length + 1;
+    } catch(e) { console.warn('[Pandora] genome load failed:', e); }
+  } else {
+    nextGenome = _evolveGenome([archiveEntry], _genome);
+  }
+
+  _setDeadLabel(`EVOLVING GENERATION ${nextGen}...`);
+  await new Promise(r => setTimeout(r, 5000));
+
+  // --- Phase 4: spawn ---
+  _rebirthPhase = 4;
+  _setDeadLabel(`GENERATION ${nextGen} BEGINNING...`);
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Save evolved genome to Firebase
+  if (typeof fbDb !== 'undefined' && fbDb) {
+    try {
+      await fbDb.ref(`pandora/biomes/${BIOME_ID}/genome`).set(nextGenome);
+      await fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
+        worldStatus: 'active',
+        generation:  nextGen,
+        tick:        0
+      });
+    } catch(e) {}
+  }
+
+  // Reset simulation with evolved genome
+  _genome     = nextGenome;
+  _generation = nextGen;
+  worldStatus = 'active';
+  currentTier = 0; tick = 0; peakComplexity = 0; peakTick = 0; interventions = 0;
+  if (typeof tierAchieved !== 'undefined') tierAchieved.fill(false);
+  if (typeof hist         !== 'undefined') hist.length = 0;
+  if (typeof totalBondsFormed !== 'undefined') totalBondsFormed = 0;
+
+  // Clear dead overlay
+  const wsEl = document.getElementById('world-state');
+  if (wsEl) { wsEl.textContent = ''; wsEl.className = ''; }
+  const btn = document.getElementById('return-to-pandora-btn');
+  if (btn)  btn.remove();
+
+  // Reinitialise particles with evolved genome
+  init(_genome);
+  _updateGenDisplay();
+  _rebirthPhase = 0;
+
+  if (typeof speak === 'function') {
+    const g = _genome;
+    speak('NARRATOR', `Generation ${_generation} begins. Genome evolved — primary ×${g.n1.toFixed(2)}, secondary ×${g.n2.toFixed(2)}, catalyst ×${g.n3.toFixed(2)}, noise ×${g.noiseScale.toFixed(2)}. We carry the memory of ${_generation - 1} world${_generation > 2 ? 's' : ''} before us.`);
+  }
+}
+
 
 function maintainBonds() {
   const snap = [];
@@ -1013,33 +1220,9 @@ let _rebirthAt = -1;        // real-time timestamp for world rebirth
 const REBIRTH_DELAY_MS = 35000; // 35 seconds of death display before rebirth
 
 
-function triggerRebirth() {
-  // Archive the dead world to Firebase, then reload for a fresh generation
-  const archiveEntry = {
-    maxTier:         currentTier,
-    peakTick:        peakTick,
-    peakComplexity:  parseFloat(peakComplexity.toFixed(4)),
-    interventions:   interventions,
-    archivedAt:      Date.now(),
-    summary:         `T${currentTier} · ${tick.toLocaleString()} ticks · cx=${peakComplexity.toFixed(3)}`,
-  };
-  const archive = () => {
-    fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).push(archiveEntry)
-      .then(() => {
-        // Mark dead in /state so homepage shows it in the dead archive
-        fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
-          worldStatus:    'dead',
-          currentTier,
-          peakComplexity: parseFloat(peakComplexity.toFixed(4)),
-          archivedAt:     Date.now()
-        });
-        // Remove /positions so next visit starts a fresh new generation
-        fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).remove();
-      })
-      .catch(e => console.warn('[Pandora] archive failed:', e));
-    // No auto-reload — user reads the dead world and chooses to leave
-  };
-  if (typeof fbDb !== 'undefined' && fbDb) { archive(); } else { location.reload(); }
+function triggerRebirth(reason) {
+  // Replaced by evolution engine — _runDeathCycle handles archive + evolve + rebirth
+  _runDeathCycle(reason || 'unknown cause');
 }
 
 function declareDead(reason) {
@@ -1068,6 +1251,7 @@ function declareDead(reason) {
     document.body.appendChild(btn);
   }
   logE(reason);
+  triggerRebirth(reason);
   agentSay('NARRATOR', 'Boronia had the geometry right. The bond angles matched carbon\'s own. But the thermodynamics did not favor it. Or the quantum mechanics whispered a different song. We archive this elegant failure.');
 }
 
@@ -1998,6 +2182,43 @@ setTimeout(async function _pandoraResume() {
         if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
       }
     }
+    
+    // Load generation + genome from Firebase
+    try {
+      const [genSnap, archCountSnap] = await Promise.all([
+        Promise.race([
+          fbDb.ref(`pandora/biomes/${BIOME_ID}/genome`).once('value'),
+          new Promise(r => setTimeout(() => r(null), 2000))
+        ]),
+        Promise.race([
+          fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).once('value'),
+          new Promise(r => setTimeout(() => r(null), 2000))
+        ])
+      ]);
+      const savedGenome = genSnap     ? genSnap.val()                   : null;
+      const archData    = archCountSnap ? archCountSnap.val()           : null;
+      const archCount   = archData    ? Object.keys(archData).length    : 0;
+      if (savedGenome) _genome = { n1:1, n2:1, n3:1, noiseScale:1, ...savedGenome };
+      if (archCount > 0) _generation = archCount + 1;
+      _updateGenDisplay();
+      // If arriving at a dead world, evolve and start new generation
+      if (stSnap && stSnap.val() && stSnap.val().worldStatus === 'dead') {
+        const archiveList = archData ? Object.values(archData) : [];
+        _genome     = _evolveGenome(archiveList, _genome);
+        _generation = archCount + 1;
+        worldStatus = 'active';
+        init(_genome);
+        _updateGenDisplay();
+        if (fbDb) {
+          fbDb.ref(`pandora/biomes/${BIOME_ID}/genome`).set(_genome).catch(()=>{});
+          fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
+            worldStatus:'active', generation:_generation, tick:0
+          }).catch(()=>{});
+        }
+        const wsLbl = document.getElementById('ws-lbl');
+        if (wsLbl) wsLbl.textContent = `GEN ${_generation} — BORN FROM LEARNINGS`;
+      }
+    } catch(e) { console.warn('[Pandora] genome load error:', e); }
     if (typeof initFirebase === 'function') initFirebase();
   } catch(e) { console.warn('[Pandora] resume error:', e); }
 }, 100);
