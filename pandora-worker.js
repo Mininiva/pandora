@@ -368,6 +368,10 @@ const lastSave    = {};       // biomeId → timestamp
 const currentGenomes = {};    // biomeId → genome
 const tierStaleTicks = {};    // biomeId → ticks without tier change
 const lastTierCheck  = {};    // biomeId → tier at last check
+// The highest tier ever confirmed from Firebase for this biome.
+// The worker NEVER writes a lower currentTier — prevents simplified physics
+// (capped at T12) from overwriting T17+ values saved by the full simulation.
+const tierFloor   = {};       // biomeId → highest Firebase-confirmed tier
 const _dying         = new Set(); // biomes currently in death cycle
 let activeViewerIds  = new Set();
 
@@ -425,6 +429,7 @@ async function workerDeathCycle(bid, snap, reason) {
   if (def) sims[bid] = mkSim(def, newGenome);
   tierStaleTicks[bid] = 0;
   lastTierCheck[bid]  = 0;
+  tierFloor[bid]      = 0;   // new generation starts from T0
 
   console.log(`[Worker] Biome ${bid}: Gen ${curGen} → ${nextGen} (${reason}). Tier reached: T${snap.currentTier}`);
   self.postMessage({ type: 'generation', biomeId: bid, fromGen: curGen, toGen: nextGen, maxTier: snap.currentTier, reason });
@@ -515,6 +520,8 @@ async function initBiomeSim(bid) {
   lastSave[bid]      = Date.now();
   tierStaleTicks[bid] = 0;
   lastTierCheck[bid]  = sim.getTier();
+  // Record the Firebase-confirmed tier as the floor — worker will never write lower
+  tierFloor[bid]     = state?.currentTier || 0;
 }
 
 // ── Main simulation loop ──────────────────────────────────────────────────────
@@ -553,9 +560,15 @@ function startLoop() {
       }
 
       // Periodic Firebase save
+      // IMPORTANT: worker physics is simplified (capped at T12). Never overwrite
+      // a higher tier saved by the full simulation. Apply tierFloor to protect
+      // T13+ values that the full Three.js simulation may have written.
       if (db && now - (lastSave[bid] || 0) > SAVE_MS) {
         const snap = sim.getSnapshot();
         const idStr = String(bid);
+        const floor = tierFloor[bid] || 0;
+        if (snap.currentTier < floor) snap.currentTier = floor;
+        else tierFloor[bid] = snap.currentTier;  // worker beat the floor — update it
         db.ref(`pandora/biomes/${idStr}/state`).update(snap).catch(() => {});
         lastSave[bid] = now;
       }
