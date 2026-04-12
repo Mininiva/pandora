@@ -175,7 +175,20 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .card-tier{
   display:inline-flex;align-items:center;gap:6px;
   font-size:14px;letter-spacing:2px;padding:3px 8px;margin-bottom:9px;
+  transition:background 0.4s,border-color 0.4s,color 0.4s;
 }
+/* skeleton loading shimmer — shown until Firebase responds */
+.card-tier.fb-pending{
+  border-color:rgba(40,70,100,0.25)!important;
+  background:rgba(10,20,35,0.4)!important;
+  color:rgba(60,100,140,0.5)!important;
+  animation:tier-shimmer 1.6s infinite;
+}
+@keyframes tier-shimmer{
+  0%,100%{opacity:0.4} 50%{opacity:0.75}
+}
+.biome-card.fb-pending .tier-progress-fill,
+.biome-card.fb-pending .gen-progress-fill{opacity:0.15!important;}
 /* tier progress arc */
 .tier-progress{
   width:100%;height:2px;background:rgba(255,255,255,0.06);margin-bottom:5px;
@@ -686,17 +699,22 @@ function renderGrid() {
 
 function makeCard(b) {
   const div  = document.createElement('div');
-  const s    = ts(b.tier);
   const isLive = !!b.file;
+  const isDead = b.status === 'dead';
 
-  div.className = `biome-card ${b.status}`;
+  // Start all live cards in fb-pending state — tier badge shimmers until Firebase confirms
+  div.className = `biome-card ${b.status}${isDead ? '' : ' fb-pending'}`;
   div.setAttribute('data-id', b.id);
-  div.style.borderColor = s[3];
 
-  const pct = Math.round((b.tier / 20) * 100);
+  // Skeleton colors until Firebase resolves
+  const sSkel = ['rgba(20,40,60,0.6)','rgba(8,18,32,0.5)','rgba(60,100,140,0.4)','rgba(40,70,100,0.3)'];
+  const s = isDead ? ts(b.tier) : sSkel;
+  div.style.borderColor = isDead ? ts(b.tier)[3] : 'rgba(40,70,100,0.25)';
+
+  const pct = 0; // don't show progress until Firebase confirms
 
   div.innerHTML = `
-    <div class="card-strip" style="background:${b.status!=='dead'?s[0]:'#2a0808'}"></div>
+    <div class="card-strip" style="background:${isDead?ts(b.tier)[0]:'rgba(15,30,50,0.5)'}"></div>
     <div class="card-canvas-wrap" id="wrap-${b.id}">
       <canvas id="mini-${b.id}" width="210" height="88"></canvas>
       <div class="cx-bar"><div class="cx-fill" id="cxfill-${b.id}"></div></div>
@@ -710,8 +728,8 @@ function makeCard(b) {
       </div>
       <div class="card-name">${b.name}</div>
       <div class="card-chem">${b.chem}</div>
-      <div class="card-tier" style="border:1px solid ${s[3]};background:${s[1]};color:${s[2]}">
-        <span class="t-num">T${b.tier}</span><span style="color:${s[3]};margin:0 3px">·</span><span class="t-name">${TIER_NAMES[b.tier]}</span>
+      <div class="card-tier fb-pending" style="border:1px solid ${s[3]};background:${s[1]};color:${s[2]}">
+        <span class="t-num">${isDead?'T'+b.tier:'T—'}</span><span style="color:${s[3]};margin:0 3px">·</span><span class="t-name">${isDead?TIER_NAMES[b.tier]:'···'}</span>
       </div>
       <div class="tier-progress">
         <div class="tier-progress-fill" style="width:${pct}%;background:${s[0]};opacity:0.6"></div>
@@ -1576,6 +1594,131 @@ function getLiveAgentLog(biomeId) {
   return sim.agentMemory;
 }
 
+// ── Canonical biome state updater ─────────────────────────
+// Single function for ALL Firebase → DOM updates. Called by both
+// the initial once('value') sweep and every child_changed event.
+// This is the ONLY place card tier badges should be set from Firebase.
+let _fbLoadComplete = false;
+
+function _applyBiomeState(id, state, curGen) {
+  if (!state) return;
+  const tier   = state.currentTier || 0;
+  const status = state.worldStatus  || 'active';
+  const cx     = state.complexity   || 0;
+  const tick   = state.tick         || 0;
+  const gen    = state.generation   || curGen || 1;
+  const s      = ts(tier);
+
+  // Update BIOMES array — this is the canonical in-memory record
+  const bObj = BIOMES.find(x => x.id === id);
+  if (bObj) {
+    bObj.tier   = tier;
+    bObj.status = status;
+  }
+
+  // Update gen badge
+  const genBadge = document.getElementById(`gen-badge-${id}`);
+  if (genBadge) {
+    genBadge.textContent = `GEN ${gen}`;
+    genBadge.style.color = gen > 1 ? 'rgba(140,220,160,0.75)' : 'rgba(100,180,255,0.55)';
+  }
+
+  const card = document.querySelector(`[data-id="${id}"]`);
+  if (!card) return;
+
+  // Remove skeleton state
+  card.classList.remove('fb-pending');
+
+  // Tier badge — always write the Firebase value (this is authoritative)
+  const tierEl = card.querySelector('.card-tier');
+  if (tierEl) {
+    tierEl.classList.remove('fb-pending');
+    tierEl.style.border     = `1px solid ${s[3]}`;
+    tierEl.style.background = s[1];
+    tierEl.style.color      = s[2];
+    const tNum  = tierEl.querySelector('.t-num');
+    const tName = tierEl.querySelector('.t-name');
+    if (tNum)  tNum.textContent  = `T${tier}`;
+    if (tName) tName.textContent = TIER_NAMES[tier] || '—';
+  }
+
+  // Card border / strip
+  if (status !== 'dead') {
+    card.style.borderColor = s[3];
+    const strip = card.querySelector('.card-strip');
+    if (strip) strip.style.background = s[0];
+  }
+
+  // Tier progress bar
+  const fill = card.querySelector('.tier-progress-fill');
+  if (fill) { fill.style.width = `${Math.round((tier/20)*100)}%`; fill.style.background = s[0]; fill.style.opacity='0.6'; }
+
+  // Complexity bar
+  const cxFill = document.getElementById(`cxfill-${id}`);
+  if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(cx * 20))}%`;
+
+  // Generation progress bar
+  const genPct = Math.min(100, Math.round((tick / 35000) * 100));
+  const genProg = document.getElementById(`genprog-${id}`);
+  const genLbl  = document.getElementById(`genlabel-${id}`);
+  if (genProg) { genProg.style.width = `${genPct}%`; genProg.style.background = s[0]; genProg.style.opacity='0.5'; }
+  if (genLbl)  genLbl.textContent = `GEN ${gen}  ${genPct}%`;
+
+  // Dead styling
+  if (status === 'dead') {
+    card.classList.add('dead');
+    card.style.borderColor = '#4a1a1a';
+    const strip = card.querySelector('.card-strip');
+    if (strip) strip.style.background = '#2a0808';
+    const dot   = card.querySelector('.sdot');
+    const stLbl = card.querySelector('.status-indicator span');
+    if (dot)   dot.className = 'sdot dead';
+    if (stLbl) { stLbl.textContent = 'DEAD'; stLbl.style.color = s[2]; }
+  } else {
+    const dot   = card.querySelector('.sdot');
+    const stLbl = card.querySelector('.status-indicator span');
+    if (dot)   dot.className = `sdot ${status}`;
+    if (stLbl) stLbl.textContent = status === 'active' ? 'ACTIVE' : 'FORMING';
+  }
+}
+
+// After Firebase loads, sweep every known biome and apply current BIOMES[] state to DOM.
+// This is the "hard sync" — catches any cards the child_changed listener may have missed.
+function _hardSyncAllCards() {
+  BIOMES.forEach(b => {
+    const card = document.querySelector(`[data-id="${b.id}"]`);
+    if (!card) return;
+    const tierEl = card.querySelector('.card-tier');
+    const s = ts(b.tier);
+    if (tierEl) {
+      tierEl.classList.remove('fb-pending');
+      tierEl.style.border     = `1px solid ${s[3]}`;
+      tierEl.style.background = s[1];
+      tierEl.style.color      = s[2];
+      const tNum  = tierEl.querySelector('.t-num');
+      const tName = tierEl.querySelector('.t-name');
+      if (tNum)  tNum.textContent  = `T${b.tier}`;
+      if (tName) tName.textContent = TIER_NAMES[b.tier] || '—';
+    }
+    card.classList.remove('fb-pending');
+    const fill = card.querySelector('.tier-progress-fill');
+    if (fill) { fill.style.width=`${Math.round((b.tier/20)*100)}%`; fill.style.background=s[0]; fill.style.opacity='0.6'; }
+    if (b.status !== 'dead') card.style.borderColor = s[3];
+  });
+  // Re-sort grid by actual Firebase tiers
+  const liveGrid = document.getElementById('biome-grid');
+  if (liveGrid) {
+    const cards = Array.from(liveGrid.children);
+    cards.sort((a, b) => {
+      const ta = parseInt(a.querySelector('.t-num')?.textContent?.replace('T','') || '0');
+      const tb = parseInt(b.querySelector('.t-num')?.textContent?.replace('T','') || '0');
+      return tb - ta || parseInt(a.dataset.id||'0') - parseInt(b.dataset.id||'0');
+    });
+    cards.forEach(c => liveGrid.appendChild(c));
+  }
+  rebuildTierBar();
+}
+
 // ── Init ──────────────────────────────────────────────────
 buildHero();
 renderGrid();
@@ -1604,131 +1747,49 @@ function initIndexFirebase() {
     const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CFG);
     const db  = firebase.database();
 
-    // Load all biome states in one read
+    // ── Initial full read ──────────────────────────────────────
     db.ref('pandora/biomes').once('value').then(snap => {
       const data = snap.val();
-      if (!data) return;
+      if (!data) { _fbLoadComplete = true; _hardSyncAllCards(); return; }
 
-      // Deduplicate padded vs unpadded keys (e.g. '04' and '4' both map to biome 4).
-      // Prefer the shorter/unpadded key (the canonical form used by biome pages).
+      // Deduplicate padded vs unpadded keys ('04' → '4')
       const deduped = {};
       Object.entries(data).forEach(([k, v]) => {
-        const norm = String(parseInt(k)); // '04' → '4', '4' → '4'
+        const norm = String(parseInt(k));
         if (!deduped[norm] || k.length <= norm.length) deduped[norm] = v;
       });
 
-      let deadCount = 0, maxTier = 0, maxTierBiome = null;
+      let maxTier = 0, maxTierBiome = null;
+      let totalArchived = 0, totalActiveReal = 0, totalFormingReal = 0;
 
       Object.entries(deduped).forEach(([idStr, biome]) => {
-        const id    = parseInt(idStr);
-        const state = biome.state;
-        // Store current generation for this biome
-        const curGen = biome.currentGeneration || 1;
-        _biomeCurrentGen[id] = curGen;
-        // Update gen badge on card
-        const genBadge = document.getElementById(`gen-badge-${id}`);
-        if (genBadge && curGen > 0) {
-          genBadge.textContent = `GEN ${curGen}`;
-          if (curGen > 1) genBadge.style.color = 'rgba(140,220,160,0.75)';
-        }
-        if (!state) return;
+        const id = parseInt(idStr);
+        _biomeCurrentGen[id] = biome.currentGeneration || 1;
 
-        const card = document.querySelector(`[data-id="${id}"]`);
-        if (!card) return;
+        // Apply state to DOM via the canonical function
+        _applyBiomeState(id, biome.state, _biomeCurrentGen[id]);
 
-        const tier   = state.currentTier || 0;
-        const status = state.worldStatus  || 'active';
-        const cx     = state.complexity   || 0;
-        const s      = ts(tier);
-
-        // Update tier badge
-        const tierEl = card.querySelector('.card-tier');
-        if (tierEl) {
-          tierEl.style.border     = `1px solid ${s[3]}`;
-          tierEl.style.background = s[1];
-          tierEl.style.color      = s[2];
-          const tNum  = tierEl.querySelector('.t-num');
-          const tName = tierEl.querySelector('.t-name');
-          if (tNum)  tNum.textContent  = `T${tier}`;
-          if (tName) tName.textContent = TIER_NAMES[tier] || '—';
-        }
-
-        // Update tier progress bar
-        const fill = card.querySelector('.tier-progress-fill');
-        if (fill) {
-          fill.style.width      = `${Math.round((tier/20)*100)}%`;
-          fill.style.background = s[0];
-        }
-
-        // Update complexity bar
-        const cxFill = document.getElementById(`cxfill-${id}`);
-        if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(cx * 20))}%`;
-
-        // Update generation progress bar — tick progress within current gen lifecycle
-        // ~35000 ticks = one full generation lifecycle before stagnation death
-        const tick = state.tick || 0;
-        const genPct = Math.min(100, Math.round((tick / 35000) * 100));
-        const genProg = document.getElementById(`genprog-${id}`);
-        const genLbl  = document.getElementById(`genlabel-${id}`);
-        if (genProg) { genProg.style.width = `${genPct}%`; genProg.style.background = s[0]; }
-        if (genLbl)  { genLbl.textContent = `GEN ${state.generation || 1}  ${genPct}%`; }
-
-        // Update status
-        const dot    = card.querySelector('.sdot');
-        const stLbl  = card.querySelector('.status-indicator span');
-        if (status === 'dead') {
-          card.classList.add('dead');
-          card.style.borderColor = '#4a1a1a';
-          const strip = card.querySelector('.card-strip');
-          if (strip) strip.style.background = '#2a0808';
-          if (dot)   dot.className = 'sdot dead';
-          if (stLbl) { stLbl.textContent = 'DEAD'; stLbl.style.color = s[2]; }
-          deadCount++;
-        } else {
-          if (dot)   dot.className = `sdot ${status}`;
-          if (stLbl) stLbl.textContent = status === 'active' ? 'ACTIVE' : 'FORMING';
-        }
-
-        if (tier > maxTier) { maxTier = tier; maxTierBiome = {id, tier, status}; }
-
-        // Update BIOMES array so rebuildTierBar() sees real Firebase tiers
-        const bObj = BIOMES.find(x => x.id === id);
-        if (bObj && tier > 0) { bObj.tier = tier; bObj.status = status; }
-
-        // Seed the BioMini with real tier so mini-sim starts from correct level
+        // Seed BioMini from real tier
         const sim = MINI[id];
-        if (sim && tier > sim.tier) { sim.tier = tier; }
-      });
+        const t = biome.state?.currentTier || 0;
+        if (sim && t > sim.tier) sim.tier = t;
 
-      // Re-sort the live grid by tier (highest first) after Firebase updates
-      const liveGrid = document.getElementById('biome-grid');
-      if (liveGrid) {
-        const cards = Array.from(liveGrid.children);
-        cards.sort((a, b) => {
-          const ta = parseInt(a.querySelector('.t-num')?.textContent?.replace('T','') || '0');
-          const tb = parseInt(b.querySelector('.t-num')?.textContent?.replace('T','') || '0');
-          return tb - ta || parseInt(a.dataset.id||'0') - parseInt(b.dataset.id||'0');
-        });
-        cards.forEach(c => liveGrid.appendChild(c));
-      }
+        if (t > maxTier) { maxTier = t; maxTierBiome = { id, tier: t }; }
 
-      // Update hero stats with real Firebase data
-      // ARCHIVED = total archive entries across all biomes (permanent, survives rebirth)
-      let totalArchived = 0;
-      let totalActiveReal = 0;
-      let totalFormingReal = 0;
-      Object.values(deduped).forEach(biome => {
+        // Hero stats tallies
         const archives = biome.archives;
         if (archives) totalArchived += Object.keys(archives).length;
         const st = biome.state;
         if (st) {
           if (st.worldStatus === 'active' || !st.worldStatus) totalActiveReal++;
           else if (st.worldStatus === 'forming') totalFormingReal++;
+          else if (st.worldStatus === 'dead') { /* counted elsewhere */ }
         }
       });
+
+      // Hero stats
       const elDead = document.getElementById('s-dead');
       if (elDead) elDead.textContent = totalArchived;
-      // Show real active/forming counts only if Firebase has data (> 0 biomes)
       const fbBiomeCount = Object.keys(deduped).length;
       if (fbBiomeCount > 0) {
         const elActive  = document.getElementById('s-active');
@@ -1737,14 +1798,14 @@ function initIndexFirebase() {
         if (elForming) elForming.textContent = totalFormingReal;
       }
 
-      // Update hero world if Firebase has a better candidate
+      // Hero world
       if (maxTierBiome && maxTier > 0) {
         const topB = BIOMES.find(b => b.id === maxTierBiome.id) || BIOMES[0];
         const s2   = ts(maxTier);
         const tierLabel = document.getElementById('hero-tier');
         if (tierLabel) {
-          tierLabel.textContent    = `T${maxTier} — ${TIER_NAMES[maxTier]}`;
-          tierLabel.style.color    = s2[2];
+          tierLabel.textContent       = `T${maxTier} — ${TIER_NAMES[maxTier]}`;
+          tierLabel.style.color       = s2[2];
           tierLabel.style.borderColor = s2[3];
           tierLabel.style.background  = s2[1];
         }
@@ -1752,8 +1813,10 @@ function initIndexFirebase() {
         if (heroName) heroName.textContent = topB.name;
       }
 
-      // Rebuild tier distribution bar from Firebase-updated BIOMES array
-      rebuildTierBar();
+      // Hard sync: forcefully write BIOMES[] tiers to all card badges.
+      // This is the final authority pass — fixes any race conditions with the worker.
+      _fbLoadComplete = true;
+      _hardSyncAllCards();
 
       // ── Populate the real dead-worlds archive grid from Firebase archives ──
       const archiveGrid = document.getElementById('archive-grid');
@@ -1898,81 +1961,13 @@ function initIndexFirebase() {
       else               el.textContent = t || 0;
     });
 
-    // Real-time listener: update hero dead count as worlds die
-    // Real-time listener: update tier badges + dead status whenever any biome saves
+    // Real-time listener — delegate everything to _applyBiomeState()
     db.ref('pandora/biomes').on('child_changed', snap => {
-      const state = snap.val()?.state;
+      const val   = snap.val();
+      const state = val?.state;
       if (!state) return;
-
-      const id   = parseInt(snap.key);
-      const card = document.querySelector(`[data-id="${id}"]`);
-      if (!card) return;
-
-      const tier   = state.currentTier || 0;
-      const status = state.worldStatus  || 'active';
-      const s = ts(tier);
-
-      // Update tier badge in real-time
-      const tierEl = card.querySelector('.card-tier');
-      if (tierEl) {
-        tierEl.style.border     = `1px solid ${s[3]}`;
-        tierEl.style.background = s[1];
-        tierEl.style.color      = s[2];
-        const tNum  = tierEl.querySelector('.t-num');
-        const tName = tierEl.querySelector('.t-name');
-        if (tNum)  tNum.textContent  = `T${tier}`;
-        if (tName) tName.textContent = TIER_NAMES[tier] || '—';
-      }
-
-      // Update tier progress fill
-      const fill = card.querySelector('.tier-progress-fill');
-      if (fill) {
-        fill.style.width      = `${Math.round((tier / 20) * 100)}%`;
-        fill.style.background = s[0];
-      }
-
-      // Update complexity bar
-      if (state.complexity !== undefined) {
-        const cxFill = document.getElementById(`cxfill-${id}`);
-        if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(state.complexity * 20))}%`;
-      }
-
-      // Update generation progress bar
-      if (state.tick !== undefined) {
-        const genPct2 = Math.min(100, Math.round((state.tick / 35000) * 100));
-        const genProg2 = document.getElementById(`genprog-${id}`);
-        const genLbl2  = document.getElementById(`genlabel-${id}`);
-        const s3 = ts(tier);
-        if (genProg2) { genProg2.style.width = `${genPct2}%`; genProg2.style.background = s3[0]; }
-        if (genLbl2)  { genLbl2.textContent = `GEN ${state.generation || 1}  ${genPct2}%`; }
-      }
-
-      // Handle dead
-      if (status === 'dead') {
-        card.classList.add('dead');
-        card.style.borderColor = '#4a1a1a';
-        const strip = card.querySelector('.card-strip');
-        if (strip) strip.style.background = '#2a0808';
-        const dot   = card.querySelector('.sdot');
-        const stLbl = card.querySelector('.status-indicator span');
-        if (dot)   dot.className = 'sdot dead';
-        if (stLbl) { stLbl.textContent = 'DEAD'; stLbl.style.color = s[2]; }
-      }
-
-      // Update BIOMES array, re-sort grid, rebuild tier distribution
-      const bObj = BIOMES.find(x => x.id === id);
-      if (bObj && tier > 0) bObj.tier = tier;
-      const liveGrid = document.getElementById('biome-grid');
-      if (liveGrid) {
-        const cards = Array.from(liveGrid.children);
-        cards.sort((a, b) => {
-          const ta = parseInt(a.querySelector('.t-num')?.textContent?.replace('T','') || '0');
-          const tb = parseInt(b.querySelector('.t-num')?.textContent?.replace('T','') || '0');
-          return tb - ta || parseInt(a.dataset.id||'0') - parseInt(b.dataset.id||'0');
-        });
-        cards.forEach(c => liveGrid.appendChild(c));
-      }
-      // Rebuild tier distribution bar + peak ticker from latest BIOMES data
+      const id = parseInt(snap.key);
+      _applyBiomeState(id, state, val?.currentGeneration);
       rebuildTierBar();
     });
 
@@ -2035,32 +2030,13 @@ function startBackgroundWorker() {
             : Math.round(rawRate)+'/s';
         }
 
-        // Update biome cards with worker's live tier/complexity data.
-        // IMPORTANT: never downgrade a tier — Firebase is the authoritative source.
-        // Worker's simplified sim is capped lower than the real biome simulations.
+        // Worker stats: ONLY update complexity bar.
+        // Tier display is exclusively controlled by Firebase (_applyBiomeState).
+        // Worker's simplified physics is capped at T12 and must never overwrite
+        // Firebase-confirmed values (which can reach T20).
         for (const [idStr, snap] of Object.entries(_workerStats)) {
-          const id   = parseInt(idStr);
-          const card = document.querySelector(`[data-id="${id}"]`);
-          if (!card) continue;
-
-          const workerTier = snap.currentTier || 0;
-
-          // Read the current displayed tier; only allow upgrades from worker
-          const tNum  = card.querySelector('.t-num');
-          const tName = card.querySelector('.t-name');
-          const displayedTier = tNum ? parseInt(tNum.textContent.replace('T','') || '0') : 0;
-
-          if (workerTier > displayedTier) {
-            // Worker found a higher tier than Firebase has reported — apply it
-            const s2 = ts(workerTier);
-            if (tNum)  tNum.textContent  = `T${workerTier}`;
-            if (tName) tName.textContent = TIER_NAMES[workerTier] || '—';
-            const fill = card.querySelector('.tier-progress-fill');
-            if (fill) { fill.style.width=`${Math.round((workerTier/20)*100)}%`; fill.style.background=s2[0]; }
-            const bObj = BIOMES.find(x => x.id === id);
-            if (bObj) bObj.tier = workerTier;
-          }
-          // Always update complexity bar (not tier-sensitive)
+          const id = parseInt(idStr);
+          // Complexity bar only — no tier changes
           if (snap.complexity !== undefined) {
             const cxFill = document.getElementById(`cxfill-${id}`);
             if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(snap.complexity * 20))}%`;
