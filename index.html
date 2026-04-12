@@ -1557,11 +1557,30 @@ function initIndexFirebase() {
         if (sim && tier > sim.tier) { sim.tier = tier; }
       });
 
-      // Update hero stats with real data
-      const totalDead = Object.values(data).filter(b => b.state?.worldStatus === 'dead').length;
-      const totalActive = Object.values(data).filter(b => b.state).length;
+      // Update hero stats with real Firebase data
+      // ARCHIVED = total archive entries across all biomes (permanent, survives rebirth)
+      let totalArchived = 0;
+      let totalActiveReal = 0;
+      let totalFormingReal = 0;
+      Object.values(data).forEach(biome => {
+        const archives = biome.archives;
+        if (archives) totalArchived += Object.keys(archives).length;
+        const st = biome.state;
+        if (st) {
+          if (st.worldStatus === 'active' || !st.worldStatus) totalActiveReal++;
+          else if (st.worldStatus === 'forming') totalFormingReal++;
+        }
+      });
       const elDead = document.getElementById('s-dead');
-      if (elDead) elDead.textContent = totalDead;
+      if (elDead) elDead.textContent = totalArchived;
+      // Show real active/forming counts only if Firebase has data (> 0 biomes)
+      const fbBiomeCount = Object.keys(data).length;
+      if (fbBiomeCount > 0) {
+        const elActive  = document.getElementById('s-active');
+        const elForming = document.getElementById('s-forming');
+        if (elActive)  elActive.textContent  = totalActiveReal;
+        if (elForming) elForming.textContent = totalFormingReal;
+      }
 
       // Update hero world if Firebase has a better candidate
       if (maxTierBiome && maxTier > 0) {
@@ -1578,7 +1597,65 @@ function initIndexFirebase() {
         if (heroName) heroName.textContent = topB.name;
       }
 
-      console.log(`[Pandora] Firebase: loaded ${Object.keys(data).length} biome states.`);
+      // ── Populate the real dead-worlds archive grid from Firebase archives ──
+      const archiveGrid = document.getElementById('archive-grid');
+      const realBiomeNames = {
+        '0': 'Terra', '4': 'Warm Soup', '10': 'Siliconia',
+        '20': 'Freeze Frame', '50': 'Boronia', '70': 'Iron Veil'
+      };
+      const realBiomeFiles = {
+        '0': 'biome-00-terra.html', '4': 'biome-04-warm-soup.html',
+        '10': 'biome-10-siliconia.html', '20': 'biome-20-freeze-frame.html',
+        '50': 'biome-50-boronia.html',   '70': 'biome-70-iron-veil.html'
+      };
+      const realBiomeChem = {
+        '0': 'C · N · O · P / H₂O', '4': 'C · H₂O · clay',
+        '10': 'Si · O · S', '20': 'N · H / NH₃',
+        '50': 'B · N / organic', '70': 'Fe · S / H₂O'
+      };
+      // Build archive cards for each real biome's archive entries
+      const realArchiveCards = [];
+      Object.entries(data).forEach(([idStr, biome]) => {
+        if (!biome.archives) return;
+        const name = realBiomeNames[idStr] || `Biome-${idStr}`;
+        const chem = realBiomeChem[idStr]  || '—';
+        const file = realBiomeFiles[idStr];
+        Object.values(biome.archives)
+          .sort((a, b) => (a.archivedAt || 0) - (b.archivedAt || 0))
+          .forEach(arc => {
+            const tier = arc.maxTier || arc.peakTier || 0;
+            const gen  = arc.generation || 1;
+            const s    = ts(tier);
+            const div  = document.createElement('div');
+            div.className = 'biome-card dead';
+            div.style.borderColor = '#4a1a1a';
+            div.innerHTML = `
+              <div class="card-strip" style="background:#2a0808"></div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+                <div>
+                  <div style="font-size:9px;color:rgba(200,80,60,0.65);letter-spacing:0.12em;margin-bottom:3px">BIOME-${idStr.padStart(2,'0')} · GEN ${gen}</div>
+                  <div style="font-size:13px;font-weight:600;letter-spacing:0.06em">${name}</div>
+                </div>
+                <div class="card-tier" style="font-size:10px;padding:3px 7px;border:1px solid ${s[3]};background:${s[1]};color:${s[2]};border-radius:3px;white-space:nowrap;letter-spacing:0.08em">
+                  <span class="t-num">T${tier}</span> <span class="t-name">${TIER_NAMES[tier]||'—'}</span>
+                </div>
+              </div>
+              <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-bottom:6px">${chem}</div>
+              <div style="font-size:9px;color:rgba(200,100,80,0.7);margin-bottom:4px">${arc.summary || `T${tier} · ${(arc.peakTick||0).toLocaleString()} ticks`}</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                <span style="font-size:9px;color:rgba(160,50,40,0.8);letter-spacing:0.12em">● ARCHIVED</span>
+                ${file ? `<a href="${file}" style="font-size:9px;color:rgba(100,160,220,0.7);letter-spacing:0.1em;text-decoration:none">VIEW GEN ${gen+1} →</a>` : ''}
+              </div>`;
+            realArchiveCards.push({ div, tier, archivedAt: arc.archivedAt || 0 });
+          });
+      });
+      // Sort by tier desc, then date desc, and prepend to archive grid (real before fake)
+      realArchiveCards.sort((a,b) => b.tier - a.tier || b.archivedAt - a.archivedAt);
+      realArchiveCards.forEach(({ div }) => {
+        if (archiveGrid) archiveGrid.insertBefore(div, archiveGrid.firstChild);
+      });
+
+      console.log(`[Pandora] Firebase: ${Object.keys(data).length} biomes, ${totalArchived} archive entries.`);
     }).catch(e => console.warn('[Pandora Firebase] index load failed:', e));
 
     // ── Presence: register this session ──────────────────────
