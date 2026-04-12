@@ -249,6 +249,11 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 #home-btn svg { opacity: 0.65; flex-shrink: 0; }
 #home-btn:hover svg { opacity: 1; }
 
+/* Legend moved to bottom-left above event log to avoid HUD overlap */
+#legend {
+  top: auto !important;
+  bottom: 190px !important;
+}
 </style>
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -497,10 +502,10 @@ let SPEED = 4;
 //  Enforces a physical maximum bond length (bonds snap if over-stretched)
 //  and applies a proper Hooke's-law spring to every bonded pair regardless
 //  of how far apart they have drifted.
-const BOND_MAX_D  = CELL * 1.15;   // bonds snap beyond this (≈ 37px at CELL=32)
+const BOND_MAX_D  = CELL * 3.0;    // bonds snap beyond this (≈ 96px at CELL=32)
 const BOND_MAX_D2 = BOND_MAX_D * BOND_MAX_D;
 const BOND_REST   = 14;            // natural bond length (px)
-const BOND_K      = 0.16;          // spring stiffness — strong enough to resist thermal noise
+const BOND_K      = 0.008;         // gentle nudge — strong springs freeze the simulation
 
 function maintainBonds() {
   const snap = [];

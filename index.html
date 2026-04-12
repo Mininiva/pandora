@@ -784,13 +784,13 @@ function openModal(id) {
     btn.style.background = 'rgba(20,80,50,0.15)';
   } else if(b.status === 'dead') {
     btn.disabled = true;
-    btn.textContent = '✕  SIMULATION ARCHIVED';
+    btn.textContent = '✕  WORLD ARCHIVED — AWAITING REBIRTH';
   } else if(b.status === 'forming') {
     btn.disabled = true;
-    btn.textContent = '◌  SIMULATION INITIALIZING — STAND BY';
+    btn.textContent = '◌  WORLD FORMING — STAND BY';
   } else {
     btn.disabled = true;
-    btn.textContent = '—  SIMULATION NOT YET DEPLOYED';
+    btn.textContent = '◦  WORLD ACTIVE — SIMULATION INTERFACE IN PROGRESS';
   }
 
   // Agent log
