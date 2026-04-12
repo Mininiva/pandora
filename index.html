@@ -2024,5 +2024,75 @@ setTimeout(startBackgroundWorker, 2000);
 <!-- Firebase SDK (loaded last so it doesn't block rendering) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<!-- Tier Legend Panel -->
+<div id="tier-legend" style="
+  max-width:960px; margin:60px auto 40px; padding:0 20px;
+  font-family:'Courier New',monospace; color:#aaa;
+">
+  <div style="
+    border:1px solid #333; border-radius:8px; padding:24px 32px;
+    background:linear-gradient(135deg,#0a0a0f 0%,#0d0d16 100%);
+  ">
+    <h2 style="
+      text-align:center; letter-spacing:0.18em; font-size:0.85rem;
+      color:#556; text-transform:uppercase; margin:0 0 20px;
+    ">◈ Tier Progression Atlas ◈</h2>
+    <p style="text-align:center;font-size:0.72rem;color:#444;margin:-10px 0 22px;">
+      Each Pandora world climbs from raw chemistry toward organised complexity.
+      Tiers mark irreversible phase-transitions — once achieved, the world never falls below.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 40px;">
+
+      <!-- T0–T9 column -->
+      <div>
+        <div style="color:#334;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid #222;padding-bottom:6px;margin-bottom:12px;">
+          Primordial Era  ·  T0 → T9
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
+          <tbody>
+            <tr><td style="color:#3a4a3a;padding:4px 0;width:38px;vertical-align:top;font-weight:700;">T0</td><td style="color:#4a4a4a;padding:4px 0;">Void — sterile chemistry, no meaningful structure</td></tr>
+            <tr><td style="color:#3d5c3d;padding:4px 0;font-weight:700;">T1</td><td style="color:#555;padding:4px 0;">Spark — first persistent particle bonds observed</td></tr>
+            <tr><td style="color:#405c40;padding:4px 0;font-weight:700;">T2</td><td style="color:#5a5a5a;padding:4px 0;">Drift — stable dimers; rudimentary chemistry</td></tr>
+            <tr><td style="color:#446044;padding:4px 0;font-weight:700;">T3</td><td style="color:#606060;padding:4px 0;">Chain — extended polymers; early replication candidate</td></tr>
+            <tr><td style="color:#4a6b4a;padding:4px 0;font-weight:700;">T4</td><td style="color:#686868;padding:4px 0;">Network — cross-linked mesh; topology emerges</td></tr>
+            <tr><td style="color:#507050;padding:4px 0;font-weight:700;">T5</td><td style="color:#707070;padding:4px 0;">Loop — autocatalytic cycles; self-sustaining reaction</td></tr>
+            <tr><td style="color:#567856;padding:4px 0;font-weight:700;">T6</td><td style="color:#787878;padding:4px 0;">Cluster — dense stable aggregates; proto-organelle</td></tr>
+            <tr><td style="color:#5c805c;padding:4px 0;font-weight:700;">T7</td><td style="color:#808080;padding:4px 0;">Cascade — multi-step reaction chains; signal propagation</td></tr>
+            <tr><td style="color:#628862;padding:4px 0;font-weight:700;">T8</td><td style="color:#888;padding:4px 0;">Boundary — first amphiphilic membranes observed</td></tr>
+            <tr><td style="color:#689068;padding:4px 0;font-weight:700;">T9</td><td style="color:#909090;padding:4px 0;">Gradient — chemical potential across a membrane</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- T10–T20 column -->
+      <div>
+        <div style="color:#334;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid #222;padding-bottom:6px;margin-bottom:12px;">
+          Emergence Era  ·  T10 → T20
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
+          <tbody>
+            <tr><td style="color:#6e9870;padding:4px 0;width:38px;vertical-align:top;font-weight:700;">T10</td><td style="color:#999;padding:4px 0;">Compartment — closed lipid vesicle; proto-cell achieved</td></tr>
+            <tr><td style="color:#74a276;padding:4px 0;font-weight:700;">T11</td><td style="color:#a0a0a0;padding:4px 0;">Division — membrane growth and pinch-off events</td></tr>
+            <tr><td style="color:#7aac7c;padding:4px 0;font-weight:700;">T12</td><td style="color:#a8a8a8;padding:4px 0;">Inheritance — chemical state transmitted across generations</td></tr>
+            <tr><td style="color:#5a9a7a;padding:4px 0;font-weight:700;">T13</td><td style="color:#b0b0b0;padding:4px 0;">Cooperation — multi-cell clusters act in concert</td></tr>
+            <tr><td style="color:#4a8a70;padding:4px 0;font-weight:700;">T14</td><td style="color:#b8b8b8;padding:4px 0;">Differentiation — distinct roles arise within a colony</td></tr>
+            <tr><td style="color:#3a7a66;padding:4px 0;font-weight:700;">T15</td><td style="color:#c0c0c0;padding:4px 0;">Signalling — chemical messages between organisms</td></tr>
+            <tr><td style="color:#2a6a5c;padding:4px 0;font-weight:700;">T16</td><td style="color:#c8c8c8;padding:4px 0;">Memory — adaptive response to repeated stimuli</td></tr>
+            <tr><td style="color:#1a5a52;padding:4px 0;font-weight:700;">T17</td><td style="color:#d0d0d0;padding:4px 0;">Symbiosis — stable inter-species dependency forged</td></tr>
+            <tr><td style="color:#0a4a48;padding:4px 0;font-weight:700;">T18</td><td style="color:#d8d8d8;padding:4px 0;">Complexity — layered metabolic and structural hierarchy</td></tr>
+            <tr><td style="color:#003a3e;padding:4px 0;font-weight:700;">T19</td><td style="color:#e0e0e0;padding:4px 0;">Awareness — environmental sensing and directed motion</td></tr>
+            <tr><td style="color:#66ffee;padding:4px 0;font-weight:700;">T20</td><td style="color:#eee;padding:4px 0;">✦ Sentience — coordinated, purposeful collective behaviour</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+    <p style="text-align:center;font-size:0.65rem;color:#333;margin:18px 0 0;letter-spacing:.08em;">
+      GRADUATION fires at T13 · worlds above T5 are shielded from destructive perturbations
+    </p>
+  </div>
+</div>
+
 </body>
 </html>

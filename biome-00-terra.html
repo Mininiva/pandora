@@ -673,10 +673,17 @@ function _evolveGenome(archives, genome) {
     g.n1         = _clamp(g.n1 * 0.98, 0.6, 1.9);
     g.noiseScale = _clamp(g.noiseScale * 1.03, 0.6, 1.7);
   }
-  // T8+: near protocell — preserve params, minimal mutation
+  // T8-T12: near protocell — boost cluster-growth to reach T11+
+  else if (avgTier < 13) {
+    g.n1 = _clamp(g.n1 * 1.04, 0.6, 1.9);  // more primary particles → cluster grows
+    g.n2 = _clamp(g.n2 * 1.02, 0.6, 1.9);  // more structural particles
+    g.n3 = _clamp(g.n3 * 1.01, 0.5, 2.2);
+  }
+  // T13+: growing well — reinforce and push for T14+
   else {
-    g.n1         = _clamp(g.n1 * 0.995, 0.6, 1.9);
-    g.n2         = _clamp(g.n2 * 0.995, 0.6, 1.9);
+    g.n1 = _clamp(g.n1 * 1.02, 0.6, 1.9);
+    g.n3 = _clamp(g.n3 * 1.04, 0.5, 2.2);  // more catalysts for complexity
+    g.noiseScale = _clamp(g.noiseScale * 0.97, 0.6, 1.7);  // slightly less noise
   }
 
   // Died of equilibrium: need more thermal perturbation
@@ -690,11 +697,19 @@ function _evolveGenome(archives, genome) {
     g.n2 = _clamp(g.n2 * 0.94, 0.6, 1.9);
   }
 
-  // Random mutation ±4% on all genes — keeps evolution exploratory
-  g.n1         = _clamp(g.n1         * (0.96 + Math.random() * 0.08), 0.6, 1.9);
-  g.n2         = _clamp(g.n2         * (0.96 + Math.random() * 0.08), 0.6, 1.9);
-  g.n3         = _clamp(g.n3         * (0.96 + Math.random() * 0.08), 0.5, 2.2);
-  g.noiseScale = _clamp(g.noiseScale * (0.96 + Math.random() * 0.08), 0.6, 1.7);
+  // If this generation set a new tier record: reinforce with tiny mutation (preserve what works)
+  // If it regressed: apply normal mutation to escape local minimum
+  const maxHistTier = recent.length > 1
+    ? Math.max(...recent.slice(0,-1).map(a => a.maxTier || a.peakTier || 0))
+    : 0;
+  const mutScale = (last.maxTier || last.peakTier || 0) >= Math.max(maxHistTier, 8)
+    ? 0.015   // record-tier generation: tiny ±1.5% mutation — preserve the winning genome
+    : 0.08;   // regressed or early: normal ±4-8% exploratory mutation
+
+  g.n1         = _clamp(g.n1         * (1 - mutScale + Math.random() * mutScale * 2), 0.6, 1.9);
+  g.n2         = _clamp(g.n2         * (1 - mutScale + Math.random() * mutScale * 2), 0.6, 1.9);
+  g.n3         = _clamp(g.n3         * (1 - mutScale + Math.random() * mutScale * 2), 0.5, 2.2);
+  g.noiseScale = _clamp(g.noiseScale * (1 - mutScale + Math.random() * mutScale * 2), 0.6, 1.7);
 
   return g;
 }
@@ -770,11 +785,11 @@ async function _runDeathCycle(deathReason) {
   }
 
   // --- Phase 2: 8s "Analyzing learnings" ---
-  await new Promise(r => setTimeout(r, 4000));
+  await new Promise(r => setTimeout(r, 1500));
   _rebirthPhase = 2;
   _setDeadLabel('ANALYZING LEARNINGS...');
 
-  await new Promise(r => setTimeout(r, 6000));
+  await new Promise(r => setTimeout(r, 2000));
 
   // --- Phase 3: evolve genome ---
   _rebirthPhase = 3;
@@ -803,7 +818,7 @@ async function _runDeathCycle(deathReason) {
   }
 
   _setDeadLabel(`EVOLVING GENERATION ${nextGen}...`);
-  await new Promise(r => setTimeout(r, 5000));
+  await new Promise(r => setTimeout(r, 2000));
 
   // --- Phase 4: navigate to new generation page ---
   _rebirthPhase = 4;
@@ -828,7 +843,7 @@ async function _runDeathCycle(deathReason) {
     } catch(e) { console.warn('[Pandora] genome save failed:', e); }
   }
 
-  await new Promise(r => setTimeout(r, 2500));
+  await new Promise(r => setTimeout(r, 1000));
 
   // Navigate to the new generation's URL — each gen is a distinct page visit
   const _curFile = window.location.pathname.split('/').pop().split('?')[0];
@@ -1624,8 +1639,9 @@ function checkTiers(cx, mxl, nAgg, peps, clusters) {
   if (!tierAchieved[20] && tierAchieved[19] && latestEnc > 0 && peps >= 10 && nAgg >= 6) promoteTier(20);
 
   // ── Graduation: sustained T10+ for 3000 ticks → evolutionary ascension
-  if (currentTier >= 10) sustainedGradTicks++; else sustainedGradTicks = 0;
-  if (sustainedGradTicks >= 3000 && worldStatus === 'active') {
+  // Graduation: must reach T13+ before graduating (not just T10)
+  if (currentTier >= 13) sustainedGradTicks++; else sustainedGradTicks = 0;
+  if (sustainedGradTicks >= 2000 && worldStatus === 'active') {
     worldStatus = 'graduating';
     speak('NARRATOR', `After ${sustainedGradTicks} ticks at T${currentTier}, this world has reached evolutionary completion. Graduation initiating.`);
     speak('ANALYST', `Graduation conditions met. Archiving molecular state as seed for next generation. This world's achievement will persist.`);
