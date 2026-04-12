@@ -1790,6 +1790,9 @@ function initFirebase() {
     _lastTickTime = now;
     _presRef.update({ ticksPerSec: rate }).catch(() => {});
   }, 5000); // report every 5 seconds
+    // Save positions on unload and periodically
+    window.addEventListener('beforeunload', _savePositions);
+    setInterval(_savePositions, 180000); // every 3 minutes
   } catch(e) { console.warn('[Pandora Firebase] init failed:', e); }
 }
 
@@ -1879,6 +1882,70 @@ function writeKnowledgeToFirebase(entry) {
   try { fbDb.ref('pandora/knowledge').push(entry); } catch(e) {}
 }
 
+
+// ── Position persistence ──────────────────────────────────────────────────────
+// Saves full particle state to Firebase on unload + every 3 min.
+// On next visit, _restorePositions() is called before init() — no clock reset.
+
+function _savePositions() {
+  if (!fbDb || A.length === 0) return;
+  try {
+    fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).set({
+      px:          A.map(a => Math.round(a.x * 10) / 10),
+      py:          A.map(a => Math.round(a.y * 10) / 10),
+      types:       A.map(a => a.type),
+      bonds:       [...BONDS].map(k => k.split(',').map(Number)),
+      tick,
+      currentTier,
+      peakComplexity: (typeof peakComplexity !== 'undefined' ? peakComplexity : 0),
+      peakTick:       (typeof peakTick       !== 'undefined' ? peakTick       : 0),
+      interventions:  (typeof interventions  !== 'undefined' ? interventions  : 0),
+      worldStatus,
+      tierAchieved: [...tierAchieved],
+      ts: Date.now()
+    });
+  } catch(e) {}
+}
+
+function _restorePositions(pos) {
+  A.length = 0;
+  for (let i = 0; i < pos.px.length; i++) {
+    A.push({
+      id: i, idx: i,
+      x: pos.px[i], y: pos.py[i], vx: 0, vy: 0,
+      type: pos.types[i], bonds: new Set(), hot: false, hotT: 0
+    });
+  }
+  BONDS.clear();
+  for (const [bi, bj] of (pos.bonds || [])) {
+    if (bi < A.length && bj < A.length) {
+      BONDS.add(bkey(bi, bj));
+      A[bi].bonds.add(bj);
+      A[bj].bonds.add(bi);
+    }
+  }
+  tick        = pos.tick        || 0;
+  currentTier = pos.currentTier || 0;
+  if (typeof peakComplexity !== 'undefined') peakComplexity = pos.peakComplexity || 0;
+  if (typeof peakTick       !== 'undefined') peakTick       = pos.peakTick       || 0;
+  if (typeof interventions  !== 'undefined') interventions  = pos.interventions  || 0;
+  worldStatus = pos.worldStatus || 'active';
+  if (pos.tierAchieved) pos.tierAchieved.forEach((v, i) => {
+    if (i < tierAchieved.length) tierAchieved[i] = v;
+  });
+  if (currentTier > 0) {
+    const el = document.getElementById('v-tier');
+    if (el) el.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
+  }
+  if (worldStatus === 'dead') {
+    const el = document.getElementById('world-state');
+    if (el) { el.textContent = 'DEAD WORLD'; el.className = 'dead'; }
+  }
+  // Restore tier flash label so HUD shows immediately
+  const tierEl = document.getElementById('v-tier');
+  if (tierEl && currentTier > 0) tierEl.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
+}
+
 // ── Main loop ─────────────────────────────────────────────────
 let lastUITick = 0;
 const UI_INTERVAL = 12;
@@ -1911,10 +1978,27 @@ function loop() {
   }
 }
 
-init();
 _connectSim();
-initFirebase();
-loop();
+(async function _pandoraStart() {
+  let restored = false;
+  if (typeof firebase !== 'undefined' && typeof FB_CONFIG !== 'undefined') {
+    try {
+      const _fa = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
+      fbDb      = firebase.database();
+      const snap = await fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value');
+      const pos  = snap.val();
+      if (pos && Array.isArray(pos.px) && pos.px.length >= 5) {
+        _restorePositions(pos);
+        restored = true;
+        const wsLbl = document.getElementById('ws-lbl');
+        if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
+      }
+    } catch(e) { console.warn('[Pandora] resume error:', e); }
+  }
+  if (!restored) init();
+  if (typeof initFirebase === 'function') initFirebase();
+  loop();
+})();
 </script>
   <div id='ws-status' style='position:fixed;bottom:20px;right:20px;z-index:9999;font-family:monospace;font-size:10px;letter-spacing:0.12em;color:rgba(255,255,255,0.50);pointer-events:none;transition:opacity 1.0s;'>
     <div id='ws-lbl' style='margin-bottom:5px;'>LOADING ENGINE</div>

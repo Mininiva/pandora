@@ -72,6 +72,9 @@ canvas { display: block; }
   bottom: 190px !important;
 }
 </style>
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
 <canvas id="main"></canvas>
@@ -168,6 +171,29 @@ let A    = [];          // agents array
 let BONDS = new Set();  // peptide bonds: "i,j" where i < j
 let tick  = 0;
 let uid   = 0;
+
+
+// ── Firebase (position persistence + presence) ────────────────────────────
+let fbDb = null;
+const FB_CONFIG = {
+  apiKey:            'AIzaSyD6r-9J3qoHMWkM6klS6OzFLlhZXlrmP74',
+  authDomain:        'pandora-68637.firebaseapp.com',
+  databaseURL:       'https://pandora-68637-default-rtdb.firebaseio.com',
+  projectId:         'pandora-68637',
+  storageBucket:     'pandora-68637.firebasestorage.app',
+  messagingSenderId: '244482446708',
+  appId:             '1:244482446708:web:e3b1e4b4e3b1e4b4e3b1e4'
+};
+
+function initFirebase() {
+  try {
+    if (typeof firebase === 'undefined') return;
+    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
+    fbDb = firebase.database();
+    window.addEventListener('beforeunload', _savePositions);
+    setInterval(_savePositions, 180000);
+  } catch(e) { console.warn('[Pandora/Terra] Firebase init failed:', e); }
+}
 
 const bkey = (i, j) => i < j ? `${i},${j}` : `${j},${i}`;
 // ── Mesa / Cloud Run simulation engine ───────────────────────────────────────
@@ -1162,6 +1188,48 @@ document.addEventListener('keydown', e => {
   if (e.key === '0')                  SPEED = 4;  // reset
 });
 
+// ── Position persistence ──────────────────────────────────────────────────────
+function _savePositions() {
+  if (!fbDb || A.length === 0) return;
+  try {
+    fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).set({
+      px:          A.map(a => Math.round(a.x * 10) / 10),
+      py:          A.map(a => Math.round(a.y * 10) / 10),
+      types:       A.map(a => a.type),
+      bonds:       [...BONDS].map(k => k.split(',').map(Number)),
+      tick, currentTier, worldStatus, tierAchieved: [...tierAchieved],
+      peakComplexity: (typeof peakComplexity!=='undefined'?peakComplexity:0),
+      peakTick:       (typeof peakTick!=='undefined'?peakTick:0),
+      interventions:  (typeof interventions!=='undefined'?interventions:0),
+      ts: Date.now()
+    });
+  } catch(e) {}
+}
+
+function _restorePositions(pos) {
+  A.length = 0;
+  for (let i = 0; i < pos.px.length; i++) {
+    A.push({ id:i, idx:i, x:pos.px[i], y:pos.py[i], vx:0, vy:0,
+             type:pos.types[i], bonds:new Set(), hot:false, hotT:0 });
+  }
+  BONDS.clear();
+  for (const [bi, bj] of (pos.bonds||[])) {
+    if (bi < A.length && bj < A.length) {
+      BONDS.add(bkey(bi, bj)); A[bi].bonds.add(bj); A[bj].bonds.add(bi);
+    }
+  }
+  tick        = pos.tick        || 0;
+  currentTier = pos.currentTier || 0;
+  if (typeof peakComplexity!=='undefined') peakComplexity = pos.peakComplexity||0;
+  if (typeof peakTick!=='undefined')       peakTick       = pos.peakTick||0;
+  if (typeof interventions!=='undefined')  interventions  = pos.interventions||0;
+  worldStatus = pos.worldStatus || 'active';
+  if (pos.tierAchieved) pos.tierAchieved.forEach((v,i) => { if(i<tierAchieved.length) tierAchieved[i]=v; });
+  const tv = document.getElementById('v-tier');
+  if (tv && currentTier > 0) tv.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
+  if (worldStatus==='dead') { const el=document.getElementById('world-state'); if(el){el.textContent='DEAD WORLD';el.className='dead';} }
+}
+
 // ── Main loop ─────────────────────────────────────────────────
 function loop() {
   requestAnimationFrame(loop);
@@ -1175,10 +1243,27 @@ function loop() {
   render(latestChains, latestClusters, latestEnc);
 }
 
-init();
 _connectSim();
-initFirebase();
-loop();
+(async function _pandoraStart() {
+  let restored = false;
+  if (typeof firebase !== 'undefined' && typeof FB_CONFIG !== 'undefined') {
+    try {
+      const _fa = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
+      fbDb      = firebase.database();
+      const snap = await fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value');
+      const pos  = snap.val();
+      if (pos && Array.isArray(pos.px) && pos.px.length >= 5) {
+        _restorePositions(pos);
+        restored = true;
+        const wsLbl = document.getElementById('ws-lbl');
+        if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
+      }
+    } catch(e) { console.warn('[Pandora] resume error:', e); }
+  }
+  if (!restored) init();
+  if (typeof initFirebase === 'function') initFirebase();
+  loop();
+})();
 </script>
   <div id='ws-status' style='position:fixed;bottom:20px;right:20px;z-index:9999;font-family:monospace;font-size:10px;letter-spacing:0.12em;color:rgba(255,255,255,0.50);pointer-events:none;transition:opacity 1.0s;'>
     <div id='ws-lbl' style='margin-bottom:5px;'>LOADING ENGINE</div>
