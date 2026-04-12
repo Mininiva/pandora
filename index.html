@@ -1671,21 +1671,29 @@ function _applyBiomeState(id, state, curGen) {
   const gen    = state.generation   || curGen || 1;
   const s      = ts(tier);
 
+  // ── ID normalisation ─────────────────────────────────────────────
+  // `id` may arrive as an integer (0, 2, 3…) or string ('00','02','16'…).
+  // All DOM elements use the padded string form from CONFIGS (e.g. '00','02','16').
+  // Without this, querySelector('[data-id="0"]') never finds data-id="00" — the
+  // root cause of cards not updating for biomes 00, 02, 03, 04, 06, 08.
+  const numId = parseInt(id);
+  const bObj  = BIOMES.find(x => parseInt(x.id) === numId);
+  const domId = bObj ? bObj.id : String(id);   // e.g. '00', '02', '16'
+
   // Update BIOMES array — this is the canonical in-memory record
-  const bObj = BIOMES.find(x => x.id === id);
   if (bObj) {
     bObj.tier   = tier;
     bObj.status = status;
   }
 
   // Update gen badge
-  const genBadge = document.getElementById(`gen-badge-${id}`);
+  const genBadge = document.getElementById(`gen-badge-${domId}`);
   if (genBadge) {
     genBadge.textContent = `GEN ${gen}`;
     genBadge.style.color = gen > 1 ? 'rgba(140,220,160,0.75)' : 'rgba(100,180,255,0.55)';
   }
 
-  const card = document.querySelector(`[data-id="${id}"]`);
+  const card = document.querySelector(`[data-id="${domId}"]`);
   if (!card) return;
 
   // Remove skeleton state
@@ -1711,18 +1719,18 @@ function _applyBiomeState(id, state, curGen) {
     if (strip) strip.style.background = s[0];
   }
 
-  // Tier progress bar
+  // Tier progress bar (normalised to T50)
   const fill = card.querySelector('.tier-progress-fill');
-  if (fill) { fill.style.width = `${Math.round((tier/20)*100)}%`; fill.style.background = s[0]; fill.style.opacity='0.6'; }
+  if (fill) { fill.style.width = `${Math.round((tier/50)*100)}%`; fill.style.background = s[0]; fill.style.opacity='0.6'; }
 
   // Complexity bar
-  const cxFill = document.getElementById(`cxfill-${id}`);
+  const cxFill = document.getElementById(`cxfill-${domId}`);
   if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(cx * 20))}%`;
 
   // Generation progress bar
   const genPct = Math.min(100, Math.round((tick / 35000) * 100));
-  const genProg = document.getElementById(`genprog-${id}`);
-  const genLbl  = document.getElementById(`genlabel-${id}`);
+  const genProg = document.getElementById(`genprog-${domId}`);
+  const genLbl  = document.getElementById(`genlabel-${domId}`);
   if (genProg) { genProg.style.width = `${genPct}%`; genProg.style.background = s[0]; genProg.style.opacity='0.5'; }
   if (genLbl)  genLbl.textContent = `GEN ${gen}  ${genPct}%`;
 
@@ -1764,7 +1772,7 @@ function _hardSyncAllCards() {
     }
     card.classList.remove('fb-pending');
     const fill = card.querySelector('.tier-progress-fill');
-    if (fill) { fill.style.width=`${Math.round((b.tier/20)*100)}%`; fill.style.background=s[0]; fill.style.opacity='0.6'; }
+    if (fill) { fill.style.width=`${Math.round((b.tier/50)*100)}%`; fill.style.background=s[0]; fill.style.opacity='0.6'; }
     if (b.status !== 'dead') card.style.borderColor = s[3];
   });
   // Re-sort grid by actual Firebase tiers
