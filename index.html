@@ -446,6 +446,9 @@ const TS = [
   ['#503808','rgba(16,10,4,0.9)','#d09020','rgba(100,65,10,0.4)'],
 ];
 
+// Tracks current active generation per real biome id (loaded from Firebase)
+const _biomeCurrentGen = {};
+
 const BIOMES = [
   {id:0,  name:"Terra",                chem:"C · N · O · P / H₂O",     tier:2,status:"active", parent:null,   desc:"The reference world. Carbon hydrothermal chemistry in liquid water — our baseline for what complexity looks like when we already know life is possible.",file:"biome-00-terra.html"},
   {id:1,  name:"Hadean",               chem:"C · H₂O · SO₄",            tier:1,status:"active", parent:0,      desc:"Hot early-carbon with volcanic sulfate. Aggressive thermal gradient. Running."},
@@ -778,7 +781,8 @@ function openModal(id) {
   const btn = document.getElementById('m-enter');
   if(b.file) {
     btn.disabled = false;
-    btn.textContent = '⬤  ENTER SIMULATION →';
+    const _curGen = _biomeCurrentGen[b.id] || 1;
+    btn.textContent = `⬤  ENTER SIMULATION — GEN ${_curGen} →`;
     btn.style.borderColor = 'rgba(60,180,120,0.35)';
     btn.style.color = 'rgba(100,220,160,0.85)';
     btn.style.background = 'rgba(20,80,50,0.15)';
@@ -822,7 +826,13 @@ function handleOverlayClick(e) {
 }
 function enterSim() {
   const b = BIOMES.find(x=>x.id===modalId);
-  if(b && b.file) window.open(b.file, '_self');
+  if(b && b.file) {
+    // Navigate to current generation (biome-00-terra.html?g=2 etc.)
+    // If no generation tracked yet, plain URL — biome will auto-redirect if needed
+    const _curGen = _biomeCurrentGen[b.id] || 0;
+    const url = _curGen > 1 ? `${b.file}?g=${_curGen}` : b.file;
+    window.open(url, '_self');
+  }
 }
 
 // ── Agent log generator ───────────────────────────────────
@@ -1501,6 +1511,8 @@ function initIndexFirebase() {
       Object.entries(data).forEach(([idStr, biome]) => {
         const id    = parseInt(idStr);
         const state = biome.state;
+        // Store current generation for this biome
+        if (biome.currentGeneration) _biomeCurrentGen[id] = biome.currentGeneration;
         if (!state) return;
 
         const card = document.querySelector(`[data-id="${id}"]`);

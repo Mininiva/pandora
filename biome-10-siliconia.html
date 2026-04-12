@@ -746,47 +746,31 @@ async function _runDeathCycle(deathReason) {
   _setDeadLabel(`EVOLVING GENERATION ${nextGen}...`);
   await new Promise(r => setTimeout(r, 5000));
 
-  // --- Phase 4: spawn ---
+  // --- Phase 4: navigate to new generation page ---
   _rebirthPhase = 4;
   _setDeadLabel(`GENERATION ${nextGen} BEGINNING...`);
-  await new Promise(r => setTimeout(r, 2000));
 
-  // Save evolved genome to Firebase
+  // Save evolved genome under its own generation key
   if (typeof fbDb !== 'undefined' && fbDb) {
     try {
-      await fbDb.ref(`pandora/biomes/${BIOME_ID}/genome`).set(nextGenome);
+      // Store this generation's genome at /genome/N so each gen is addressable
+      await fbDb.ref(`pandora/biomes/${BIOME_ID}/genome/${nextGen}`).set(nextGenome);
+      // Track which generation is currently active
+      await fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).set(nextGen);
       await fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
         worldStatus: 'active',
         generation:  nextGen,
         tick:        0
       });
-    } catch(e) {}
+    } catch(e) { console.warn('[Pandora] genome save failed:', e); }
   }
 
-  // Reset simulation with evolved genome
-  _genome     = nextGenome;
-  _generation = nextGen;
-  worldStatus = 'active';
-  currentTier = 0; tick = 0; peakComplexity = 0; peakTick = 0; interventions = 0;
-  if (typeof tierAchieved !== 'undefined') tierAchieved.fill(false);
-  if (typeof hist         !== 'undefined') hist.length = 0;
-  if (typeof totalBondsFormed !== 'undefined') totalBondsFormed = 0;
+  await new Promise(r => setTimeout(r, 2500));
 
-  // Clear dead overlay
-  const wsEl = document.getElementById('world-state');
-  if (wsEl) { wsEl.textContent = ''; wsEl.className = ''; }
-  const btn = document.getElementById('return-to-pandora-btn');
-  if (btn)  btn.remove();
-
-  // Reinitialise particles with evolved genome
-  init(_genome);
-  _updateGenDisplay();
-  _rebirthPhase = 0;
-
-  if (typeof speak === 'function') {
-    const g = _genome;
-    speak('NARRATOR', `Generation ${_generation} begins. Genome evolved — primary ×${g.n1.toFixed(2)}, secondary ×${g.n2.toFixed(2)}, catalyst ×${g.n3.toFixed(2)}, noise ×${g.noiseScale.toFixed(2)}. We carry the memory of ${_generation - 1} world${_generation > 2 ? 's' : ''} before us.`);
-  }
+  // Navigate to the new generation's URL — each gen is a distinct page visit
+  const _curFile = window.location.pathname.split('/').pop().split('?')[0];
+  window.location.href = `${_curFile}?g=${nextGen}`;
+  // (page navigation — code below will not execute)
 }
 
 
@@ -2222,41 +2206,45 @@ setTimeout(async function _pandoraResume() {
       }
     }
     
-    // Load generation + genome from Firebase
+    // Load generation + genome from Firebase (URL-aware)
     try {
-      const [genSnap, archCountSnap] = await Promise.all([
-        Promise.race([
-          fbDb.ref(`pandora/biomes/${BIOME_ID}/genome`).once('value'),
-          new Promise(r => setTimeout(() => r(null), 2000))
-        ]),
-        Promise.race([
-          fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).once('value'),
-          new Promise(r => setTimeout(() => r(null), 2000))
-        ])
-      ]);
-      const savedGenome = genSnap     ? genSnap.val()                   : null;
-      const archData    = archCountSnap ? archCountSnap.val()           : null;
-      const archCount   = archData    ? Object.keys(archData).length    : 0;
-      if (savedGenome) _genome = { n1:1, n2:1, n3:1, noiseScale:1, ...savedGenome };
-      if (archCount > 0) _generation = archCount + 1;
-      _updateGenDisplay();
-      // If arriving at a dead world, evolve and start new generation
-      if (stSnap && stSnap.val() && stSnap.val().worldStatus === 'dead') {
-        const archiveList = archData ? Object.values(archData) : [];
-        _genome     = _evolveGenome(archiveList, _genome);
-        _generation = archCount + 1;
-        worldStatus = 'active';
-        init(_genome);
-        _updateGenDisplay();
-        if (fbDb) {
-          fbDb.ref(`pandora/biomes/${BIOME_ID}/genome`).set(_genome).catch(()=>{});
-          fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
-            worldStatus:'active', generation:_generation, tick:0
-          }).catch(()=>{});
+      // Step 1: determine which generation we're running
+      const _urlG = parseInt(new URLSearchParams(window.location.search).get('g') || '0');
+
+      // Step 2: if no ?g= param, check if a newer generation exists → redirect
+      if (!_urlG) {
+        const curGenSnap = await Promise.race([
+          fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).once('value'),
+          new Promise(r => setTimeout(() => r(null), 1500))
+        ]);
+        const curGen = curGenSnap ? (curGenSnap.val() || 1) : 1;
+        if (curGen > 1) {
+          // A newer generation exists — send the user there
+          const _f = window.location.pathname.split('/').pop().split('?')[0];
+          window.location.replace(`${_f}?g=${curGen}`);
+          return; // stop — navigation happening
         }
-        const wsLbl = document.getElementById('ws-lbl');
-        if (wsLbl) wsLbl.textContent = `GEN ${_generation} — BORN FROM LEARNINGS`;
+        // Gen 1, no redirect needed
+        _generation = 1;
+      } else {
+        _generation = _urlG;
       }
+      _updateGenDisplay();
+
+      // Step 3: load this generation's genome from /genome/N
+      const genomeSnap = await Promise.race([
+        fbDb.ref(`pandora/biomes/${BIOME_ID}/genome/${_generation}`).once('value'),
+        new Promise(r => setTimeout(() => r(null), 2000))
+      ]);
+      const savedGenome = genomeSnap ? genomeSnap.val() : null;
+      if (savedGenome && typeof savedGenome === 'object') {
+        _genome = { n1:1, n2:1, n3:1, noiseScale:1, ...savedGenome };
+        // Re-run init with evolved genome (replacing the default gen-1 particles)
+        init(_genome);
+        const wsLbl = document.getElementById('ws-lbl');
+        if (wsLbl) wsLbl.textContent = _generation > 1 ? `GEN ${_generation} — EVOLVED` : 'RESUMING WORLD';
+      }
+      _updateGenDisplay();
     } catch(e) { console.warn('[Pandora] genome load error:', e); }
     if (typeof initFirebase === 'function') initFirebase();
   } catch(e) { console.warn('[Pandora] resume error:', e); }
