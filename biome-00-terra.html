@@ -71,6 +71,170 @@ canvas { display: block; }
   top: auto !important;
   bottom: 190px !important;
 }
+
+/* ── Agent panel (right, collapsible) ────────────────────────── */
+#agent-panel {
+  position: fixed; top: 0; right: 0;
+  width: 268px; height: 100vh;
+  background: rgba(3, 8, 18, 0.97);
+  backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(100, 180, 255, 0.10);
+  display: flex; flex-direction: column;
+  z-index: 50;
+  transition: transform 0.3s ease;
+}
+#agent-panel.collapsed { transform: translateX(256px); }
+
+#panel-toggle {
+  position: absolute; left: -28px; top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 54px;
+  background: rgba(3, 8, 18, 0.97);
+  border: 1px solid rgba(100, 180, 255, 0.10);
+  border-right: none;
+  cursor: pointer;
+  color: rgba(100, 180, 240, 0.85);
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+}
+#panel-toggle:hover { color: rgba(150, 220, 255, 0.9); }
+
+#panel-header {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(100, 180, 255, 0.07);
+  flex-shrink: 0;
+}
+#panel-title {
+  font-size: 12px; letter-spacing: 4px;
+  color: rgba(100, 160, 200, 0.85);
+  margin-bottom: 3px;
+}
+#panel-agents {
+  font-size: 14px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.pagent { font-size: 12px; letter-spacing: 1px; }
+.pagent.OBSERVER { color: rgba(100, 180, 255, 0.85); }
+.pagent.ANALYST  { color: rgba(60, 210, 170, 0.85); }
+.pagent.NARRATOR { color: rgba(200, 240, 255, 0.85); }
+
+#agent-feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+#agent-feed::-webkit-scrollbar { width: 2px; }
+#agent-feed::-webkit-scrollbar-thumb { background: rgba(100, 180, 255, 0.2); }
+
+.ae { display: flex; flex-direction: column; gap: 3px; animation: fadein 0.4s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+.ae-meta { display: flex; gap: 8px; align-items: baseline; }
+.ae-name { font-size: 12px; letter-spacing: 2px; }
+.ae-time { font-size: 12px; color: rgba(80, 130, 160, 0.82); }
+.ae-msg  { font-size: 12px; line-height: 1.65; padding-left: 2px; }
+
+.ae-name.OBSERVER { color: rgba(100, 180, 255, 0.85); }
+.ae-name.ANALYST  { color: rgba(60, 210, 170, 0.85); }
+.ae-name.NARRATOR { color: rgba(200, 240, 255, 0.92); }
+.ae-name.SYSTEM   { color: rgba(80, 140, 180, 0.88); }
+
+.ae-msg.OBSERVER  { color: rgba(140, 200, 240, 0.85); }
+.ae-msg.ANALYST   { color: rgba(100, 220, 185, 0.85); }
+.ae-msg.NARRATOR  { color: rgba(180, 225, 255, 0.88); font-style: italic; }
+.ae-msg.SYSTEM    { color: rgba(90, 140, 170, 0.85); font-size: 12px; letter-spacing: 0.3px; }
+
+.ae-highlight { border-left: 2px solid rgba(100, 200, 255, 0.25); padding-left: 5px; }
+.ae-type { font-size: 12px; letter-spacing: 1.5px; padding: 1px 4px; border-radius: 2px;
+           display: inline-block; margin-left: 5px; vertical-align: middle; }
+.ae-type.proposal  { background: rgba(100, 200, 255, 0.12); color: rgba(100, 200, 255, 0.8); }
+.ae-type.yes       { background: rgba(100, 220, 150, 0.12); color: rgba(100, 220, 150, 0.8); }
+.ae-type.no        { background: rgba(255, 100, 80, 0.12);  color: rgba(255, 100, 80, 0.8); }
+.ae-type.action    { background: rgba(100, 200, 255, 0.12); color: rgba(100, 200, 255, 0.8); }
+.ae-type.knowledge { background: rgba(200, 150, 255, 0.12); color: rgba(200, 150, 255, 0.8); }
+
+/* ── Agent rank system ───────────────────────────────────────── */
+#panel-agents { flex-direction: column; gap: 5px; }
+.pagent-wrap { display: flex; align-items: center; gap: 5px; }
+.pagent { font-size: 12px; letter-spacing: 1px; flex: none; width: 64px; }
+.rank-badge {
+  font-size: 12px; letter-spacing: 1px; padding: 1px 4px; border-radius: 2px;
+  font-weight: bold; flex: none;
+}
+.rank-student    { background: rgba(130,130,130,0.15); color: rgba(170,170,170,0.8); }
+.rank-researcher { background: rgba(60,130,240,0.15);  color: rgba(80,160,255,0.85); }
+.rank-scientist  { background: rgba(40,200,160,0.15);  color: rgba(60,220,185,0.9); }
+.rank-professor  { background: rgba(150,220,255,0.15); color: rgba(180,235,255,0.95); }
+.xp-track { flex: 1; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; }
+.xp-fill  { height: 100%; border-radius: 1px; transition: width 0.8s ease; }
+.ae.ae-levelup { border-left: 2px solid rgba(150,220,255,0.5); padding-left: 5px;
+                 background: rgba(150,220,255,0.03); }
+.ae-type.levelup { background: rgba(150,220,255,0.15); color: rgba(180,235,255,0.9); }
+
+/* ── Frosted glass panels ────────────────────────────────────── */
+#hud {
+  background: rgba(3, 8, 18, 0.82);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(100, 180, 255, 0.09);
+  border-radius: 8px;
+  padding: 14px 18px;
+}
+#legend {
+  background: rgba(3, 8, 18, 0.78);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(80, 150, 200, 0.10);
+  border-top: none;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+#graph-box {
+  background: rgba(3, 8, 18, 0.78);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(80, 150, 200, 0.10);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+#elog {
+  background: rgba(3, 8, 18, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(100, 180, 255, 0.07);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+/* Title/subtitle offset for panel */
+#title   { right: 318px !important; }
+#subtitle { right: 318px !important; }
+
+/* Agent panel width override */
+#agent-panel { width: 300px !important; }
+#agent-panel.collapsed { transform: translateX(288px) !important; }
+
+/* More readable agent feed */
+.ae-msg { font-size: 12px !important; line-height: 1.72 !important; }
+.ae-name { font-size: 14px !important; letter-spacing: 2px !important; }
+
+/* Back button to home */
+#home-btn {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 14px; letter-spacing: 2.5px;
+  color: rgba(100, 160, 210, 0.85);
+  text-decoration: none;
+  padding: 0 0 10px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(100, 180, 255, 0.08);
+  transition: color 0.2s;
+  font-family: 'Courier New', monospace;
+}
+#home-btn:hover { color: rgba(150, 220, 255, 0.95); }
+#home-btn svg { opacity: 0.65; flex-shrink: 0; }
+#home-btn:hover svg { opacity: 1; }
 </style>
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -113,6 +277,21 @@ canvas { display: block; }
 
 <div id="world-state"></div>
 <div id="elog"></div>
+
+<!-- ── Agent panel ───────────────────────────────────────────── -->
+<div id="agent-panel">
+  <button id="panel-toggle" onclick="togglePanel()">AGENTS</button>
+  <div id="panel-header">
+    <a href="index.html" id="home-btn"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M6 2L3 5L6 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>PANDORA HOME</a>
+    <div id="panel-title">FIELD AGENTS — TERRA</div>
+    <div id="panel-agents">
+      <span class="pagent OBSERVER">OBSERVER</span>
+      <span class="pagent ANALYST">ANALYST</span>
+      <span class="pagent NARRATOR">NARRATOR</span>
+    </div>
+  </div>
+  <div id="agent-feed"></div>
+</div>
 
 <script>
 'use strict';
@@ -199,6 +378,11 @@ function initFirebase() {
     window.addEventListener('beforeunload', _savePositions);
     setInterval(_savePositions, 180000);
   } catch(e) { console.warn('[Pandora/Terra] Firebase init failed:', e); }
+}
+
+function writeKnowledgeToFirebase(entry) {
+  if (!fbDb) return;
+  try { fbDb.ref('pandora/knowledge').push(entry); } catch(e) {}
 }
 
 const bkey = (i, j) => i < j ? `${i},${j}` : `${j},${i}`;
@@ -530,10 +714,15 @@ function _setDeadLabel(text) {
   if (el) el.textContent = text;
 }
 
+// Wrapper so executeAction('DECLARE_DEAD') can call declareDead()
+function declareDead(reason) { _runDeathCycle(reason); }
+
 // Full death → archive → evolve → rebirth pipeline
 async function _runDeathCycle(deathReason) {
   _rebirthPhase = 1;
   _setDeadLabel('DEAD WORLD');
+  worldStatus = 'dead';
+  if (typeof convDead === 'function') convDead(deathReason);
 
   // --- Phase 1: archive immediately ---
   const archiveEntry = {
@@ -1279,6 +1468,11 @@ function promoteTier(t) {
   tierFlashLabel  = `T${t} — ${TIER_NAMES[t].toUpperCase()}`;
   logE(`▲ TIER ${t} — ${TIER_NAMES[t]}`);
   document.getElementById('v-tier').textContent = `T${t} — ${TIER_NAMES[t]}`;
+  peakComplexity = Math.max(typeof peakComplexity !== 'undefined' ? peakComplexity : 0,
+                            hist.length ? hist[hist.length-1] : 0);
+  peakTick = tick;
+  const cx = hist.length ? hist[hist.length-1] : 0;
+  if (typeof convTierUp === 'function') convTierUp(t, cx, latestChains.length, latestEnc);
 }
 
 function checkTiers(cx, mxl, nAgg, peps, clusters) {
@@ -1349,6 +1543,474 @@ function checkTiers(cx, mxl, nAgg, peps, clusters) {
   if (!tierAchieved[12] && enclosureAge >= 65) promoteTier(12); // ~780 ticks
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  REACTIVE AGENT CONVERSATION ENGINE — TERRA
+//
+//  Agents observe, debate, propose actions, vote (2/3 consensus),
+//  execute agreed interventions. Discoveries archived globally.
+// ═══════════════════════════════════════════════════════════════
+
+// ── Biome identity ────────────────────────────────────────────
+const BIOME_ID   = 0;
+const BIOME_NAME = 'TERRA';
+
+// ── Cross-biome knowledge (localStorage) ─────────────────────
+const K_KEY = 'pandora_knowledge_v1';
+
+function readKnowledge() {
+  try { return JSON.parse(localStorage.getItem(K_KEY) || '[]'); } catch(e) { return []; }
+}
+function writeKnowledge(entry) {
+  const full = {...entry, biome_id: BIOME_ID, biome: BIOME_NAME, tick, ts: Date.now()};
+  try {
+    const k = readKnowledge();
+    k.push(full);
+    if (k.length > 400) k.splice(0, k.length - 400);
+    localStorage.setItem(K_KEY, JSON.stringify(k));
+  } catch(e) {}
+  writeKnowledgeToFirebase(full);
+}
+function getOtherBiomeFacts() {
+  return readKnowledge().filter(e => e.biome_id !== BIOME_ID).slice(-12);
+}
+
+// ── Conversation state ────────────────────────────────────────
+const agentFeed = document.getElementById('agent-feed');
+const CONV = {
+  queue:        [],
+  cooldown:     0,
+  pending:      null,
+  history:      [],
+  booted:       false,
+  lastPeriodic: -1500,
+};
+
+const ACTIONS = {
+  INJECT_CATALYST: 'inject additional phosphate catalysts near the hydrothermal vent',
+  THERMAL_SURGE:   'apply a thermal surge from the vent, redistributing all agents',
+  AMINO_INFLUX:    'trigger a wave of amino acid influx from the vent source',
+  DECLARE_DEAD:    'archive this world and broadcast its learnings',
+};
+
+function speak(speaker, msg, type) {
+  type = type || 'statement';
+  CONV.queue.push({speaker, msg, type});
+}
+
+// ── Agent Rank System ─────────────────────────────────────────
+const RANKS   = ['STUDENT', 'RESEARCHER', 'SCIENTIST', 'PROFESSOR'];
+const RANK_XP = [0, 50, 150, 300];
+const RANK_W  = {STUDENT: 0.5, RESEARCHER: 1.0, SCIENTIST: 1.5, PROFESSOR: 2.0};
+const A_KEY   = 'pandora_agents_v1';
+
+const AGENT_STATE = {
+  OBSERVER: {xp:0, rank:'STUDENT', successful:0, failed:0},
+  ANALYST:  {xp:0, rank:'STUDENT', successful:0, failed:0},
+  NARRATOR: {xp:0, rank:'STUDENT', successful:0, failed:0},
+};
+
+function rankOf(xp) {
+  for (let i = RANKS.length - 1; i >= 0; i--) if (xp >= RANK_XP[i]) return RANKS[i];
+  return 'STUDENT';
+}
+
+function loadAgentProfiles() {
+  try { return JSON.parse(localStorage.getItem(A_KEY) || '{}'); } catch(e) { return {}; }
+}
+function saveAgentProfile(name) {
+  try {
+    const all = loadAgentProfiles();
+    all[`${BIOME_ID}_${name}`] = {
+      xp: AGENT_STATE[name].xp, rank: AGENT_STATE[name].rank,
+      successful: AGENT_STATE[name].successful, failed: AGENT_STATE[name].failed,
+    };
+    localStorage.setItem(A_KEY, JSON.stringify(all));
+  } catch(e) {}
+}
+
+function initAgentProfiles() {
+  const saved = loadAgentProfiles();
+  for (const name of ['OBSERVER','ANALYST','NARRATOR']) {
+    const key = `${BIOME_ID}_${name}`;
+    if (saved[key]) {
+      AGENT_STATE[name].xp         = saved[key].xp         || 0;
+      AGENT_STATE[name].successful = saved[key].successful || 0;
+      AGENT_STATE[name].failed     = saved[key].failed     || 0;
+    }
+    AGENT_STATE[name].rank = rankOf(AGENT_STATE[name].xp);
+  }
+  updateRankDisplay();
+}
+
+const RANK_UP_MSG = {
+  RESEARCHER: {
+    OBSERVER: 'My field observations have been validated enough times. I can now formally propose actions.',
+    ANALYST:  'My pattern recognition track record qualifies me as RESEARCHER. I may now issue proposals.',
+    NARRATOR: 'My contextual synthesis has earned research standing. I will use this to push for better decisions.',
+  },
+  SCIENTIST: {
+    OBSERVER: 'SCIENTIST rank. My observations have driven multiple successful interventions. I propose multi-step strategies now.',
+    ANALYST:  'SCIENTIST rank. My interventions have been validated across biomes. I can outweigh less-experienced voices.',
+    NARRATOR: 'SCIENTIST rank. My cross-biome synthesis has been consistently correct. I will argue harder for evidence-based action.',
+  },
+  PROFESSOR: {
+    OBSERVER: 'PROFESSOR. I have observed more in this world than anyone. My predictions have held across generations. I hold veto power.',
+    ANALYST:  'PROFESSOR. My analytical record is the strongest in Terra. I use my veto sparingly — only when evidence is unambiguous.',
+    NARRATOR: 'PROFESSOR. The hydrothermal vent has been my classroom. I will use this standing to honour what the archive demands.',
+  },
+};
+
+function awardXP(name, amount, reason) {
+  const s = AGENT_STATE[name];
+  if (!s) return;
+  const oldRank = s.rank;
+  s.xp = Math.max(0, s.xp + amount);
+  s.rank = rankOf(s.xp);
+  if (amount > 0) s.successful++; else if (amount < 0) s.failed++;
+  saveAgentProfile(name);
+  if (s.rank !== oldRank && RANKS.indexOf(s.rank) > RANKS.indexOf(oldRank)) {
+    const msg = RANK_UP_MSG[s.rank]?.[name] || `Rank advanced to ${s.rank}.`;
+    speak(name, `▲ RANK UP — ${s.rank}. ${msg}`, 'levelup');
+    writeKnowledge({type:'rank_up', agent:name, new_rank:s.rank, xp:s.xp,
+      summary:`${name} reached ${s.rank} (${s.xp} XP) in ${BIOME_NAME}`});
+  }
+  updateRankDisplay();
+}
+
+function updateRankDisplay() {
+  const container = document.getElementById('panel-agents');
+  if (!container) return;
+  container.innerHTML = ['OBSERVER','ANALYST','NARRATOR'].map(name => {
+    const s   = AGENT_STATE[name];
+    const ri  = RANKS.indexOf(s.rank);
+    const lo  = RANK_XP[ri];
+    const hi  = RANK_XP[ri+1] || (lo + 50);
+    const pct = Math.min(100, Math.round(((s.xp - lo) / (hi - lo)) * 100));
+    const fill_color = {STUDENT:'rgba(130,130,130,0.4)',RESEARCHER:'rgba(80,150,240,0.5)',
+                        SCIENTIST:'rgba(60,210,175,0.6)',PROFESSOR:'rgba(150,220,255,0.8)'}[s.rank];
+    return `<div class="pagent-wrap">
+      <span class="pagent ${name}">${name}</span>
+      <span class="rank-badge rank-${s.rank.toLowerCase()}" title="${s.rank} — ${s.xp} XP">${s.rank.charAt(0)}</span>
+      <div class="xp-track" title="${s.xp} XP / ${hi} next rank">
+        <div class="xp-fill" style="width:${pct}%;background:${fill_color}"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function rankPrefix(speaker) {
+  const rank = AGENT_STATE[speaker]?.rank || 'STUDENT';
+  if (rank === 'PROFESSOR') return '[PROF] ';
+  return '';
+}
+
+function canPropose(name) {
+  const rank = AGENT_STATE[name]?.rank || 'STUDENT';
+  if (rank === 'STUDENT') {
+    speak(name, `I want to propose an action but I need ${50 - (AGENT_STATE[name]?.xp||0)} more XP to reach RESEARCHER rank.`);
+    return false;
+  }
+  return true;
+}
+
+function flushQueue() {
+  if (!CONV.queue.length) return;
+  if (CONV.cooldown > 0) { CONV.cooldown--; return; }
+  const {speaker, msg, type} = CONV.queue.shift();
+  CONV.history.push({speaker, msg, type, tick});
+  if (CONV.history.length > 200) CONV.history.shift();
+  const badges = {
+    proposal:  '<span class="ae-type proposal">PROPOSAL</span>',
+    vote_yes:  '<span class="ae-type yes">AGREE</span>',
+    vote_no:   '<span class="ae-type no">DISAGREE</span>',
+    consensus: '<span class="ae-type action">CONSENSUS</span>',
+    action:    '<span class="ae-type action">ACTION</span>',
+    knowledge: '<span class="ae-type knowledge">FROM RECORD</span>',
+    levelup:   '<span class="ae-type levelup">RANK UP</span>',
+  };
+  const badge   = badges[type] || '';
+  const hiClass = ['proposal','consensus','action','levelup'].includes(type) ? ' ae-highlight' : '';
+  const lvClass = type === 'levelup' ? ' ae-levelup' : '';
+  const div = document.createElement('div');
+  div.className = `ae${hiClass}${lvClass}`;
+  div.innerHTML = `
+    <div class="ae-meta">
+      <span class="ae-name ${speaker}">${speaker}</span>
+      <span class="ae-time">t=${tick}</span>${badge}
+    </div>
+    <div class="ae-msg ${speaker}">${msg}</div>`;
+  agentFeed.appendChild(div);
+  agentFeed.scrollTop = agentFeed.scrollHeight;
+  while (agentFeed.children.length > 80) agentFeed.removeChild(agentFeed.firstChild);
+  if (['proposal','consensus','action','vote_yes','vote_no'].includes(type)) {
+    writeKnowledge({type, speaker, msg, summary: `${speaker}: ${msg.slice(0,80)}`});
+  }
+  CONV.cooldown = 50 + Math.floor(Math.random() * 40);
+}
+
+function propose(proposer, action, reason) {
+  if (CONV.pending) return false;
+  if (!canPropose(proposer)) return false;
+  CONV.pending = {action, reason, proposer, votes: {[proposer]: true},
+                  weights: {[proposer]: RANK_W[AGENT_STATE[proposer]?.rank||'STUDENT']}};
+  speak(proposer, `I propose we ${ACTIONS[action]}. ${reason}`, 'proposal');
+  return true;
+}
+
+function castVote(voter, inFavor, reason) {
+  if (!CONV.pending || voter in CONV.pending.votes) return;
+  CONV.pending.votes[voter] = inFavor;
+  CONV.pending.weights = CONV.pending.weights || {};
+  const vw = RANK_W[AGENT_STATE[voter]?.rank || 'STUDENT'];
+  CONV.pending.weights[voter] = inFavor ? vw : 0;
+
+  if (!inFavor && AGENT_STATE[voter]?.rank === 'PROFESSOR') {
+    speak(voter, `VETO. ${reason || 'The evidence does not support this action.'}`, 'vote_no');
+    speak('NARRATOR', `Professor-level veto applied. Proposal rejected. Continuing observation.`);
+    awardXP(voter, 5, 'Valid veto');
+    CONV.pending = null;
+    return;
+  }
+
+  speak(voter, reason || (inFavor ? 'Agreed.' : 'Disagree.'), inFavor ? 'vote_yes' : 'vote_no');
+  const weightedYes = Object.values(CONV.pending.weights).reduce((s,v) => s+v, 0);
+  const yes   = Object.values(CONV.pending.votes).filter(Boolean).length;
+  const total = Object.keys(CONV.pending.votes).length;
+
+  if (weightedYes >= 2.0 || yes >= 2) {
+    const p = CONV.pending; CONV.pending = null;
+    speak('NARRATOR', `Consensus — weighted ${weightedYes.toFixed(1)}, ${yes}/${total} yes. Executing.`, 'consensus');
+    setTimeout(() => executeAction(p.action, p.reason), 900);
+  } else if (total >= 3) {
+    speak('NARRATOR', `Proposal failed — weighted ${weightedYes.toFixed(1)}, ${yes}/${total}. Continuing.`);
+    if (CONV.pending) awardXP(CONV.pending.proposer, -8, 'Failed proposal');
+    CONV.pending = null;
+  }
+}
+
+function executeAction(action, reason) {
+  switch (action) {
+    case 'INJECT_CATALYST':
+      for (let i = 0; i < 18; i++)
+        addAgent(PHOS, W*0.5+(Math.random()-0.5)*W*0.12, H-4,
+                 (Math.random()-0.5)*0.7, -3.2-Math.random()*2.2);
+      speak('OBSERVER', `Injected 18 phosphate catalysts near the vent. Monitoring peptide bond rate response.`, 'action');
+      break;
+    case 'THERMAL_SURGE':
+      if (currentTier >= 5) {
+        speak('SYSTEM', `THERMAL_SURGE blocked at T${currentTier} — structural protection active. Applying safe catalyst injection instead.`);
+        executeAction('INJECT_CATALYST', 'Auto-safe fallback: thermal action blocked at T5+');
+        return;
+      }
+      for (const a of A) { a.vx += (Math.random()-0.5)*14; a.vy += (Math.random()-0.5)*14; }
+      perturbFlash = 40;
+      speak('OBSERVER', `Thermal surge applied at T${currentTier} — all ${A.length} agents redistributed. Watching for higher-complexity reconfiguration.`, 'action');
+      break;
+    case 'AMINO_INFLUX':
+      for (let i = 0; i < 40; i++)
+        addAgent(AA, W*0.5+(Math.random()-0.5)*W*0.15, H-4,
+                 (Math.random()-0.5)*2.5, -1.8-Math.random()*2);
+      speak('OBSERVER', `Amino acid influx — 40 AA units erupted from the vent. Total: ${A.length}.`, 'action');
+      break;
+    case 'DECLARE_DEAD':
+      declareDead(reason); return;
+  }
+  interventions++;
+  peakTick    = tick;
+  worldStatus = 'perturbed';
+  const el = document.getElementById('world-state');
+  el.textContent = action.replace(/_/g,' ');
+  el.className   = 'perturbed';
+  setTimeout(() => { if (worldStatus !== 'dead') { el.className=''; el.textContent=''; } }, 3000);
+  writeKnowledge({type:'intervention', action, summary: `Applied ${action}: ${reason}`});
+}
+
+// ── Conversation triggers ─────────────────────────────────────
+function convBoot() {
+  const facts = getOtherBiomeFacts();
+  const N = A.length;
+  speak('OBSERVER', `Biome-00 TERRA online. Hydrothermal vent chemistry, 350K, 10 atm. ${N} agents initialised — amino acids, lipids, phosphate catalysts.`);
+  speak('ANALYST',  `Conditions nominal: T₀=350K, P=10 atm, AA:LIPID:PHOS ratio set. Activation energy approx 120 kJ/mol. Vent thermal gradient active.`);
+  if (facts.length > 0) {
+    const f = facts[facts.length-1];
+    speak('NARRATOR', `The archive carries data from ${f.biome}: "${f.summary}". We enter Terra knowing what the other worlds discovered.`, 'knowledge');
+  } else {
+    speak('NARRATOR', `The hydrothermal vent is the oldest hypothesis for life's origin. Heat, minerals, and chemistry at the ocean floor. We are testing it now.`);
+  }
+}
+
+function convTierUp(t, cx, mxl, enc) {
+  const facts = getOtherBiomeFacts();
+  const ref   = facts.length ? facts[facts.length-1] : null;
+  awardXP('OBSERVER', 20, `T${t} tier-up reported`);
+  if (t === 1) {
+    speak('OBSERVER', `First peptide bond confirmed at t=${tick}. T1 — molecular activity. The vent chemistry is working.`);
+    speak('ANALYST',  `Amino acid condensation initiated. Thermal gradient near vent is lowering the effective activation barrier. Expected at this temperature.`);
+    speak('NARRATOR', `The first bond. Chemistry reaching toward complexity. The vent knew what it was doing long before we arrived.`);
+  } else if (t === 2) {
+    speak('OBSERVER', `Persistent peptide chain — ${mxl} AA units, chain stability confirmed. T2.`);
+    speak('ANALYST',  `Chain persistence exceeds thermal break rate. This is the polymer threshold. The vent's heat is now building, not destroying.`);
+    if (ref) speak('NARRATOR', `${ref.biome} also found polymer stability — "${ref.summary}". Terra echoes what the archive predicted.`, 'knowledge');
+    else     speak('NARRATOR', `A peptide chain is the universe writing its first sentence. The vent is the pen. We watch the grammar emerge.`);
+  } else if (t === 3) {
+    speak('OBSERVER', `Lipid aggregation clusters forming. Amphiphilic self-assembly beginning. T3.`);
+    speak('ANALYST',  `Lipid heads orienting toward water, tails clustering together. Proto-micelle geometry detected. This is the first structural organisation.`);
+    speak('NARRATOR', `The molecules are learning to prefer certain arrangements. Preference is the beginning of everything.`);
+  } else if (t === 4) {
+    speak('OBSERVER', `Lipid bilayer formation event — enclosure geometry emerging. T4.`);
+    speak('ANALYST',  `Bilayer curvature closing. The thermodynamic minimum is a closed surface. The physics demands this shape.`);
+    speak('NARRATOR', `An inside and an outside. The membrane is the first border. The first definition of self. Everything after this follows.`);
+  } else if (t === 5) {
+    speak('OBSERVER', `Enclosure confirmed — AA content detected inside lipid boundary. T5 — compartmentalisation.`);
+    speak('ANALYST',  `Interior AA density elevated relative to exterior. The membrane is selective. This is proto-osmosis.`);
+    speak('NARRATOR', `The cell did not evolve — it was always the destination. Every step before this was the universe asking: can you make an inside?`);
+  } else if (t === 6) {
+    speak('OBSERVER', `Sustained complexity above threshold. Self-reinforcing chemistry inside enclosure. T6.`);
+    speak('ANALYST',  `Positive feedback loop confirmed. Internal peptide chemistry is maintaining itself. The compartment is autocatalytic.`);
+    speak('NARRATOR', `It wants to persist. Not yet life — but something that acts like it wants to continue existing. The distinction narrows.`);
+  }
+  writeKnowledge({type:'tier_up', tier:t, cx, mxl, enc,
+    summary:`T${t} achieved at t=${tick}: cx=${cx.toFixed(3)}, chain=${mxl}, enc=${enc}`});
+}
+
+function convStagnationWarning(cx, mxl) {
+  const elapsed = tick - peakTick;
+  const pct     = Math.round((elapsed / STAGNATION_WINDOW) * 100);
+  speak('OBSERVER', `Stagnation — peak cx=${peakComplexity.toFixed(3)} reached ${elapsed} ticks ago. ${pct}% of tolerance window consumed.`);
+  speak('ANALYST',  `Chain max=${mxl}, bonds=${BONDS.size}, enclosures=${latestEnc}. T${currentTier} achieved. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining.`);
+  const delay = 700;
+
+  // At T5+, thermal surge destroys lipid membranes and complex peptide structure.
+  if (currentTier >= 5) {
+    speak('ANALYST', `We are at T${currentTier} — a thermal surge would rupture lipid membranes and dismantle peptide networks built over thousands of ticks. Forbidden.`);
+    speak('NARRATOR', `A T${currentTier} world has architecture. The agents do not scatter architecture. They sustain it.`);
+    if (latestEnc === 0) {
+      setTimeout(() => {
+        propose('ANALYST', 'AMINO_INFLUX', `Membrane formation needs more substrate. Amino acid influx is safe — it adds material without destroying existing structure.`);
+        setTimeout(() => {
+          castVote('OBSERVER', true, `AA density is the limiting factor. Vent influx is the correct non-destructive intervention.`);
+          setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `We add, not scatter. Vote yes.`); }, 1200);
+        }, 900);
+      }, delay);
+    } else {
+      setTimeout(() => {
+        propose('ANALYST', 'INJECT_CATALYST', `Enclosures present at T${currentTier}. Phosphate injection will support internal chemistry without disrupting membranes.`);
+        setTimeout(() => {
+          castVote('OBSERVER', true, `Catalyst support is the safest option. Internal chemistry needs fuel, not trauma.`);
+          setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Sustain the inside. Vote yes.`); }, 1200);
+        }, 900);
+      }, delay);
+    }
+    return;
+  }
+
+  if (latestEnc === 0 && A.filter(a => a.type === LIPID).length < 60) {
+    speak('ANALYST', `Lipid concentration insufficient for membrane formation. Proposing amino acid influx to increase substrate density.`);
+    setTimeout(() => {
+      propose('ANALYST', 'AMINO_INFLUX', `Insufficient AA density for the peptide networks to self-sustain. Vent replenishment required.`);
+      setTimeout(() => {
+        castVote('OBSERVER', true, `Confirmed — AA count below critical threshold. Influx justified.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The vent must give more. Vote yes.`); }, 1200);
+      }, 900);
+    }, delay);
+  } else if (BONDS.size < 15) {
+    speak('ANALYST', `Peptide network is fragmented. Catalyst concentration is the limiting factor. Phosphate injection recommended.`);
+    setTimeout(() => {
+      propose('ANALYST', 'INJECT_CATALYST', `Bond formation rate is sub-threshold. Phosphate catalyst needed to drive condensation.`);
+      setTimeout(() => {
+        castVote('OBSERVER', true, `PHOS count has declined. Vent injection is the correct response.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. The vent must supply what the chemistry demands.`); }, 1100);
+      }, 900);
+    }, delay);
+  } else if (currentTier <= 4) {
+    speak('ANALYST', `At T${currentTier}, thermal redistribution is a viable option. The network has no enclosures to destroy.`);
+    setTimeout(() => {
+      propose('OBSERVER', 'THERMAL_SURGE', `At T${currentTier}, system is in a local attractor. Thermal redistribution may open a path to higher complexity.`);
+      setTimeout(() => {
+        const analyst_yes = Math.random() > 0.3;
+        castVote('ANALYST', analyst_yes, analyst_yes ? `Network topology at T${currentTier} confirms stagnation. Thermal perturbation is warranted.` : `Risk of dissolution. I am uncertain — the network may not recover.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation at T${currentTier} exceeds the risk. Vote yes.`); }, 1100);
+      }, 900);
+    }, delay);
+  } else {
+    speak('ANALYST', `At T${currentTier} with existing bonds, catalyst injection is the safest option.`);
+    setTimeout(() => {
+      propose('ANALYST', 'INJECT_CATALYST', `Phosphate catalyst is depleted. Safe injection to maintain bond formation without structural risk.`);
+      setTimeout(() => {
+        castVote('OBSERVER', true, `Catalyst replenishment confirmed as appropriate.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Safe and necessary. Vote yes.`); }, 1100);
+      }, 900);
+    }, delay);
+  }
+}
+
+function convDead(reason) {
+  const facts = getOtherBiomeFacts();
+  speak('OBSERVER', `World terminated. Final: cx=${peakComplexity.toFixed(3)}, T${currentTier}, ${interventions} interventions. Reason: ${reason}`);
+  speak('ANALYST', currentTier < 2
+    ? `Limiting factor: peptide bond formation rate was insufficient. Temperature or catalyst concentration did not reach the condensation threshold.`
+    : currentTier < 5
+    ? `Limiting factor: lipid self-assembly failed to close. Bilayer formation requires precise amphiphile concentration that was not sustained.`
+    : `Limiting factor: compartment stability ceiling at T${currentTier}. Internal chemistry could not maintain autocatalytic feedback.`);
+  if (facts.length > 0) {
+    const others = [...new Set(facts.slice(-3).map(f => f.biome))].join(', ');
+    speak('NARRATOR', `These findings join records from ${others}. Terra's children inherit this knowledge. The vent remembers.`, 'knowledge');
+  } else {
+    speak('NARRATOR', `Terra tried. What we learned about vent chemistry, phosphate thresholds, and lipid assembly at 350K is now in the archive. The world is quiet. The knowledge is not.`);
+  }
+  awardXP('NARRATOR', 15, 'World archived with full analysis');
+  awardXP('OBSERVER',  5, 'Death documented');
+  writeKnowledge({type:'death', reason, peak_cx: peakComplexity, peak_tier: currentTier,
+    interventions_applied: interventions,
+    summary: `TERRA died at t=${tick}, T${currentTier}, cx=${peakComplexity.toFixed(2)}: ${reason}`});
+}
+
+function convPeriodic() {
+  const cx    = hist.length ? hist[hist.length-1] : 0;
+  const facts = getOtherBiomeFacts();
+  const turn  = Math.floor(tick / 1500) % 3;
+  if (turn === 0) {
+    speak('OBSERVER', `Report t=${tick}. Bonds: ${BONDS.size}. Chains: ${latestChains.length}. Enclosures: ${latestEnc}. Complexity: ${cx.toFixed(3)}.`);
+    speak('ANALYST', latestEnc > 0
+      ? `Compartmentalisation confirmed. ${latestEnc} enclosure(s). Internal chemistry developing.`
+      : latestChains.length > 0
+      ? `Peptide networks forming. ${latestChains.length} chain(s). Lipid assembly is the next milestone.`
+      : `Early stage. Bond formation beginning. Vent chemistry establishing baseline conditions.`);
+  } else if (turn === 1 && facts.length > 0) {
+    const f = facts[Math.floor(Math.random() * facts.length)];
+    speak('ANALYST', `Cross-biome data: ${f.biome} recorded — "${f.summary}". Comparing to TERRA at T${currentTier}.`, 'knowledge');
+    speak('OBSERVER', `Integration question: what parameter difference led to their T${f.tier||'?'} vs our T${currentTier}? Temperature, catalyst, or geometry?`);
+  } else {
+    if (tierAchieved[5])      speak('NARRATOR', `An inside and an outside. The membrane holds. This is what 4 billion years of Earth chemistry was building toward.`);
+    else if (tierAchieved[3]) speak('NARRATOR', `Lipids finding each other in the thermal gradient. The vent is a sorting machine. It selects for order.`);
+    else if (tierAchieved[1]) speak('NARRATOR', `The first bonds are forming. Slow, patient chemistry. The vent does not rush. It simply persists.`);
+    else                       speak('NARRATOR', `Terra waits. The hydrothermal vent has been running for millennia before biology arrived. We are watching the earliest moments.`);
+  }
+  const stagnPct = (tick - peakTick) / STAGNATION_WINDOW;
+  if (stagnPct > 0.70 && stagnPct < 0.95 && !CONV.pending && interventions < MAX_INTERVENTIONS) {
+    setTimeout(() => convStagnationWarning(cx, latestChains.length), 400);
+  }
+}
+
+function runAgentConversations() {
+  flushQueue();
+  if (!CONV.booted && tick >= 1) {
+    CONV.booted = true;
+    initAgentProfiles();
+    convBoot();
+    return;
+  }
+  if (worldStatus !== 'dead' && tick - CONV.lastPeriodic >= 1500 && tick > 200) {
+    CONV.lastPeriodic = tick;
+    convPeriodic();
+  }
+}
+
+// ── Panel toggle ──────────────────────────────────────────────
+function togglePanel() {
+  document.getElementById('agent-panel').classList.toggle('collapsed');
+}
+
 // ── Speed control ─────────────────────────────────────────────
 // Physics steps per rendered frame — increase for faster evolution
 let SPEED = 4;
@@ -1408,6 +2070,7 @@ function loop() {
     update();
     if (tick - lastUI >= 12) {
       updateUI();
+      runAgentConversations();
       lastUI = tick;
     }
   }
@@ -1443,7 +2106,10 @@ setTimeout(async function _pandoraResume() {
         new Promise(r => setTimeout(() => r(null), 2000))
       ]);
       const st = stSnap ? stSnap.val() : null;
-      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead') {
+      // Only restore state-snapshot values if local sim is still early (tick < 50)
+      // AND the saved state is not dead. This prevents the worker's inflated tick
+      // from overwriting a freshly-started generation.
+      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead' && tick < 50) {
         tick        = st.tick        || 0;
         currentTier = st.currentTier || 0;
         if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
@@ -1492,8 +2158,23 @@ setTimeout(async function _pandoraResume() {
       const savedGenome = genomeSnap ? genomeSnap.val() : null;
       if (savedGenome && typeof savedGenome === 'object') {
         _genome = { n1:1, n2:1, n3:1, noiseScale:1, ...savedGenome };
-        // Re-run init with evolved genome (replacing the default gen-1 particles)
+        // Starting a fresh generation — reset all counters so we don't carry
+        // stale values from the worker or a previous generation's Firebase state.
+        worldStatus     = 'active';
+        currentTier     = 0;
+        tick            = 0;
+        if (typeof peakComplexity  !== 'undefined') peakComplexity  = 0;
+        if (typeof peakTick        !== 'undefined') peakTick        = 0;
+        if (typeof interventions   !== 'undefined') interventions   = 0;
+        if (typeof hist            !== 'undefined') hist.length     = 0;
+        if (typeof tierAchieved    !== 'undefined') tierAchieved.fill(false);
+        if (typeof totalBondsFormed !== 'undefined') totalBondsFormed = 0;
+        const _wsEl = document.getElementById('world-state');
+        if (_wsEl) { _wsEl.textContent = ''; _wsEl.className = ''; }
+        // Re-run init with evolved genome
         init(_genome);
+        // Safety: if genome somehow produced 0 particles, fallback to defaults
+        if (typeof A !== 'undefined' && A.length === 0) init();
         const wsLbl = document.getElementById('ws-lbl');
         if (wsLbl) wsLbl.textContent = _generation > 1 ? `GEN ${_generation} — EVOLVED` : 'RESUMING WORLD';
       }

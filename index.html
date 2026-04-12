@@ -665,7 +665,10 @@ function makeCard(b) {
           <div class="sdot ${b.status}"></div>
           <span style="color:${s[2]}">${{active:'ACTIVE',dead:'DEAD',forming:'FORMING'}[b.status]}</span>
         </div>
-        <div style="font-size:8px;color:${s[3]}">${getFamily(b.id).split('/')[0].trim()}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${isLive ? `<div id="gen-badge-${b.id}" style="font-size:8px;letter-spacing:0.12em;color:rgba(100,180,255,0.55)">GEN 1</div>` : ''}
+          <div style="font-size:8px;color:${s[3]}">${getFamily(b.id).split('/')[0].trim()}</div>
+        </div>
       </div>
     </div>
   `;
@@ -781,11 +784,27 @@ function openModal(id) {
   const btn = document.getElementById('m-enter');
   if(b.file) {
     btn.disabled = false;
-    const _curGen = _biomeCurrentGen[b.id] || 1;
-    btn.textContent = `⬤  ENTER SIMULATION — GEN ${_curGen} →`;
     btn.style.borderColor = 'rgba(60,180,120,0.35)';
     btn.style.color = 'rgba(100,220,160,0.85)';
     btn.style.background = 'rgba(20,80,50,0.15)';
+    // Use cached gen first, then refresh from Firebase
+    const _cachedGen = _biomeCurrentGen[b.id] || 1;
+    btn.textContent = `⬤  ENTER SIMULATION — GEN ${_cachedGen} →`;
+    // Live-fetch the actual current generation from Firebase
+    if (typeof firebase !== 'undefined' && firebase.apps.length) {
+      const _db = firebase.database();
+      _db.ref(`pandora/biomes/${b.id}/currentGeneration`).once('value').then(snap => {
+        const liveGen = snap ? (snap.val() || 1) : 1;
+        _biomeCurrentGen[b.id] = liveGen;
+        btn.textContent = `⬤  ENTER SIMULATION — GEN ${liveGen} →`;
+        // Also update the gen badge on the card
+        const genBadge = document.getElementById(`gen-badge-${b.id}`);
+        if (genBadge) {
+          genBadge.textContent = `GEN ${liveGen}`;
+          genBadge.style.color = liveGen > 1 ? 'rgba(140,220,160,0.75)' : 'rgba(100,180,255,0.55)';
+        }
+      }).catch(() => {});
+    }
   } else if(b.status === 'dead') {
     btn.disabled = true;
     btn.textContent = '✕  WORLD ARCHIVED — AWAITING REBIRTH';
@@ -827,11 +846,23 @@ function handleOverlayClick(e) {
 function enterSim() {
   const b = BIOMES.find(x=>x.id===modalId);
   if(b && b.file) {
-    // Navigate to current generation (biome-00-terra.html?g=2 etc.)
-    // If no generation tracked yet, plain URL — biome will auto-redirect if needed
-    const _curGen = _biomeCurrentGen[b.id] || 0;
-    const url = _curGen > 1 ? `${b.file}?g=${_curGen}` : b.file;
-    window.open(url, '_self');
+    // Always do a fresh Firebase read for currentGeneration before navigating
+    // This ensures we go to the correct generation even if Firebase data was stale
+    const _doNavigate = (gen) => {
+      const url = gen > 1 ? `${b.file}?g=${gen}` : b.file;
+      window.open(url, '_self');
+    };
+    if (typeof firebase !== 'undefined' && firebase.apps.length) {
+      const _db = firebase.database();
+      _db.ref(`pandora/biomes/${b.id}/currentGeneration`).once('value').then(snap => {
+        const gen = snap ? (snap.val() || 1) : 1;
+        _doNavigate(gen);
+      }).catch(() => {
+        _doNavigate(_biomeCurrentGen[b.id] || 1);
+      });
+    } else {
+      _doNavigate(_biomeCurrentGen[b.id] || 1);
+    }
   }
 }
 
@@ -1506,13 +1537,28 @@ function initIndexFirebase() {
       const data = snap.val();
       if (!data) return;
 
+      // Deduplicate padded vs unpadded keys (e.g. '04' and '4' both map to biome 4).
+      // Prefer the shorter/unpadded key (the canonical form used by biome pages).
+      const deduped = {};
+      Object.entries(data).forEach(([k, v]) => {
+        const norm = String(parseInt(k)); // '04' → '4', '4' → '4'
+        if (!deduped[norm] || k.length <= norm.length) deduped[norm] = v;
+      });
+
       let deadCount = 0, maxTier = 0, maxTierBiome = null;
 
-      Object.entries(data).forEach(([idStr, biome]) => {
+      Object.entries(deduped).forEach(([idStr, biome]) => {
         const id    = parseInt(idStr);
         const state = biome.state;
         // Store current generation for this biome
-        if (biome.currentGeneration) _biomeCurrentGen[id] = biome.currentGeneration;
+        const curGen = biome.currentGeneration || 1;
+        _biomeCurrentGen[id] = curGen;
+        // Update gen badge on card
+        const genBadge = document.getElementById(`gen-badge-${id}`);
+        if (genBadge && curGen > 0) {
+          genBadge.textContent = `GEN ${curGen}`;
+          if (curGen > 1) genBadge.style.color = 'rgba(140,220,160,0.75)';
+        }
         if (!state) return;
 
         const card = document.querySelector(`[data-id="${id}"]`);
@@ -1574,7 +1620,7 @@ function initIndexFirebase() {
       let totalArchived = 0;
       let totalActiveReal = 0;
       let totalFormingReal = 0;
-      Object.values(data).forEach(biome => {
+      Object.values(deduped).forEach(biome => {
         const archives = biome.archives;
         if (archives) totalArchived += Object.keys(archives).length;
         const st = biome.state;
@@ -1586,7 +1632,7 @@ function initIndexFirebase() {
       const elDead = document.getElementById('s-dead');
       if (elDead) elDead.textContent = totalArchived;
       // Show real active/forming counts only if Firebase has data (> 0 biomes)
-      const fbBiomeCount = Object.keys(data).length;
+      const fbBiomeCount = Object.keys(deduped).length;
       if (fbBiomeCount > 0) {
         const elActive  = document.getElementById('s-active');
         const elForming = document.getElementById('s-forming');
@@ -1627,7 +1673,7 @@ function initIndexFirebase() {
       };
       // Build archive cards for each real biome's archive entries
       const realArchiveCards = [];
-      Object.entries(data).forEach(([idStr, biome]) => {
+      Object.entries(deduped).forEach(([idStr, biome]) => {
         if (!biome.archives) return;
         const name = realBiomeNames[idStr] || `Biome-${idStr}`;
         const chem = realBiomeChem[idStr]  || '—';
@@ -1667,7 +1713,7 @@ function initIndexFirebase() {
         if (archiveGrid) archiveGrid.insertBefore(div, archiveGrid.firstChild);
       });
 
-      console.log(`[Pandora] Firebase: ${Object.keys(data).length} biomes, ${totalArchived} archive entries.`);
+      console.log(`[Pandora] Firebase: ${Object.keys(deduped).length} biomes (deduped from ${Object.keys(data).length} keys), ${totalArchived} archive entries.`);
     }).catch(e => console.warn('[Pandora Firebase] index load failed:', e));
 
     // ── Presence: register this session ──────────────────────

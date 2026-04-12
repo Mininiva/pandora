@@ -1704,9 +1704,14 @@ function executeAction(action, reason) {
       speak('OBSERVER', `Injected 18 water catalyst molecules. Monitoring B-N bond rate response.`, 'action');
       break;
     case 'THERMAL_SHOCK':
+      if (currentTier >= 5) {
+        speak('SYSTEM', `THERMAL_SHOCK blocked at T${currentTier} — structural protection active. Applying safe material rain instead.`);
+        executeAction('MATERIAL_RAIN', 'Auto-safe fallback: thermal action blocked at T5+');
+        return;
+      }
       for (const a of A) { a.vx += (Math.random()-0.5)*12; a.vy += (Math.random()-0.5)*12; }
       perturbFlash = 40;
-      speak('OBSERVER', `Redistribution applied — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
+      speak('OBSERVER', `Redistribution applied at T${currentTier} — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
       break;
     case 'MATERIAL_RAIN':
       for (let i = 0; i < 35; i++)
@@ -1790,15 +1795,27 @@ function convStagnationWarning(cx, mxl) {
       }, 900);
     }, delay);
   } else if (BONDS.size < 20) {
-    speak('ANALYST', `B-N topology is fragmented. A tectonic shockwave may break stuck configurations and allow hexagonal clustering.`);
-    setTimeout(() => {
-      propose('ANALYST', 'THERMAL_SHOCK', `Current BN topology is stuck in linear geometries. Disruption may allow the thermodynamically preferred hexagonal configuration to emerge.`);
+    if (currentTier >= 5) {
+      speak('ANALYST', `We are at T${currentTier} — thermal disruption would destroy the hexagonal BN architecture that took thousands of ticks to assemble. Only safe interventions permissible.`);
+      speak('NARRATOR', `The agents do not scatter what isoelectronic geometry so carefully arranged.`);
       setTimeout(() => {
-        const obs_yes = Math.random() > 0.3;
-        castVote('OBSERVER', obs_yes, obs_yes ? `Network topology maps confirm fragmentation.` : `Risk: BN bonds are moderately strong — a full scatter may break the best configurations we have.`);
-        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation exceeds the risk. Vote yes.`); }, 1100);
-      }, 900);
-    }, delay);
+        propose('ANALYST', 'MATERIAL_RAIN', `At T${currentTier}, fresh BN substrate is the safe path. No tectonic disruption.`);
+        setTimeout(() => {
+          castVote('OBSERVER', true, `Confirmed — material replenishment preserves existing BN architecture while providing new substrate for ring formation.`);
+          setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Structural integrity takes precedence.`); }, 1100);
+        }, 900);
+      }, delay);
+    } else {
+      speak('ANALYST', `B-N topology is fragmented. A tectonic shockwave may break stuck configurations and allow hexagonal clustering.`);
+      setTimeout(() => {
+        propose('ANALYST', 'THERMAL_SHOCK', `Current BN topology is stuck in linear geometries. Disruption may allow the thermodynamically preferred hexagonal configuration to emerge.`);
+        setTimeout(() => {
+          const obs_yes = Math.random() > 0.3;
+          castVote('OBSERVER', obs_yes, obs_yes ? `Network topology maps confirm fragmentation.` : `Risk: BN bonds are moderately strong — a full scatter may break the best configurations we have.`);
+          setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation exceeds the risk. Vote yes.`); }, 1100);
+        }, 900);
+      }, delay);
+    }
   } else {
     speak('ANALYST', `BO atom count falling. External BN molecule input would replenish the substrate for hexagonal ring formation.`);
     setTimeout(() => {
@@ -2151,7 +2168,10 @@ setTimeout(async function _pandoraResume() {
         new Promise(r => setTimeout(() => r(null), 2000))
       ]);
       const st = stSnap ? stSnap.val() : null;
-      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead') {
+      // Only restore state-snapshot values if local sim is still early (tick < 50)
+      // AND the saved state is not dead. This prevents the worker's inflated tick
+      // from overwriting a freshly-started generation.
+      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead' && tick < 50) {
         tick        = st.tick        || 0;
         currentTier = st.currentTier || 0;
         if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
@@ -2200,8 +2220,23 @@ setTimeout(async function _pandoraResume() {
       const savedGenome = genomeSnap ? genomeSnap.val() : null;
       if (savedGenome && typeof savedGenome === 'object') {
         _genome = { n1:1, n2:1, n3:1, noiseScale:1, ...savedGenome };
-        // Re-run init with evolved genome (replacing the default gen-1 particles)
+        // Starting a fresh generation — reset all counters so we don't carry
+        // stale values from the worker or a previous generation's Firebase state.
+        worldStatus     = 'active';
+        currentTier     = 0;
+        tick            = 0;
+        if (typeof peakComplexity  !== 'undefined') peakComplexity  = 0;
+        if (typeof peakTick        !== 'undefined') peakTick        = 0;
+        if (typeof interventions   !== 'undefined') interventions   = 0;
+        if (typeof hist            !== 'undefined') hist.length     = 0;
+        if (typeof tierAchieved    !== 'undefined') tierAchieved.fill(false);
+        if (typeof totalBondsFormed !== 'undefined') totalBondsFormed = 0;
+        const _wsEl = document.getElementById('world-state');
+        if (_wsEl) { _wsEl.textContent = ''; _wsEl.className = ''; }
+        // Re-run init with evolved genome
         init(_genome);
+        // Safety: if genome somehow produced 0 particles, fallback to defaults
+        if (typeof A !== 'undefined' && A.length === 0) init();
         const wsLbl = document.getElementById('ws-lbl');
         if (wsLbl) wsLbl.textContent = _generation > 1 ? `GEN ${_generation} — EVOLVED` : 'RESUMING WORLD';
       }

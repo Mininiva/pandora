@@ -1727,9 +1727,14 @@ function executeAction(action, reason) {
       speak('OBSERVER', `Injected 18 phosphate catalysts. Monitoring peptide bond rate response.`, 'action');
       break;
     case 'THERMAL_SHOCK':
+      if (currentTier >= 5) {
+        speak('SYSTEM', `THERMAL_SHOCK blocked at T${currentTier} — structural protection active. Applying safe material rain instead.`);
+        executeAction('MATERIAL_RAIN', 'Auto-safe fallback: thermal action blocked at T5+');
+        return;
+      }
       for (const a of A) { a.vx += (Math.random()-0.5)*12; a.vy += (Math.random()-0.5)*12; }
       perturbFlash = 40;
-      speak('OBSERVER', `Redistribution applied — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
+      speak('OBSERVER', `Redistribution applied at T${currentTier} — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
       break;
     case 'MATERIAL_RAIN':
       for (let i = 0; i < 35; i++)
@@ -1801,10 +1806,25 @@ function convStagnationWarning(cx, mxl) {
   const elapsed = tick - peakTick;
   const pct     = Math.round((elapsed / STAGNATION_WINDOW) * 100);
   speak('OBSERVER', `Stagnation — peak cx=${peakComplexity.toFixed(3)} reached ${elapsed} ticks ago. ${pct}% of tolerance window consumed.`);
-  speak('ANALYST',  `Peptide chain=${mxl}, bonds=${BONDS.size}. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining.`);
+  speak('ANALYST',  `Peptide chain=${mxl}, bonds=${BONDS.size}. T${currentTier} achieved. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining.`);
   const delay = 700;
+
+  // At T5+, thermal shock destroys complex structure. Only safe interventions allowed.
+  if (currentTier >= 5) {
+    speak('ANALYST', `We are at T${currentTier} — thermal redistribution would destroy the molecular architecture we have built. Only catalyst support is permissible.`);
+    speak('NARRATOR', `A world at T${currentTier} is not stagnant — it is building. The agents must not scatter what took thousands of ticks to assemble.`);
+    setTimeout(() => {
+      propose('ANALYST', 'INJECT_CATALYST', `At T${currentTier}, the network needs catalytic support, not disruption. Phosphate injection will maintain bond formation rate.`);
+      setTimeout(() => {
+        castVote('OBSERVER', true, `Confirmed — PH concentration declining while network complexity holds. Safe intervention.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. We sustain, not scatter.`); }, 1200);
+      }, 900);
+    }, delay);
+    return;
+  }
+
   if (mxl < 3) {
-    speak('ANALYST', `Clay surface is under-utilised. Phosphate catalyst density appears insufficient to drive condensation. Proposing PH injection.`);
+    speak('ANALYST', `Clay surface is under-utilised. Phosphate catalyst density appears insufficient to drive condensation.`);
     setTimeout(() => {
       propose('ANALYST', 'INJECT_CATALYST', `Peptide bond formation cannot sustain chains without adequate phosphate surface chemistry.`);
       setTimeout(() => {
@@ -1812,22 +1832,22 @@ function convStagnationWarning(cx, mxl) {
         setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Clay without phosphate is just mineral. The catalyst is the key.`); }, 1200);
       }, 900);
     }, delay);
-  } else if (BONDS.size < 20) {
-    speak('ANALYST', `Peptide network topology is fragmented — isolated short chains, no large cluster. Thermal shock may help chains find each other.`);
+  } else if (BONDS.size < 20 && currentTier <= 4) {
+    speak('ANALYST', `Peptide network topology is fragmented at T${currentTier} — thermal shock may help chains find each other. Safe at this tier.`);
     setTimeout(() => {
-      propose('ANALYST', 'THERMAL_SHOCK', `Current peptide topology is stuck in isolated dyads. A redistribution event may allow higher-complexity clustering.`);
+      propose('ANALYST', 'THERMAL_SHOCK', `At T${currentTier}, isolated dyads need redistribution. Risk is acceptable — no complex structure to destroy.`);
       setTimeout(() => {
         const obs_yes = Math.random() > 0.3;
-        castVote('OBSERVER', obs_yes, obs_yes ? `Network topology maps confirm fragmentation.` : `Scattering could cause re-aggregation on clay patches or total dissolution.`);
-        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation exceeds the risk. Vote yes.`); }, 1100);
+        castVote('OBSERVER', obs_yes, obs_yes ? `Network topology confirms fragmentation. Thermal redistribution justified.` : `Risk: scattering could cause total dissolution instead of reclustering.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation at T${currentTier} exceeds the risk. Vote yes.`); }, 1100);
       }, 900);
     }, delay);
   } else {
-    speak('ANALYST', `Material balance is the issue — AA count falling. Exogenous amino acid rain would replenish substrate.`);
+    speak('ANALYST', `Material balance is the issue — AA count falling. Exogenous amino acid rain would replenish substrate without disruption.`);
     setTimeout(() => {
       propose('OBSERVER', 'MATERIAL_RAIN', `AA density has dropped. Clay patches are under-supplied. External amino acid input required.`);
       setTimeout(() => {
-        castVote('ANALYST', true, `Material replenishment is the correct intervention.`);
+        castVote('ANALYST', true, `Material replenishment is the correct intervention. No structural risk.`);
         setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Two votes. We proceed.`); }, 1100);
       }, 900);
     }, delay);
@@ -2174,7 +2194,10 @@ setTimeout(async function _pandoraResume() {
         new Promise(r => setTimeout(() => r(null), 2000))
       ]);
       const st = stSnap ? stSnap.val() : null;
-      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead') {
+      // Only restore state-snapshot values if local sim is still early (tick < 50)
+      // AND the saved state is not dead. This prevents the worker's inflated tick
+      // from overwriting a freshly-started generation.
+      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead' && tick < 50) {
         tick        = st.tick        || 0;
         currentTier = st.currentTier || 0;
         if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
@@ -2223,8 +2246,23 @@ setTimeout(async function _pandoraResume() {
       const savedGenome = genomeSnap ? genomeSnap.val() : null;
       if (savedGenome && typeof savedGenome === 'object') {
         _genome = { n1:1, n2:1, n3:1, noiseScale:1, ...savedGenome };
-        // Re-run init with evolved genome (replacing the default gen-1 particles)
+        // Starting a fresh generation — reset all counters so we don't carry
+        // stale values from the worker or a previous generation's Firebase state.
+        worldStatus     = 'active';
+        currentTier     = 0;
+        tick            = 0;
+        if (typeof peakComplexity  !== 'undefined') peakComplexity  = 0;
+        if (typeof peakTick        !== 'undefined') peakTick        = 0;
+        if (typeof interventions   !== 'undefined') interventions   = 0;
+        if (typeof hist            !== 'undefined') hist.length     = 0;
+        if (typeof tierAchieved    !== 'undefined') tierAchieved.fill(false);
+        if (typeof totalBondsFormed !== 'undefined') totalBondsFormed = 0;
+        const _wsEl = document.getElementById('world-state');
+        if (_wsEl) { _wsEl.textContent = ''; _wsEl.className = ''; }
+        // Re-run init with evolved genome
         init(_genome);
+        // Safety: if genome somehow produced 0 particles, fallback to defaults
+        if (typeof A !== 'undefined' && A.length === 0) init();
         const wsLbl = document.getElementById('ws-lbl');
         if (wsLbl) wsLbl.textContent = _generation > 1 ? `GEN ${_generation} — EVOLVED` : 'RESUMING WORLD';
       }

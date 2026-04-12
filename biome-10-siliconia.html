@@ -1720,9 +1720,14 @@ function executeAction(action, reason) {
       speak('OBSERVER', `Injected 20 SC catalysts. Total SC: ${A.filter(a=>a.type===SC).length}. Monitoring bond-rate response.`, 'action');
       break;
     case 'THERMAL_SHOCK':
+      if (currentTier >= 5) {
+        speak('SYSTEM', `THERMAL_SHOCK blocked at T${currentTier} — structural protection active. Applying safe silicate rain instead.`);
+        executeAction('SILICATE_RAIN', 'Auto-safe fallback: thermal action blocked at T5+');
+        return;
+      }
       for (const a of A) { a.vx += (Math.random()-0.5)*12; a.vy += (Math.random()-0.5)*12; }
       perturbFlash = 40;
-      speak('OBSERVER', `Tectonic shockwave applied — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
+      speak('OBSERVER', `Tectonic shockwave applied at T${currentTier} — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
       break;
     case 'SILICATE_RAIN':
       for (let i = 0; i < 40; i++)
@@ -1801,39 +1806,54 @@ function convStagnationWarning(cx, mxl) {
   const elapsed = tick - peakTick;
   const pct     = Math.round((elapsed / STAGNATION_WINDOW) * 100);
   speak('OBSERVER', `Stagnation — peak cx=${peakComplexity.toFixed(3)} reached ${elapsed} ticks ago. ${pct}% of tolerance window consumed.`);
-  speak('ANALYST',  `Chain=${mxl}, bonds=${BONDS.size}. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining. Analysing best action.`);
+  speak('ANALYST',  `Chain=${mxl}, bonds=${BONDS.size}. T${currentTier} achieved. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining. Analysing best action.`);
 
   const delay = 700;
+
+  // At T5+, tectonic shock destroys complex Si-O networks. Forbidden.
+  if (currentTier >= 5) {
+    speak('ANALYST', `We are at T${currentTier} — tectonic shock would destroy the Si-O network we have built. Only safe interventions permissible.`);
+    speak('NARRATOR', `Silicon chemistry is fragile at high complexity. The agents do not use a hammer on a crystal lattice.`);
+    setTimeout(() => {
+      propose('ANALYST', 'SILICATE_RAIN', `At T${currentTier}, safe material replenishment is the only valid intervention. Silicate rain adds substrate without disruption.`);
+      setTimeout(() => {
+        castVote('OBSERVER', true, `Material replenishment confirmed safe at T${currentTier}. Structural integrity preserved.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Add, do not scatter. Vote yes.`); }, 1200);
+      }, 900);
+    }, delay);
+    return;
+  }
+
   if (mxl < 3) {
     // chains never formed — try catalyst
-    speak('ANALYST', `Chain formation has not occurred. Catalyst density appears insufficient. Proposing SC injection.`);
+    speak('ANALYST', `Chain formation has not occurred at T${currentTier}. Catalyst density appears insufficient. Proposing SC injection.`);
     setTimeout(() => {
       propose('ANALYST', 'INJECT_CATALYST', `Bond formation cannot sustain chains without more catalytic surface. Fresh SC may close the gap.`);
       setTimeout(() => {
         castVote('OBSERVER', true, `Confirmed — SC density has dropped by ~${Math.round(Math.random()*20+10)}% over the last 400 ticks. Injection is warranted.`);
-        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Higher catalyst density is the lowest-risk intervention at T1.`); }, 1200);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Higher catalyst density is the lowest-risk intervention at T${currentTier}.`); }, 1200);
       }, 900);
     }, delay);
 
-  } else if (BONDS.size < 20) {
-    // topology is bad — thermal shock
-    speak('ANALYST', `Network is topologically fragmented — ${BONDS.size} bonds across ${A.length} agents. A shockwave may allow higher-complexity configurations.`);
+  } else if (BONDS.size < 20 && currentTier <= 4) {
+    // topology is bad — thermal shock only at low tiers
+    speak('ANALYST', `Network fragmented at T${currentTier} — ${BONDS.size} bonds. A shockwave at this tier carries acceptable risk.`);
     setTimeout(() => {
-      propose('ANALYST', 'THERMAL_SHOCK', `Current topology is stuck in isolated dyads. Disruption may allow a fitter configuration to emerge.`);
+      propose('ANALYST', 'THERMAL_SHOCK', `At T${currentTier}, topology is stuck in isolated dyads. Disruption may allow a fitter configuration.`);
       setTimeout(() => {
         const obs_yes = Math.random() > 0.3;
         castVote('OBSERVER', obs_yes, obs_yes
-          ? `Confirmed — bond topology maps show pathological isolation.`
+          ? `Confirmed — bond topology maps show pathological isolation at T${currentTier}. Risk is acceptable.`
           : `I'm cautious — network is sparse but stable. Scattering may cause total collapse.`);
-        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation exceeds the risk of collapse. Vote yes.`); }, 1100);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation at T${currentTier} exceeds the risk. Vote yes.`); }, 1100);
       }, 900);
     }, delay);
 
   } else {
-    // material depleted — silicate rain
-    speak('ANALYST', `Material balance is the limiting factor — SI count falling. Exogenous silicate rain would replenish substrate.`);
+    // material depleted — silicate rain (safe at all tiers)
+    speak('ANALYST', `Material balance is the limiting factor at T${currentTier} — SI count falling. Silicate rain would replenish substrate safely.`);
     setTimeout(() => {
-      propose('OBSERVER', 'SILICATE_RAIN', `SI density has dropped. Vent emission is insufficient. External material input required.`);
+      propose('OBSERVER', 'SILICATE_RAIN', `SI density has dropped. Vent emission is insufficient. External material input required — no structural risk.`);
       setTimeout(() => {
         castVote('ANALYST', true, `Material replenishment is the correct diagnosis. Vote yes.`);
         setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Two votes confirm. Initiating silicate rain.`); }, 1100);
@@ -2190,7 +2210,10 @@ setTimeout(async function _pandoraResume() {
         new Promise(r => setTimeout(() => r(null), 2000))
       ]);
       const st = stSnap ? stSnap.val() : null;
-      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead') {
+      // Only restore state-snapshot values if local sim is still early (tick < 50)
+      // AND the saved state is not dead. This prevents the worker's inflated tick
+      // from overwriting a freshly-started generation.
+      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead' && tick < 50) {
         tick        = st.tick        || 0;
         currentTier = st.currentTier || 0;
         if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
@@ -2239,8 +2262,23 @@ setTimeout(async function _pandoraResume() {
       const savedGenome = genomeSnap ? genomeSnap.val() : null;
       if (savedGenome && typeof savedGenome === 'object') {
         _genome = { n1:1, n2:1, n3:1, noiseScale:1, ...savedGenome };
-        // Re-run init with evolved genome (replacing the default gen-1 particles)
+        // Starting a fresh generation — reset all counters so we don't carry
+        // stale values from the worker or a previous generation's Firebase state.
+        worldStatus     = 'active';
+        currentTier     = 0;
+        tick            = 0;
+        if (typeof peakComplexity  !== 'undefined') peakComplexity  = 0;
+        if (typeof peakTick        !== 'undefined') peakTick        = 0;
+        if (typeof interventions   !== 'undefined') interventions   = 0;
+        if (typeof hist            !== 'undefined') hist.length     = 0;
+        if (typeof tierAchieved    !== 'undefined') tierAchieved.fill(false);
+        if (typeof totalBondsFormed !== 'undefined') totalBondsFormed = 0;
+        const _wsEl = document.getElementById('world-state');
+        if (_wsEl) { _wsEl.textContent = ''; _wsEl.className = ''; }
+        // Re-run init with evolved genome
         init(_genome);
+        // Safety: if genome somehow produced 0 particles, fallback to defaults
+        if (typeof A !== 'undefined' && A.length === 0) init();
         const wsLbl = document.getElementById('ws-lbl');
         if (wsLbl) wsLbl.textContent = _generation > 1 ? `GEN ${_generation} — EVOLVED` : 'RESUMING WORLD';
       }

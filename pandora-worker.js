@@ -410,8 +410,8 @@ async function initBiomeSim(bid) {
   if (db) {
     try {
       const [stSnap, bmSnap] = await Promise.all([
-        db.ref(`pandora/biomes/${String(bid).padStart(2,'0')}/state`).once('value'),
-        db.ref(`pandora/biomes/${String(bid).padStart(2,'0')}`).once('value'),
+        db.ref(`pandora/biomes/${String(bid)}/state`).once('value'),
+        db.ref(`pandora/biomes/${String(bid)}`).once('value'),
       ]);
       state = stSnap.val();
       const bm = bmSnap.val() || {};
@@ -444,7 +444,7 @@ function startLoop() {
       // Periodic Firebase save
       if (db && now - (lastSave[bid]||0) > SAVE_MS) {
         const snap = sim.getSnapshot();
-        const idStr = String(bid).padStart(2,'0');
+        const idStr = String(bid);
         db.ref(`pandora/biomes/${idStr}/state`).update(snap).catch(()=>{});
         lastSave[bid] = now;
       }
