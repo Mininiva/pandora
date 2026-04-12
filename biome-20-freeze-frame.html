@@ -412,12 +412,18 @@ function _connectSim() {
 }
 
 function _applySimState(s) {
+  // Validate: reject state if positions are NaN/Inf (broken server data)
+  if (!s.px || !s.py || !isFinite(s.px[0]) || !isFinite(s.py[0])) return;
   while (A.length < s.n)
     A.push({ x:0, y:0, vx:0, vy:0, type:0, bonds:new Set(), hot:false, hotT:0 });
   A.length = s.n;
   for (let i = 0; i < s.n; i++) {
     const a = A[i];
-    a.x = s.px[i]; a.y = s.py[i]; a.vx = 0; a.vy = 0;
+    // Only apply if position is valid; keeps particle in place if server sends NaN
+    if (isFinite(s.px[i]) && isFinite(s.py[i])) {
+      a.x = s.px[i]; a.y = s.py[i];
+    }
+    a.vx = 0; a.vy = 0;
     a.type = s.types[i]; a.bonds.clear();
   }
   BONDS.clear();
@@ -1122,10 +1128,10 @@ function checkVitality(cx) {
 // ── Tier detection ──────────────────────────────────────────
 const TIER_NAMES = [
   'Inert', 'Molecular Activity', 'Persistent Structures',
-  'Branching Networks', 'Ring Closure', 'Spatial Reorganization',
-  'Sustained Complexity', 'Coupled Reactions', 'Crystal Seeding',
-  'Lattice Network', 'Enclosed Structure', 'Phase Boundary',
-  'Dynamic Equilibrium'
+  'Reaction Diversity', 'Spatial Heterogeneity', 'Spontaneous Assembly',
+  'Sustained Complexity', 'Coupled Reactions', 'Emergent Catalysis',
+  'Boundary Formation', 'Closed Compartment', 'Interior Differentiation',
+  'Protocell Stability'
 ];
 
 const tierAchieved = new Array(7).fill(false);
@@ -1877,7 +1883,7 @@ function loop() {
     // countdown text removed — button shown instead
   }
 
-  if (!_wsReady || (Date.now() - _lastWsMsg > 1000)) { for (let s = 0; s < SPEED_VAL; s++) update(); }
+  for (let s = 0; s < SPEED_VAL; s++) update(); // always run local physics
 
   if (tick - lastUITick >= UI_INTERVAL) {
     lastUITick = tick;
@@ -1891,6 +1897,7 @@ function loop() {
 
 init();
 _connectSim();
+initFirebase();
 loop();
 </script>
   <div id='ws-status' style='position:fixed;bottom:20px;right:20px;z-index:9999;font-family:monospace;font-size:10px;letter-spacing:0.12em;color:rgba(255,255,255,0.50);pointer-events:none;transition:opacity 1.0s;'>
