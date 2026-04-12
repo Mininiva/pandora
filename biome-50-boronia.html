@@ -1547,9 +1547,26 @@ const _INTERVENTIONS = [
 function _checkIntervention() {
   if (worldStatus !== 'active' || _intActive) return;
   if (currentTier !== _lastIntTier) { _lastIntTier = currentTier; _intStagnTicks = 0; return; }
-  if (currentTier < 8) return;
-  if (++_intStagnTicks < 500) return;
-  if (_intIdx >= _INTERVENTIONS.length * 3) return; // give up after exhausting options
+  _intStagnTicks++;
+
+  // T2-T7: natural selection — stagnation death after 6000 ticks
+  if (currentTier >= 2 && currentTier < 8) {
+    if (_intStagnTicks >= 6000 && typeof _runDeathCycle === 'function') {
+      _runDeathCycle(`evolutionary stagnation — T${currentTier} plateau — natural selection reset`);
+    }
+    return;
+  }
+  if (currentTier < 2) return;
+
+  // T8+: intervention cycle (fires every 500 stagnation ticks)
+  if (_intStagnTicks < 500) return;
+  if (_intIdx >= _INTERVENTIONS.length * 3) {
+    // All interventions exhausted — stagnation death
+    if (_intStagnTicks >= 2000 && typeof _runDeathCycle === 'function') {
+      _runDeathCycle(`all interventions exhausted — T${currentTier} evolutionary dead end`);
+    }
+    return;
+  }
   _triggerIntervention(_intIdx % _INTERVENTIONS.length);
   _intIdx++;
 }

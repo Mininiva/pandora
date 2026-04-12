@@ -571,11 +571,22 @@ const INTERVENTIONS=[
 function checkIntervention(){
   if(_isDead||_intActive) return;
   if(currentTier!==_lastTierVal){ _lastTierVal=currentTier; _stagnTicks=0; return; }
-  if(currentTier<8) return;
   _stagnTicks++;
-  if(_stagnTicks>=500 && _intIdx<INTERVENTIONS.length){
-    _triggerIntervention(_intIdx++);
+
+  // T2-T7: stagnation death after 6000 ticks
+  if(currentTier>=2 && currentTier<8){
+    if(_stagnTicks>=6000) _runDeathCycle(`evolutionary stagnation — T${currentTier} plateau`);
+    return;
   }
+  if(currentTier<2) return;
+
+  // T8+: intervention cycle
+  if(_stagnTicks<500) return;
+  if(_intIdx>=INTERVENTIONS.length*3){
+    if(_stagnTicks>=2000) _runDeathCycle(`all interventions exhausted — T${currentTier} dead end`);
+    return;
+  }
+  _triggerIntervention(_intIdx++);
 }
 
 function _triggerIntervention(idx){
