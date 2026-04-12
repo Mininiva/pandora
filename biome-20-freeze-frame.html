@@ -369,6 +369,58 @@ let tick   = 0;
 let uid    = 0;
 
 const bkey = (i, j) => i < j ? `${i},${j}` : `${j},${i}`;
+// ── Mesa / Cloud Run simulation engine ───────────────────────────────────────
+// Connects to the Python/Mesa WebSocket server on Cloud Run (~15 Hz).
+// Falls back to local JS physics automatically if connection drops.
+const _SIM_WS  = 'wss://pandora-sim-244482446708.us-central1.run.app';
+let   _wsReady   = false;
+let   _wsRetries = 0;
+let   _wsConn    = null;
+
+function _connectSim() {
+  const bid = String(typeof BIOME_ID !== 'undefined' ? BIOME_ID : '00').padStart(2, '0');
+  const url = `${_SIM_WS}/ws/${bid}?w=${Math.round(W||900)}&h=${Math.round(H||650)}`;
+  _wsConn = new WebSocket(url);
+
+  _wsConn.onopen = () => {
+    _wsReady = true; _wsRetries = 0;
+    const el = document.getElementById('ws-status');
+    if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 900); }
+  };
+
+  _wsConn.onmessage = evt => {
+    try {
+      const s = JSON.parse(evt.data);
+      if (!s.px) return;
+      _applySimState(s);
+    } catch(e) {}
+  };
+
+  _wsConn.onclose = _wsConn.onerror = () => {
+    _wsReady = false;
+    const delay = Math.min(1000 * Math.pow(2, _wsRetries++), 12000);
+    setTimeout(_connectSim, delay);
+  };
+}
+
+function _applySimState(s) {
+  while (A.length < s.n)
+    A.push({ x:0, y:0, vx:0, vy:0, type:0, bonds:new Set(), hot:false, hotT:0 });
+  A.length = s.n;
+  for (let i = 0; i < s.n; i++) {
+    const a = A[i];
+    a.x = s.px[i]; a.y = s.py[i]; a.vx = 0; a.vy = 0;
+    a.type = s.types[i]; a.bonds.clear();
+  }
+  BONDS.clear();
+  for (const [i, j] of s.bonds) {
+    BONDS.add(bkey(i, j));
+    if (A[i]) A[i].bonds.add(j);
+    if (A[j]) A[j].bonds.add(i);
+  }
+  tick = s.tick;
+}
+
 
 function newAgent(type, x, y) {
   return {
@@ -1817,7 +1869,7 @@ function loop() {
     // countdown text removed — button shown instead
   }
 
-  for (let s = 0; s < SPEED_VAL; s++) update();
+  if (!_wsReady) { for (let s = 0; s < SPEED_VAL; s++) update(); }
 
   if (tick - lastUITick >= UI_INTERVAL) {
     lastUITick = tick;
@@ -1830,7 +1882,9 @@ function loop() {
 }
 
 init();
+_connectSim();
 loop();
 </script>
+  <div id='ws-status' style='position:fixed;bottom:16px;right:16px;z-index:9999;font-family:monospace;font-size:11px;letter-spacing:0.1em;color:rgba(255,255,255,0.55);pointer-events:none;transition:opacity 0.8s;'>CONNECTING TO ENGINE…</div>
 </body>
 </html>
