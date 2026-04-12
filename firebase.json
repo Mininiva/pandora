@@ -1,0 +1,28 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "pandora-server/**",
+      "**/__pycache__/**",
+      "**/*.py",
+      "**/*.pyc",
+      "**/Dockerfile",
+      "**/requirements.txt"
+    ],
+    "headers": [
+      {
+        "source": "**/*.html",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "**/*.json",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+      }
+    ],
+    "cleanUrls": true,
+    "trailingSlash": false
+  }
+}
