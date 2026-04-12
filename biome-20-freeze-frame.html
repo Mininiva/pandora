@@ -2157,27 +2157,52 @@ setTimeout(async function _pandoraResume() {
   try {
     const _fa = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
     fbDb      = firebase.database();
-    // 3s max wait — if Firebase is slow we already have a running simulation
+
+    // ── Step 0: determine correct generation FIRST ───────────────────────────
+    const _urlG = parseInt(new URLSearchParams(window.location.search).get('g') || '0');
+    const _curGenSnap = await Promise.race([
+      fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).once('value'),
+      new Promise(r => setTimeout(() => r(null), 3000))
+    ]);
+    const _fbGen = _curGenSnap ? (_curGenSnap.val() || 1) : 1;
+
+    if (!_urlG) {
+      if (_fbGen > 1) {
+        const _f = window.location.pathname.split('/').pop().split('?')[0];
+        window.location.replace(`${_f}?g=${_fbGen}`);
+        return;
+      }
+      _generation = 1;
+    } else {
+      _generation = _urlG;
+      try {
+        await fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).transaction(cur => {
+          return (!cur || cur < _generation) ? _generation : cur;
+        });
+      } catch(e) { /* non-critical */ }
+    }
+    _updateGenDisplay();
+
+    // ── Step 1: try to restore live positions (only if world is still active) ─
     const snap = await Promise.race([
       fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value'),
       new Promise(r => setTimeout(() => r(null), 3000))
     ]);
     const pos = snap ? snap.val() : null;
-    if (pos && Array.isArray(pos.px) && pos.px.length >= 5 && pos.worldStatus !== 'dead') {
-      // Restore positions into the already-running simulation
+    const pxArr = pos && pos.px ? (Array.isArray(pos.px) ? pos.px : Object.values(pos.px)) : null;
+    if (pxArr && pxArr.length >= 5 && pos.worldStatus !== 'dead') {
+      pos.px = pxArr;
+      pos.py = pos.py ? (Array.isArray(pos.py) ? pos.py : Object.values(pos.py)) : pxArr.map(()=>0);
+      pos.types = pos.types ? (Array.isArray(pos.types) ? pos.types : Object.values(pos.types)) : [];
       _restorePositions(pos);
       const wsLbl = document.getElementById('ws-lbl');
       if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
     } else {
-      // No positions yet — at least restore tick/tier from /state
       const stSnap = await Promise.race([
         fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value'),
         new Promise(r => setTimeout(() => r(null), 2000))
       ]);
       const st = stSnap ? stSnap.val() : null;
-      // Only restore state-snapshot values if local sim is still early (tick < 50)
-      // AND the saved state is not dead. This prevents the worker's inflated tick
-      // from overwriting a freshly-started generation.
       if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead' && tick < 50) {
         tick        = st.tick        || 0;
         currentTier = st.currentTier || 0;
@@ -2193,37 +2218,9 @@ setTimeout(async function _pandoraResume() {
         if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
       }
     }
-    
-    // Load generation + genome from Firebase (URL-aware)
-    try {
-      // Step 1: determine which generation we're running
-      const _urlG = parseInt(new URLSearchParams(window.location.search).get('g') || '0');
 
-      // Step 2: if no ?g= param, check if a newer generation exists → redirect
-      if (!_urlG) {
-        const curGenSnap = await Promise.race([
-          fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).once('value'),
-          new Promise(r => setTimeout(() => r(null), 1500))
-        ]);
-        const curGen = curGenSnap ? (curGenSnap.val() || 1) : 1;
-        if (curGen > 1) {
-          // A newer generation exists — send the user there
-          const _f = window.location.pathname.split('/').pop().split('?')[0];
-          window.location.replace(`${_f}?g=${curGen}`);
-          return; // stop — navigation happening
-        }
-        // Gen 1, no redirect needed
-        _generation = 1;
-      } else {
-        _generation = _urlG;
-        // Always confirm currentGeneration to Firebase when loading from URL.
-        try {
-          await fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).transaction(cur => {
-            return (!cur || cur < _generation) ? _generation : cur;
-          });
-        } catch(e) { /* non-critical */ }
-      }
-      _updateGenDisplay();
+    // ── Step 2: load genome for this generation ───────────────────────────────
+    try {
 
       // Step 3: load this generation's genome from /genome/N
       const genomeSnap = await Promise.race([
