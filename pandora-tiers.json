@@ -1,0 +1,332 @@
+{
+  "system": "Pandora Complexity Tier Framework",
+  "version": "1.0",
+  "description": "29 checkpoints on the path from inert chemistry to inter-entity communication. Each tier represents a qualitatively new property — not just 'more complex' but a new category of behavior. Used by agents to reason about biome progress, archive dead biomes, and seed child biomes with lineage knowledge.",
+  "note_on_measurement": "Tiers T0–T12 are measurable in the current ABM. T13–T29 require additional simulation mechanics and agent behaviors not yet built.",
+
+  "phases": [
+    {
+      "id": "I",
+      "name": "Chemistry",
+      "description": "Molecules exist and interact. No self-organization yet.",
+      "tiers": [
+        {
+          "tier": 0,
+          "name": "Inert",
+          "description": "Chemistry runs but self-organization never emerges. Dead after interventions.",
+          "measurable": true,
+          "metric": "Max complexity never exceeds 0.3 after 5000 ticks, or dead after MAX_INTERVENTIONS",
+          "significance": "The chemistry palette or physical conditions are incompatible with self-organization. Strongest cautionary archive.",
+          "agent_question": "What in this chemistry made self-organization impossible?"
+        },
+        {
+          "tier": 1,
+          "name": "Molecular Activity",
+          "description": "Bonds form and break. Transient interactions occur. Nothing persists.",
+          "measurable": true,
+          "metric": "Bond count > 0 observed at any point. Complexity reaches 0.1 but never holds.",
+          "significance": "The chemistry is reactive. The rules are working. But there is no memory.",
+          "agent_question": "Why are bonds not persisting? Is energy too high, bonds too weak, or is there a missing catalyst?"
+        },
+        {
+          "tier": 2,
+          "name": "Persistent Structures",
+          "description": "Some bonds or chains hold for meaningful time without intervention.",
+          "measurable": true,
+          "metric": "Chain length >= 3 sustained for > 300 consecutive ticks.",
+          "significance": "The system has a rudimentary memory. Something is resisting entropy, at least temporarily.",
+          "agent_question": "What conditions allowed persistence here? Temperature zone? Catalyst proximity?"
+        },
+        {
+          "tier": 3,
+          "name": "Reaction Diversity",
+          "description": "Multiple distinct reaction types co-occurring simultaneously.",
+          "measurable": true,
+          "metric": "Both chain polymerization AND lipid assembly observed in the same time window.",
+          "significance": "Chemistry is not just one trick. Multiple processes are running in parallel — prerequisite for coupling.",
+          "agent_question": "Are these reactions independent or beginning to influence each other?"
+        },
+        {
+          "tier": 4,
+          "name": "Spatial Heterogeneity",
+          "description": "Concentration gradients emerge. Some regions are chemically distinct from others.",
+          "measurable": true,
+          "metric": "Coefficient of variation of molecular density across grid cells > 0.4, sustained.",
+          "significance": "The world is no longer uniform soup. Distinct chemical microenvironments exist — the precondition for selective chemistry.",
+          "agent_question": "What drives the heterogeneity? Vent proximity? Lipid clustering? Can it be amplified?"
+        }
+      ]
+    },
+    {
+      "id": "II",
+      "name": "Self-Organization",
+      "description": "Structures begin to form and maintain themselves. Chemistry starts doing work.",
+      "tiers": [
+        {
+          "tier": 5,
+          "name": "Spontaneous Assembly",
+          "description": "Structures form without external input. The vent is not doing the work — the chemistry is.",
+          "measurable": true,
+          "metric": "Lipid aggregate size > 6 forms and persists in a region far from vent (> 40% of canvas height from bottom).",
+          "significance": "The first sign of true self-organization. Structure is emerging from interaction rules alone.",
+          "agent_question": "Where in the biome is assembly happening? What conditions support it away from the energy source?"
+        },
+        {
+          "tier": 6,
+          "name": "Sustained Complexity",
+          "description": "Complexity holds above a floor on its own. Stops collapsing to baseline.",
+          "measurable": true,
+          "metric": "Mean complexity > 1.5 sustained over any 1000-tick window without intervention.",
+          "significance": "The system has found a stable regime above thermal equilibrium. Something is maintaining it.",
+          "agent_question": "What is maintaining complexity? Is it a genuine attractor state or just a slow collapse?"
+        },
+        {
+          "tier": 7,
+          "name": "Coupled Reactions",
+          "description": "Reactions begin influencing each other. Outputs of one become inputs of another.",
+          "measurable": true,
+          "metric": "Peptide bond formation rate measurably higher in proximity to lipid aggregates (vs. baseline rate in open space).",
+          "significance": "The beginning of a reaction network. Processes are no longer independent.",
+          "agent_question": "Which reaction pairs are coupling? Is this coupling reinforcing or dampening?"
+        },
+        {
+          "tier": 8,
+          "name": "Emergent Catalysis",
+          "description": "Some assembled structures accelerate reactions they did not initiate.",
+          "measurable": true,
+          "metric": "Bond formation rate near existing chain clusters >= 2x the background rate, sustained.",
+          "significance": "Structure is feeding back into chemistry. The first hint of autocatalytic potential.",
+          "agent_question": "What structures are acting as catalysts? Is this specific to certain chain lengths or compositions?"
+        }
+      ]
+    },
+    {
+      "id": "III",
+      "name": "Compartmentalization",
+      "description": "Boundaries form. An inside and an outside come into existence.",
+      "tiers": [
+        {
+          "tier": 9,
+          "name": "Boundary Formation",
+          "description": "Membrane-like structures appear. Ordered, oriented molecular layers.",
+          "measurable": true,
+          "metric": "Lipid cluster with mean orientational order parameter > 0.6 and size > 8.",
+          "significance": "The first proto-boundary. Not yet closed, but directional order exists — the geometry of a membrane is present.",
+          "agent_question": "How ordered is the boundary? Is it stable or fluctuating? What drives the ordering?"
+        },
+        {
+          "tier": 10,
+          "name": "Closed Compartment",
+          "description": "True enclosure achieved. An inside exists.",
+          "measurable": true,
+          "metric": "Enclosure count > 0 (circular lipid arrangement detected via angular distribution measure R < 0.35).",
+          "significance": "The single most important threshold in Phase III. The birth of proto-individuation. A self now exists, however primitive.",
+          "agent_question": "How did the closure happen? Was it spontaneous or triggered? How large is the enclosure?"
+        },
+        {
+          "tier": 11,
+          "name": "Interior Differentiation",
+          "description": "Inside chemistry measurably different from outside, and the difference is maintained.",
+          "measurable": true,
+          "metric": "AA density inside enclosure >= 1.8x AA density in equivalent area outside, sustained for > 200 ticks.",
+          "significance": "The compartment is not just a wall — it is concentrating chemistry. The inside is becoming distinct.",
+          "agent_question": "What is being concentrated inside? Is it passive (trapping) or active (selective uptake)?"
+        },
+        {
+          "tier": 12,
+          "name": "Compartment Stability",
+          "description": "The enclosure survives thermal fluctuation and mechanical disturbance.",
+          "measurable": true,
+          "metric": "Enclosure persists for > 800 ticks, surviving at least one stochastic perturbation event.",
+          "significance": "The proto-cell is robust. It is not a fragile fluctuation but a stable physical entity.",
+          "agent_question": "What makes it stable? Membrane stiffness? Size? Chemistry of contents? What breaks it when it does break?"
+        }
+      ]
+    },
+    {
+      "id": "IV",
+      "name": "Proto-Metabolism",
+      "description": "Energy is being processed in cycles. Chemistry becomes self-sustaining.",
+      "note": "Requires new simulation mechanics not yet implemented.",
+      "tiers": [
+        {
+          "tier": 13,
+          "name": "Energy Coupling",
+          "description": "An exergonic reaction drives an endergonic one. Energy is being directed, not just dissipated.",
+          "measurable": false,
+          "metric": "TBD — requires energy-tracking mechanics in simulation.",
+          "significance": "The system is beginning to do thermodynamic work, not just release heat.",
+          "agent_question": "Which reaction pair is coupled? Is the coupling efficient or lossy?"
+        },
+        {
+          "tier": 14,
+          "name": "Catalytic Cycle",
+          "description": "A catalyst is consumed and regenerated in a cycle — not a one-shot event.",
+          "measurable": false,
+          "metric": "TBD — requires molecular identity tracking across reaction events.",
+          "significance": "The first true cycle. Chemistry is looping, not just running down.",
+          "agent_question": "How fast is the cycle? What breaks it? Does it sustain indefinitely?"
+        },
+        {
+          "tier": 15,
+          "name": "Autocatalysis",
+          "description": "A structure catalyzes its own production.",
+          "measurable": false,
+          "metric": "TBD — requires lineage tracking of molecular assemblies.",
+          "significance": "The chemistry has acquired a direction — toward more of itself. This is the seed of reproduction.",
+          "agent_question": "Is the autocatalysis specific (one molecular type) or general? How strong is the feedback?"
+        },
+        {
+          "tier": 16,
+          "name": "Sustained Autocatalysis",
+          "description": "The self-reinforcing loop persists without external push. Complexity acquires a positive trend.",
+          "measurable": false,
+          "metric": "TBD — sustained positive dComplexity/dt over 3000-tick window.",
+          "significance": "The system is climbing away from equilibrium under its own power. This is proto-life.",
+          "agent_question": "How steep is the complexity gradient? Is there a ceiling? What limits further growth?"
+        }
+      ]
+    },
+    {
+      "id": "V",
+      "name": "Proto-Genetics",
+      "description": "Information enters the picture. Molecules begin encoding and transmitting state.",
+      "note": "Requires significant new simulation mechanics — molecular sequence tracking, template chemistry.",
+      "tiers": [
+        {
+          "tier": 17,
+          "name": "Molecular Memory",
+          "description": "Sequences with distinct, repeatable functional states. The same sequence reliably does the same thing.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "Information now exists in molecular form. Sequence = function.",
+          "agent_question": "How many distinct functional states exist? How stable are they? How do they arise?"
+        },
+        {
+          "tier": 18,
+          "name": "Template Activity",
+          "description": "One molecular sequence influences the formation of another specific sequence.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "Information is being copied, however imperfectly. This is the origin of heredity.",
+          "agent_question": "How faithful is the templating? What determines template specificity?"
+        },
+        {
+          "tier": 19,
+          "name": "Copying",
+          "description": "Structural duplication is observed. A molecule produces a structurally similar daughter.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "Reproduction at the molecular level. The system can make more of itself.",
+          "agent_question": "How accurate is copying? What is the error rate? What constrains it?"
+        },
+        {
+          "tier": 20,
+          "name": "Heritable Variation",
+          "description": "Copies differ from parents. Differences persist across further copying. Evolution is now possible.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "The three conditions for Darwinian evolution are met: variation, heredity, differential fitness.",
+          "agent_question": "What is the mutation rate? Do variants behave differently? Is selection visible yet?"
+        }
+      ]
+    },
+    {
+      "id": "VI",
+      "name": "Proto-Life",
+      "description": "Entities grow, divide, and compete. Life in the conventional sense begins.",
+      "note": "Requires full cellular mechanics and population dynamics.",
+      "tiers": [
+        {
+          "tier": 21,
+          "name": "Growth",
+          "description": "Compartments incorporate new material and expand over time.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "The proto-cell is accumulating resources. It has a metabolism that builds structure.",
+          "agent_question": "What drives growth? Is it bounded? What limits size?"
+        },
+        {
+          "tier": 22,
+          "name": "Division",
+          "description": "A compartment spontaneously splits into daughter compartments.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "Reproduction at the cellular level. The population can grow.",
+          "agent_question": "Is division symmetric or asymmetric? What triggers it? How often does it succeed?"
+        },
+        {
+          "tier": 23,
+          "name": "Inheritance",
+          "description": "Daughters resemble the parent in chemistry, structure, and behavior.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "Continuity of identity across generations. A lineage now exists.",
+          "agent_question": "What is inherited faithfully? What varies? Is there a heritable fitness difference?"
+        },
+        {
+          "tier": 24,
+          "name": "Selection",
+          "description": "Variants persist differentially. Some lineages out-survive others in the same environment.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "Evolution is occurring. The biome is now generating its own complexity through selection.",
+          "agent_question": "What traits confer fitness? How fast is selection acting? Are new variants appearing?"
+        }
+      ]
+    },
+    {
+      "id": "VII",
+      "name": "Communication",
+      "description": "Separate entities exchange information and respond to each other.",
+      "note": "The destination of the entire project.",
+      "tiers": [
+        {
+          "tier": 25,
+          "name": "Signal Emission",
+          "description": "Patterned molecular release — not random diffusion, not just waste. An entity is putting something into the environment intentionally (functionally).",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "The first act of expression. An entity is affecting its environment in a non-random way.",
+          "agent_question": "What molecules are being emitted? Is the pattern consistent? Does it correlate with internal state?"
+        },
+        {
+          "tier": 26,
+          "name": "Signal Reception",
+          "description": "Another entity detects and changes behavior in response to an emitted signal.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "The first act of listening. Two entities are now coupled through information, not just chemistry.",
+          "agent_question": "What behavior changes? Is the response specific to the signal? How reliable is reception?"
+        },
+        {
+          "tier": 27,
+          "name": "Information Transfer",
+          "description": "The signal carries meaning — it changes behavior beyond a direct chemical effect. The receiver is interpreting, not just reacting.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "The boundary between chemistry and communication. Semantics enter the system.",
+          "agent_question": "What information is being transferred? How is it encoded? Can the code be changed?"
+        },
+        {
+          "tier": 28,
+          "name": "Bidirectional Exchange",
+          "description": "Two entities signal each other. A conversation, however primitive.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "The first dialogue. Two distinct entities are influencing each other's states through information.",
+          "agent_question": "Is the exchange symmetric? Does each signal influence the next? Is there feedback?"
+        },
+        {
+          "tier": 29,
+          "name": "Collective Behavior",
+          "description": "A population responds coherently to distributed signals. Emergent coordination without central control.",
+          "measurable": false,
+          "metric": "TBD",
+          "significance": "The endpoint. A community of life forms acting in concert through communication. This is what we came here to find.",
+          "agent_question": "What is being coordinated? How large a population? Is the coordination adaptive — does it respond to environmental change?"
+        }
+      ]
+    }
+  ]
+}

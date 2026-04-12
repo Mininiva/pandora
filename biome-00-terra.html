@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pandora — Biome 0: Terra</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+canvas { display: block; }
+
+#title {
+  position: absolute; top: 24px; right: 24px;
+  font-size: 13px; letter-spacing: 5px;
+  color: rgba(150, 210, 240, 0.30);
+  text-shadow: 0 0 20px rgba(100, 180, 255, 0.12);
+}
+#subtitle {
+  position: absolute; top: 46px; right: 24px;
+  font-size: 9px; letter-spacing: 3px;
+  color: rgba(100, 160, 190, 0.25);
+}
+
+#hud {
+  position: absolute; top: 24px; left: 24px;
+  font-size: 11px; line-height: 2.1;
+  color: #8ab;
+  text-shadow: 0 0 8px rgba(80, 160, 200, 0.4);
+}
+.hk { color: rgba(100, 150, 170, 0.5); display: inline-block; width: 100px; }
+.hv { color: rgba(190, 230, 255, 0.9); }
+
+#graph-box { position: absolute; bottom: 24px; right: 24px; }
+#gl { font-size: 9px; letter-spacing: 3px; color: rgba(100,150,170,0.35); margin-bottom: 5px; }
+#gc { display: block; border: 1px solid rgba(80,130,160,0.12); }
+
+#elog {
+  position: absolute; bottom: 24px; left: 24px;
+  font-size: 10px; line-height: 1.8;
+  color: rgba(140, 230, 170, 0.60);
+  width: 340px;
+}
+#world-state {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px; letter-spacing: 8px;
+  pointer-events: none;
+  opacity: 0; transition: opacity 1.5s;
+}
+#world-state.dead {
+  color: rgba(200, 80, 60, 0.75);
+  text-shadow: 0 0 40px rgba(200, 60, 40, 0.4);
+  opacity: 1;
+}
+#world-state.perturbed {
+  color: rgba(255, 200, 60, 0.80);
+  text-shadow: 0 0 30px rgba(255, 180, 40, 0.5);
+  opacity: 1;
+}
+
+#legend {
+  position: absolute; top: 280px; left: 24px;
+  font-size: 10px; line-height: 2.2;
+  color: rgba(100, 150, 170, 0.45);
+  border-top: 1px solid rgba(80,130,160,0.12);
+  padding-top: 12px;
+}
+.ld { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+      margin-right: 7px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<canvas id="main"></canvas>
+
+<div id="title">BIOME 0 — TERRA</div>
+<div id="subtitle">CARBON · H₂O · HYDROTHERMAL</div>
+
+<div id="hud">
+  <div><span class="hk">CHEMISTRY</span><span class="hv">C / N / O / P</span></div>
+  <div><span class="hk">SOLVENT</span><span class="hv">H₂O (liquid)</span></div>
+  <div><span class="hk">TEMP</span><span class="hv" id="v-t">350 K</span></div>
+  <div><span class="hk">PRESSURE</span><span class="hv" id="v-p">10 atm</span></div>
+  <div><span class="hk">AMINO</span><span class="hv" id="v-aa">—</span></div>
+  <div><span class="hk">PEPTIDES</span><span class="hv" id="v-pep">—</span></div>
+  <div><span class="hk">MAX LEN</span><span class="hv" id="v-mxl">—</span></div>
+  <div><span class="hk">LIPID AGG</span><span class="hv" id="v-lagg">—</span></div>
+  <div><span class="hk">ENCLOSURES</span><span class="hv" id="v-enc">—</span></div>
+  <div><span class="hk">COMPLEXITY</span><span class="hv" id="v-cx">—</span></div>
+  <div><span class="hk">TIER</span><span class="hv" id="v-tier">T0 — Inert</span></div>
+  <div><span class="hk">SPEED</span><span class="hv" id="v-speed">4×</span></div>
+  <div><span class="hk">TIME</span><span class="hv" id="v-time">—</span></div>
+</div>
+
+<div id="legend">
+  <div><span class="ld" style="background:rgba(120,210,255,0.85)"></span>amino acid (C backbone)</div>
+  <div><span class="ld" style="background:rgba(255,150,30,0.85)"></span>lipid tail (hydrophobic)</div>
+  <div><span class="ld" style="background:rgba(40,200,175,0.85)"></span>lipid head (hydrophilic)</div>
+  <div><span class="ld" style="background:rgba(255,245,100,0.9)"></span>phosphate (energy carrier)</div>
+</div>
+
+<div id="graph-box">
+  <div id="gl">COMPLEXITY INDEX</div>
+  <canvas id="gc" width="220" height="90"></canvas>
+</div>
+
+<div id="world-state"></div>
+<div id="elog"></div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+//  PANDORA — BIOME 0: TERRA
+//  Reference simulation: carbon-based abiogenesis
+//
+//  Chemistry palette:
+//    AA     — amino acid analog (C/N/O backbone, peptide bonds)
+//    LIPID  — amphiphilic phospholipid (hydrophobic tail, -philic head)
+//    PHOS   — phosphate energy carrier (ATP analog, catalyses bonds)
+//
+//  Conditions: 350 K, 10 atm, liquid water, hydrothermal vent source
+//
+//  Key emergent targets:
+//    1. Peptide chain polymerisation (proto-proteins)
+//    2. Lipid self-assembly (micelles → bilayers → proto-membranes)
+//    3. Enclosure events (lipid vesicle enclosing amino acid content)
+// ═══════════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('main');
+const ctx    = canvas.getContext('2d');
+const gcv    = document.getElementById('gc');
+const gctx   = gcv.getContext('2d');
+
+let W, H;
+const resize = () => { W = canvas.width = innerWidth; H = canvas.height = innerHeight; };
+resize();
+addEventListener('resize', resize);
+
+// ── Biome constants ───────────────────────────────────────────
+const T0      = 350;   // baseline temperature (K)
+const P0      = 10;    // pressure (atm)
+const NOISE   = 0.22;  // stochastic variability
+const VENT_H  = 0.38;  // thermal boost near vent
+
+// Local temperature: warmer near hydrothermal vent at bottom-centre
+const lTemp = (x, y) =>
+  T0 * (1 + VENT_H * Math.max(0, 1 - Math.hypot(x - W * 0.5, y - H) / (H * 0.6)));
+
+// ── Agent type constants ──────────────────────────────────────
+const AA    = 0;   // amino acid — chain former
+const LIPID = 1;   // amphiphilic lipid
+const PHOS  = 2;   // phosphate — energy / catalyst
+
+// Lipid geometry
+const LIPID_L   = 15;   // lipid length (px) — distance head to tail
+const LIPID_L_2 = LIPID_L * 0.5;
+
+// Head/tail endpoints of a lipid agent
+const headPos = a => ({ x: a.x + LIPID_L_2 * Math.cos(a.ang), y: a.y + LIPID_L_2 * Math.sin(a.ang) });
+const tailPos = a => ({ x: a.x - LIPID_L_2 * Math.cos(a.ang), y: a.y - LIPID_L_2 * Math.sin(a.ang) });
+
+// ── Simulation state ──────────────────────────────────────────
+let A    = [];          // agents array
+let BONDS = new Set();  // peptide bonds: "i,j" where i < j
+let tick  = 0;
+let uid   = 0;
+
+const bkey = (i, j) => i < j ? `${i},${j}` : `${j},${i}`;
+
+function newAgent(type, x, y) {
+  return {
+    id:    uid++,
+    type,
+    x:     x  ?? Math.random() * W,
+    y:     y  ?? (Math.random() * H * 0.85 + H * 0.05),
+    vx:    (Math.random() - 0.5) * 1.2,
+    vy:    (Math.random() - 0.5) * 1.2,
+    ang:   Math.random() * Math.PI * 2,  // lipid orientation
+    dAng:  0,                             // angular velocity
+    bonds: new Set(),                     // bonded agent indices (AA only)
+    act:   false,                         // activated by phosphate
+    actT:  0,                             // activation timer
+    idx:   -1,                            // index in A[]
+  };
+}
+
+function addAgent(type, x, y, vx, vy) {
+  const a = newAgent(type, x, y);
+  if (vx !== undefined) { a.vx = vx; a.vy = vy; }
+  a.idx = A.length;
+  A.push(a);
+}
+
+function init() {
+  A = [];
+  BONDS.clear();
+  // Initial population
+  for (let i = 0; i < 185; i++) addAgent(AA);
+  for (let i = 0; i < 100; i++) addAgent(LIPID);
+  for (let i = 0; i <  28; i++) addAgent(PHOS);
+}
+
+// ── Spatial hash (grid) ───────────────────────────────────────
+const CELL = 32;
+let gh = {};
+
+function buildGrid() {
+  gh = {};
+  for (let i = 0; i < A.length; i++) {
+    const a = A[i];
+    const k = `${(a.x / CELL) | 0},${(a.y / CELL) | 0}`;
+    (gh[k] = gh[k] || []).push(i);
+  }
+}
+
+function nearby(x, y, cells = 1) {
+  const cx = (x / CELL) | 0, cy = (y / CELL) | 0, out = [];
+  for (let dx = -cells; dx <= cells; dx++)
+    for (let dy = -cells; dy <= cells; dy++) {
+      const nb = gh[`${cx + dx},${cy + dy}`];
+      if (nb) for (const i of nb) out.push(i);
+    }
+  return out;
+}
+
+// ── Bond management ───────────────────────────────────────────
+function addBond(i, j) {
+  const k = bkey(i, j);
+  if (BONDS.has(k)) return;
+  BONDS.add(k);
+  A[i].bonds.add(j);
+  A[j].bonds.add(i);
+  totalBondsFormed++;
+}
+
+function rmBond(i, j) {
+  const k = bkey(i, j);
+  if (!BONDS.has(k)) return;
+  BONDS.delete(k);
+  A[i].bonds.delete(j);
+  A[j].bonds.delete(i);
+}
+
+// ── Chain detection (connected components of AA agents) ───────
+function findChains() {
+  const vis = new Uint8Array(A.length);
+  const chains = [];
+  for (let i = 0; i < A.length; i++) {
+    if (A[i].type !== AA || vis[i]) continue;
+    const ch = [], q = [i];
+    while (q.length) {
+      const c = q.pop();
+      if (vis[c]) continue;
+      vis[c] = 1;
+      ch.push(c);
+      for (const nb of A[c].bonds)
+        if (!vis[nb] && A[nb].type === AA) q.push(nb);
+    }
+    chains.push(ch);
+  }
+  return chains;
+}
+
+// ── Lipid cluster detection ───────────────────────────────────
+function findLipidClusters() {
+  const vis = new Uint8Array(A.length);
+  const clusters = [];
+  for (let i = 0; i < A.length; i++) {
+    if (A[i].type !== LIPID || vis[i]) continue;
+    const cl = [], q = [i];
+    while (q.length) {
+      const c = q.pop();
+      if (vis[c]) continue;
+      vis[c] = 1;
+      cl.push(c);
+      for (const nb of nearby(A[c].x, A[c].y)) {
+        if (!vis[nb] && A[nb].type === LIPID) {
+          if (Math.hypot(A[nb].x - A[c].x, A[nb].y - A[c].y) < LIPID_L * 1.8)
+            q.push(nb);
+        }
+      }
+    }
+    if (cl.length >= 3) clusters.push(cl);
+  }
+  return clusters;
+}
+
+// ── Proto-enclosure detection ─────────────────────────────────
+// Heuristic: large cluster with high angular diversity → curved membrane
+function countEnclosures(clusters) {
+  let enc = 0;
+  for (const cl of clusters) {
+    if (cl.length < 12) continue;
+    // Compute variance of head-to-centre vectors — circular distribution
+    let sumSin = 0, sumCos = 0;
+    let cx = 0, cy = 0;
+    for (const i of cl) { cx += A[i].x; cy += A[i].y; }
+    cx /= cl.length; cy /= cl.length;
+    for (const i of cl) {
+      const phi = Math.atan2(A[i].y - cy, A[i].x - cx);
+      sumSin += Math.sin(phi);
+      sumCos += Math.cos(phi);
+    }
+    // Resultant length R: 0 = uniform distribution (circular), 1 = all same direction
+    const R = Math.sqrt(sumSin * sumSin + sumCos * sumCos) / cl.length;
+    // Uniform angular spread (R near 0) + enough members = proto-vesicle
+    if (R < 0.35) enc++;
+  }
+  return enc;
+}
+
+// ── Complexity index ──────────────────────────────────────────
+function complexity(chains) {
+  let s = 0;
+  const n = A.filter(a => a.type === AA).length;
+  for (const c of chains) if (c.length > 1) s += c.length * c.length;
+  return n > 0 ? s / n : 0;
+}
+
+// ── Emergence event log ───────────────────────────────────────
+const elog = [];
+let lastLogT = -300;
+
+function logE(msg) {
+  if (tick - lastLogT < 90) return;
+  lastLogT = tick;
+  elog.unshift(`[t=${tick}]  ${msg}`);
+  if (elog.length > 7) elog.pop();
+}
+
+// ── Physics update ────────────────────────────────────────────
+const toBreak = [];
+
+function update() {
+  tick++;
+
+  // Hydrothermal vent emissions
+  if (tick % 130 === 0 && A.filter(a => a.type === AA).length < 205) {
+    const vx = W * 0.5 + (Math.random() - 0.5) * W * 0.1;
+    addAgent(AA, vx, H - 4, (Math.random() - 0.5) * 0.8, -2.2 - Math.random() * 1.8);
+  }
+  if (tick % 280 === 0 && A.filter(a => a.type === LIPID).length < 115) {
+    const vx = W * 0.5 + (Math.random() - 0.5) * W * 0.15;
+    addAgent(LIPID, vx, H - 4, (Math.random() - 0.5) * 0.5, -1.8 - Math.random());
+  }
+  if (tick % 450 === 0 && A.filter(a => a.type === PHOS).length < 35) {
+    const vx = W * 0.5 + (Math.random() - 0.5) * W * 0.12;
+    addAgent(PHOS, vx, H - 4, (Math.random() - 0.5), -2.8 - Math.random() * 2);
+  }
+
+  buildGrid();
+
+  // ── Brownian motion + drag ──
+  for (let i = 0; i < A.length; i++) {
+    const a = A[i];
+    const Tl = lTemp(a.x, a.y);
+    const br = Math.sqrt(Tl / T0) * NOISE;
+
+    a.vx += (Math.random() - 0.5) * br * 3.2;
+    a.vy += (Math.random() - 0.5) * br * 3.2;
+
+    if (a.type === LIPID) {
+      a.dAng += (Math.random() - 0.5) * br * 0.35;
+      a.dAng *= 0.88;
+      a.ang  += a.dAng;
+    }
+
+    const drag = (a.type === LIPID)
+      ? 0.93
+      : (a.bonds.size > 0 ? 0.92 : 0.97);
+    a.vx *= drag;
+    a.vy *= drag;
+
+    a.x += a.vx;
+    a.y += a.vy;
+
+    if (a.x < 0) a.x += W; else if (a.x > W) a.x -= W;
+    if (a.y < 0) a.y += H; else if (a.y > H) a.y -= H;
+
+    if (a.act && --a.actT <= 0) a.act = false;
+  }
+
+  // ── Pairwise interactions ──
+  for (let i = 0; i < A.length; i++) {
+    const a = A[i];
+
+    for (const j of nearby(a.x, a.y)) {
+      if (j <= i) continue;
+      const b = A[j];
+
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > CELL * CELL) continue;
+      const d  = Math.sqrt(d2) + 0.001;
+      const Tl = lTemp((a.x + b.x) * 0.5, (a.y + b.y) * 0.5);
+
+      // ── PHOS activates AA (ATP analogy) ──
+      if ((a.type === PHOS && b.type === AA) ||
+          (a.type === AA   && b.type === PHOS)) {
+        const aa = a.type === AA ? a : b;
+        if (!aa.act && Math.random() < 0.045) {
+          aa.act  = true;
+          aa.actT = 65 + ((Math.random() * 45) | 0);
+        }
+      }
+
+      // ── AA + AA → peptide bond ──
+      if (a.type === AA && b.type === AA) {
+        const bonded = a.bonds.has(j);
+
+        if (!bonded && a.bonds.size < 2 && b.bonds.size < 2) {
+          // Phosphate in vicinity acts as condensation catalyst
+          let hasCat = false;
+          for (const k of nearby(a.x, a.y)) {
+            if (A[k].type === PHOS && Math.hypot(A[k].x - a.x, A[k].y - a.y) < CELL * 1.6) {
+              hasCat = true;
+              break;
+            }
+          }
+          const p = 0.007
+            * (a.act || b.act ? 9 : 1)
+            * (hasCat ? 3.5 : 1)
+            * Math.exp(-160 / Tl);
+
+          if (Math.random() < p) {
+            addBond(i, j);
+            const f = 0.22 / d;
+            a.vx += dx * f; a.vy += dy * f;
+            b.vx -= dx * f; b.vy -= dy * f;
+            if (hasCat) logE('phosphate-catalysed peptide bond formed');
+          }
+        }
+
+        // Bonded: maintain spring + thermal breaking
+        if (bonded) {
+          const Pb = 1.8e-4 * Math.exp(Tl / 580);
+          if (Math.random() < Pb) {
+            toBreak.push([i, j]);
+          } else {
+            const f = 0.04 / d;
+            a.vx += dx * f; a.vy += dy * f;
+            b.vx -= dx * f; b.vy -= dy * f;
+          }
+        }
+      }
+
+      // ── LIPID ↔ LIPID: amphiphile physics ──
+      if (a.type === LIPID && b.type === LIPID) {
+        const at = tailPos(a), bt = tailPos(b);
+        const ah = headPos(a), bh = headPos(b);
+
+        // 1. Tail–tail attraction (hydrophobic clustering)
+        const tt_dx = bt.x - at.x, tt_dy = bt.y - at.y;
+        const tt_d  = Math.sqrt(tt_dx * tt_dx + tt_dy * tt_dy) + 0.001;
+        if (tt_d < 24) {
+          const f = 0.32 * Math.exp(-tt_d * tt_d / 90);
+          const nx = tt_dx / tt_d, ny = tt_dy / tt_d;
+          a.vx += nx * f; a.vy += ny * f;
+          b.vx -= nx * f; b.vy -= ny * f;
+        }
+
+        // 2. Head–tail repulsion (amphiphile asymmetry → ordering)
+        // a-head vs b-tail
+        const ht1_dx = bt.x - ah.x, ht1_dy = bt.y - ah.y;
+        const ht1_d  = Math.sqrt(ht1_dx * ht1_dx + ht1_dy * ht1_dy) + 0.001;
+        if (ht1_d < 22) {
+          const f  = 0.48 * Math.exp(-ht1_d * ht1_d / 65);
+          const nx = ht1_dx / ht1_d, ny = ht1_dy / ht1_d;
+          a.vx -= nx * f; a.vy -= ny * f;
+          b.vx += nx * f * 0.5; b.vy += ny * f * 0.5;
+        }
+        // b-head vs a-tail
+        const ht2_dx = at.x - bh.x, ht2_dy = at.y - bh.y;
+        const ht2_d  = Math.sqrt(ht2_dx * ht2_dx + ht2_dy * ht2_dy) + 0.001;
+        if (ht2_d < 22) {
+          const f  = 0.48 * Math.exp(-ht2_d * ht2_d / 65);
+          const nx = ht2_dx / ht2_d, ny = ht2_dy / ht2_d;
+          b.vx -= nx * f; b.vy -= ny * f;
+          a.vx += nx * f * 0.5; a.vy += ny * f * 0.5;
+        }
+
+        // 3. Orientational alignment torque (liquid-crystal effect)
+        if (d < LIPID_L * 2.2) {
+          const align  = Math.sin(b.ang - a.ang);
+          const torque = 0.035 * align * (1 - d / (LIPID_L * 2.2));
+          a.dAng += torque;
+          b.dAng -= torque;
+        }
+
+        // 4. Steric repulsion to prevent overlap
+        if (d < LIPID_L * 0.75) {
+          const f = 0.45 * (1 - d / (LIPID_L * 0.75)) / d;
+          a.vx -= dx * f; a.vy -= dy * f;
+          b.vx += dx * f; b.vy += dy * f;
+        }
+      }
+    }
+  }
+
+  while (toBreak.length) {
+    const [i, j] = toBreak.pop();
+    rmBond(i, j);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────
+function render(chains, clusters, enc) {
+
+  // Background: dark deep-water teal
+  // Dead world: desaturate background toward grey
+  const deadAlpha = worldStatus === 'dead' ? 0.6 : 0;
+  ctx.fillStyle = '#010d17';
+  ctx.fillRect(0, 0, W, H);
+  if (deadAlpha > 0) {
+    ctx.fillStyle = `rgba(20, 20, 20, ${deadAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Perturbation flash
+  if (perturbFlash > 0) {
+    ctx.fillStyle = `rgba(255, 200, 60, ${perturbFlash / 40 * 0.08})`;
+    ctx.fillRect(0, 0, W, H);
+    perturbFlash--;
+  }
+
+  // Tier promotion flash — green pulse
+  if (tierFlash > 0) {
+    ctx.fillStyle = `rgba(140, 255, 180, ${(tierFlash / 90) * 0.10})`;
+    ctx.fillRect(0, 0, W, H);
+    // Draw tier label centre-screen at peak
+    if (tierFlash > 50) {
+      ctx.save();
+      ctx.globalAlpha = (tierFlash - 50) / 40;
+      ctx.font        = '13px Courier New';
+      ctx.letterSpacing = '5px';
+      ctx.fillStyle   = 'rgba(180, 255, 200, 0.9)';
+      ctx.textAlign   = 'center';
+      ctx.fillText(tierFlashLabel, W / 2, H / 2 - 12);
+      ctx.font        = '10px Courier New';
+      ctx.fillStyle   = 'rgba(140, 210, 160, 0.6)';
+      ctx.fillText('THRESHOLD CROSSED', W / 2, H / 2 + 10);
+      ctx.restore();
+    }
+    tierFlash--;
+  }
+
+  // Sunlight gradient from surface (top)
+  const sg = ctx.createLinearGradient(0, 0, 0, H * 0.45);
+  sg.addColorStop(0, 'rgba(60, 140, 200, 0.07)');
+  sg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = sg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Vent thermal glow (bottom centre)
+  const vg = ctx.createRadialGradient(W * 0.5, H, 8, W * 0.5, H, H * 0.58);
+  vg.addColorStop(0,   'rgba(210, 105, 25, 0.12)');
+  vg.addColorStop(0.5, 'rgba(80,  40,  12, 0.05)');
+  vg.addColorStop(1,   'rgba(0,   0,   0,  0)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Lipid cluster auras
+  if (clusters) {
+    for (const cl of clusters) {
+      if (cl.length < 4) continue;
+      let cx = 0, cy = 0;
+      for (const i of cl) { cx += A[i].x; cy += A[i].y; }
+      cx /= cl.length; cy /= cl.length;
+      const r = Math.sqrt(cl.length) * LIPID_L * 0.42;
+      const alpha = Math.min(0.09, cl.length * 0.006);
+      const ag = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      ag.addColorStop(0, `rgba(40, 200, 175, ${alpha * 1.8})`);
+      ag.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = ag;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      // Mark proto-enclosures with a ring
+      if (enc > 0 && cl.length >= 12) {
+        ctx.strokeStyle = 'rgba(100, 255, 200, 0.12)';
+        ctx.lineWidth   = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.8, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Peptide bonds
+  ctx.lineWidth = 1.5;
+  for (const k of BONDS) {
+    const [si, sj] = k.split(',');
+    const a2 = A[+si], b2 = A[+sj];
+    if (!a2 || !b2) continue;
+    const len = a2.bonds.size + b2.bonds.size;
+    const r2  = Math.min(255, 80 + len * 28);
+    const g2  = Math.max(100, 220 - len * 18);
+    ctx.strokeStyle = `rgba(${r2}, ${g2}, 220, 0.58)`;
+    ctx.beginPath();
+    ctx.moveTo(a2.x, a2.y);
+    ctx.lineTo(b2.x, b2.y);
+    ctx.stroke();
+  }
+
+  // LIPID agents — oriented rod (tail-connector-head)
+  for (const a of A) {
+    if (a.type !== LIPID) continue;
+    const hd = headPos(a), tl = tailPos(a);
+
+    // Tail (hydrophobic, warm orange)
+    ctx.beginPath();
+    ctx.arc(tl.x, tl.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 145, 28, 0.75)';
+    ctx.fill();
+
+    // Connector
+    ctx.strokeStyle = 'rgba(200, 110, 35, 0.32)';
+    ctx.lineWidth   = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(tl.x, tl.y);
+    ctx.lineTo(hd.x, hd.y);
+    ctx.stroke();
+
+    // Head (hydrophilic, teal)
+    ctx.beginPath();
+    ctx.arc(hd.x, hd.y, 4.2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(38, 198, 172, 0.82)';
+    ctx.fill();
+    // Specular
+    ctx.beginPath();
+    ctx.arc(hd.x - 1.4, hd.y - 1.5, 1.6, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.fill();
+  }
+
+  // AA agents
+  for (const a of A) {
+    if (a.type !== AA) continue;
+    const r = a.bonds.size > 0 ? 4.6 : 3.3;
+
+    // Activation glow
+    if (a.act) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 3.2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(200, 240, 100, 0.07)';
+      ctx.fill();
+    }
+
+    // Bonded halo
+    if (a.bonds.size > 0) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 1.9, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(100, 190, 255, 0.10)';
+      ctx.fill();
+    }
+
+    // Body
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(118, 208, 255, ${a.bonds.size > 0 ? 0.92 : 0.65})`;
+    ctx.fill();
+
+    // Specular
+    ctx.beginPath();
+    ctx.arc(a.x - r * 0.3, a.y - r * 0.35, r * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.fill();
+  }
+
+  // Chain length halos (warm tint for long chains)
+  if (chains) {
+    for (const ch of chains) {
+      if (ch.length < 5) continue;
+      const heat = Math.min(1, (ch.length - 5) / 14);
+      for (const idx of ch) {
+        const a2 = A[idx];
+        ctx.beginPath();
+        ctx.arc(a2.x, a2.y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, ${180 - heat * 100}, ${60 + heat * 30}, 0.055)`;
+        ctx.fill();
+      }
+    }
+  }
+
+  // PHOSPHATE agents — bright energy sparks
+  for (const a of A) {
+    if (a.type !== PHOS) continue;
+    const pg = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, 6);
+    pg.addColorStop(0, 'rgba(255, 248, 110, 0.95)');
+    pg.addColorStop(1, 'rgba(255, 200, 40, 0)');
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = pg;
+    ctx.fill();
+  }
+}
+
+// ── HUD + graph update ────────────────────────────────────────
+const hist     = [];
+let latestChains   = [];
+let latestClusters = [];
+let latestEnc      = 0;
+let lastUI = 0;
+
+function updateUI() {
+  latestChains   = findChains();
+  latestClusters = findLipidClusters();
+  latestEnc      = countEnclosures(latestClusters);
+
+  const cx   = complexity(latestChains);
+  hist.push(cx);
+  if (hist.length > 220) hist.shift();
+
+  const nAA  = A.filter(a => a.type === AA).length;
+  const peps = latestChains.filter(c => c.length > 1).length;
+  const mxl  = latestChains.reduce((m, c) => Math.max(m, c.length), 0);
+  const nAgg = latestClusters.length;
+
+  document.getElementById('v-aa').textContent   = nAA;
+  document.getElementById('v-pep').textContent  = peps;
+  document.getElementById('v-mxl').textContent  = mxl;
+  document.getElementById('v-lagg').textContent = nAgg;
+  document.getElementById('v-enc').textContent  = latestEnc;
+  document.getElementById('v-cx').textContent   = cx.toFixed(3);
+  document.getElementById('v-speed').textContent = `${SPEED}×  [ +/- to adjust ]`;
+  document.getElementById('v-time').textContent  = `${tick}`;
+
+  // Emergence events
+  if (mxl >= 5  && tick % 200 === 0) logE(`peptide chain detected — length ${mxl}`);
+  if (mxl >= 12 && tick % 300 === 0) logE(`macro-peptide growing — L = ${mxl}`);
+  if (nAgg >= 2 && tick % 250 === 0) logE(`lipid self-assembly × ${nAgg} aggregates`);
+  if (latestEnc  > 0)                logE(`proto-membrane enclosure detected`);
+  if (mxl >= 20)                     logE(`significant polymer — L = ${mxl} — proto-protein?`);
+  if (cx > 4 && tick % 400 === 0)    logE(`sustained complexity index > 4`);
+
+  // Tier progression check
+  checkTiers(cx, mxl, nAgg, peps, latestClusters);
+
+  // Vitality / stagnation check
+  checkVitality(cx);
+
+  document.getElementById('elog').innerHTML =
+    elog.map(l => `<div>${l}</div>`).join('');
+
+  // Complexity graph
+  gctx.fillStyle = '#010d17';
+  gctx.fillRect(0, 0, 220, 90);
+  if (hist.length > 1) {
+    const mx = Math.max(...hist, 0.5);
+    gctx.strokeStyle = 'rgba(118, 208, 255, 0.72)';
+    gctx.lineWidth   = 1;
+    gctx.beginPath();
+    hist.forEach((v, i) => {
+      const x = (i / hist.length) * 220;
+      const y = 90 - (v / mx) * 85;
+      i === 0 ? gctx.moveTo(x, y) : gctx.lineTo(x, y);
+    });
+    gctx.stroke();
+    // Zero line
+    gctx.strokeStyle = 'rgba(80, 130, 160, 0.15)';
+    gctx.lineWidth   = 0.5;
+    gctx.beginPath();
+    gctx.moveTo(0, 89); gctx.lineTo(220, 89);
+    gctx.stroke();
+  }
+}
+
+// ── World vitality & stagnation engine ───────────────────────
+//
+//  If complexity fails to rise for STAGNATION_WINDOW ticks, the world
+//  is considered stagnant. The system then either:
+//    — triggers a physical perturbation to inject new energy/matter, or
+//    — if MAX_INTERVENTIONS exhausted, declares the world DEAD.
+//
+//  Why complexity drops: no self-sustaining autocatalytic loop yet.
+//  Thermal breaking constantly competes with bond formation.
+//  Complexity holds only when an energy-coupled positive feedback
+//  emerges — that's the threshold we're watching for.
+
+const STAGNATION_WINDOW   = 1200;  // ticks without complexity growth → intervene
+const COMPLEXITY_FLOOR    = 0.8;   // minimum 'alive' complexity
+const MAX_INTERVENTIONS   = 3;     // after this: dead world
+
+let peakComplexity   = 0;
+let peakTick         = 0;
+let interventions    = 0;
+let worldStatus      = 'active';   // 'active' | 'perturbed' | 'dead'
+let perturbFlash     = 0;          // flash timer for perturbation visual
+
+const PERTURBATION_TYPES = [
+  {
+    name: '⚡ GEOTHERMAL PULSE',
+    desc: 'energy surge — injecting phosphate & amino acids from vent',
+    fn: () => {
+      for (let i = 0; i < 22; i++)
+        addAgent(PHOS, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
+                 (Math.random()-0.5)*0.8, -3-Math.random()*2.5);
+      for (let i = 0; i < 18; i++)
+        addAgent(AA,   W*0.5+(Math.random()-0.5)*W*0.12, H-4,
+                 (Math.random()-0.5)*0.8, -2.5-Math.random()*2);
+    }
+  },
+  {
+    name: '💥 SEISMIC SHOCKWAVE',
+    desc: 'mechanical disturbance — disrupting equilibrium',
+    fn: () => {
+      for (const a of A) {
+        a.vx += (Math.random()-0.5) * 10;
+        a.vy += (Math.random()-0.5) * 10;
+      }
+    }
+  },
+  {
+    name: '☄️  EXOGENOUS INFLUX',
+    desc: 'molecular delivery from above — new lipids & catalysts',
+    fn: () => {
+      for (let i = 0; i < 35; i++)
+        addAgent(LIPID, Math.random()*W, 8,
+                 (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
+      for (let i = 0; i < 12; i++)
+        addAgent(AA,   Math.random()*W, 8,
+                 (Math.random()-0.5)*2, 1.5+Math.random()*2);
+    }
+  }
+];
+
+function checkVitality(cx) {
+  if (worldStatus === 'dead') return;
+
+  // Update peak
+  if (cx > peakComplexity) {
+    peakComplexity = cx;
+    peakTick       = tick;
+    // Coming back from intervention?
+    if (worldStatus === 'perturbed') {
+      worldStatus = 'active';
+      document.getElementById('world-state').className = '';
+      document.getElementById('world-state').textContent = '';
+      logE('complexity rising — world responding to perturbation');
+    }
+  }
+
+  // Stagnation check
+  const stagnant = (tick - peakTick > STAGNATION_WINDOW) &&
+                   (cx < COMPLEXITY_FLOOR || tick - peakTick > STAGNATION_WINDOW);
+
+  if (!stagnant) return;
+
+  if (interventions >= MAX_INTERVENTIONS) {
+    // DEAD WORLD
+    worldStatus = 'dead';
+    const el = document.getElementById('world-state');
+    el.textContent = 'DEAD WORLD';
+    el.className   = 'dead';
+    logE('thermodynamic equilibrium — no complexity pathway — DEAD WORLD');
+    return;
+  }
+
+  // Choose a perturbation
+  const p = PERTURBATION_TYPES[interventions % PERTURBATION_TYPES.length];
+  p.fn();
+  interventions++;
+  peakTick    = tick;   // reset stagnation clock
+  perturbFlash = 40;
+  worldStatus = 'perturbed';
+
+  const el = document.getElementById('world-state');
+  el.textContent = p.name;
+  el.className   = 'perturbed';
+  // Fade label out after 3s
+  setTimeout(() => {
+    if (worldStatus !== 'dead') {
+      el.className   = '';
+      el.textContent = '';
+    }
+  }, 3000);
+
+  logE(`intervention ${interventions}/${MAX_INTERVENTIONS}: ${p.desc}`);
+}
+
+// ── Tier detection system (T0–T12 measurable in current ABM) ──
+//
+//  Each tier is a one-way gate — once achieved, it's permanent.
+//  Tier transitions trigger a visual flash and an agent log entry.
+//  This record becomes the biome's archival narrative.
+
+const TIER_NAMES = [
+  'Inert', 'Molecular Activity', 'Persistent Structures',
+  'Reaction Diversity', 'Spatial Heterogeneity', 'Spontaneous Assembly',
+  'Sustained Complexity', 'Coupled Reactions', 'Emergent Catalysis',
+  'Boundary Formation', 'Closed Compartment', 'Interior Differentiation',
+  'Compartment Stability'
+];
+
+const tierAchieved   = new Array(13).fill(false);
+let   currentTier    = 0;
+let   tierFlash      = 0;
+let   tierFlashLabel = '';
+let   totalBondsFormed = 0;   // monotonic — incremented in addBond
+
+// Persistence counters
+let sustainedChainTicks  = 0;
+let bothReactionTicks    = 0;
+let sustainedCxTicks     = 0;
+let enclosureAge         = 0;
+
+// Bond rate tracking for T8
+const bondRateWindow = [];
+let   lastBondSnapshot = 0;
+
+function _lipidOrderParam(cluster) {
+  // Nematic order parameter S: 1 = perfectly aligned, 0 = random
+  let sc = 0, ss = 0;
+  for (const i of cluster) { sc += Math.cos(2 * A[i].ang); ss += Math.sin(2 * A[i].ang); }
+  return Math.sqrt(sc * sc + ss * ss) / cluster.length;
+}
+
+function _spatialCV() {
+  // Coefficient of variation of agent density across a 5×5 coarse grid
+  const G = 5;
+  const cw = W / G, ch = H / G;
+  const counts = new Array(G * G).fill(0);
+  for (const a of A) {
+    counts[(Math.min(G-1, (a.x/cw)|0)) * G + Math.min(G-1, (a.y/ch)|0)]++;
+  }
+  const mean = counts.reduce((s,v)=>s+v,0) / counts.length;
+  if (mean === 0) return 0;
+  const std = Math.sqrt(counts.reduce((s,v)=>s+(v-mean)**2,0) / counts.length);
+  return std / mean;
+}
+
+function _interiorRatio(clusters) {
+  // Ratio of AA density inside largest enclosure vs. surrounding area
+  if (!clusters.length) return 0;
+  const cl = clusters.reduce((a,b) => a.length > b.length ? a : b, []);
+  if (cl.length < 8) return 0;
+  let cx = 0, cy = 0;
+  for (const i of cl) { cx += A[i].x; cy += A[i].y; }
+  cx /= cl.length; cy /= cl.length;
+  const r = Math.sqrt(cl.length) * LIPID_L * 0.35;
+  let inside = 0, outside = 0;
+  for (const a of A) {
+    if (a.type !== AA) continue;
+    const d = Math.hypot(a.x - cx, a.y - cy);
+    if (d < r)           inside++;
+    else if (d < r*2.5)  outside++;
+  }
+  const iArea = Math.PI * r * r;
+  const oArea = Math.PI * (r*2.5)**2 - iArea;
+  const iDens = inside  / iArea;
+  const oDens = outside / oArea;
+  return oDens > 0 ? iDens / oDens : 0;
+}
+
+function promoteTier(t) {
+  if (tierAchieved[t]) return;
+  tierAchieved[t] = true;
+  currentTier     = t;
+  tierFlash       = 90;
+  tierFlashLabel  = `T${t} — ${TIER_NAMES[t].toUpperCase()}`;
+  logE(`▲ TIER ${t} — ${TIER_NAMES[t]}`);
+  document.getElementById('v-tier').textContent = `T${t} — ${TIER_NAMES[t]}`;
+}
+
+function checkTiers(cx, mxl, nAgg, peps, clusters) {
+
+  // T1 — Any bond ever formed
+  if (!tierAchieved[1] && totalBondsFormed > 0)
+    promoteTier(1);
+
+  // T2 — Chain >= 3 sustained 300 ticks
+  if (mxl >= 3) sustainedChainTicks++; else sustainedChainTicks = 0;
+  if (!tierAchieved[2] && sustainedChainTicks >= 300) promoteTier(2);
+
+  // T3 — Both reaction types active simultaneously
+  if (peps > 0 && nAgg > 0) bothReactionTicks++; else bothReactionTicks = 0;
+  if (!tierAchieved[3] && bothReactionTicks >= 100) promoteTier(3);
+
+  // T4 — Spatial heterogeneity (CV of density > 0.55)
+  if (!tierAchieved[4] && _spatialCV() > 0.55) promoteTier(4);
+
+  // T5 — Lipid aggregate > 6 found in upper 60% of canvas (away from vent)
+  if (!tierAchieved[5]) {
+    for (const cl of clusters) {
+      if (cl.length >= 7) {
+        let cy2 = 0;
+        for (const i of cl) cy2 += A[i].y;
+        if (cy2 / cl.length < H * 0.60) { promoteTier(5); break; }
+      }
+    }
+  }
+
+  // T6 — Rolling mean complexity > 1.5 over last 80 UI updates (~960 ticks)
+  if (hist.length >= 80) {
+    const win  = hist.slice(-80);
+    const mean = win.reduce((s,v)=>s+v,0) / win.length;
+    if (mean > 1.5) sustainedCxTicks++; else sustainedCxTicks = 0;
+  }
+  if (!tierAchieved[6] && sustainedCxTicks >= 10) promoteTier(6);
+
+  // T7 — Coupled reactions: chains and lipid aggregates co-active at meaningful scale
+  if (!tierAchieved[7] && tierAchieved[3] && peps >= 4 && nAgg >= 2) promoteTier(7);
+
+  // T8 — Bond rate acceleration: recent rate > 1.8x earlier rate
+  bondRateWindow.push(totalBondsFormed - lastBondSnapshot);
+  lastBondSnapshot = totalBondsFormed;
+  if (bondRateWindow.length > 20) bondRateWindow.shift();
+  if (!tierAchieved[8] && bondRateWindow.length >= 12 && tierAchieved[2]) {
+    const rec = bondRateWindow.slice(-4).reduce((s,v)=>s+v,0);
+    const old = bondRateWindow.slice(0, 4).reduce((s,v)=>s+v,0);
+    if (old > 0 && rec / old >= 1.8) promoteTier(8);
+  }
+
+  // T9 — Ordered lipid boundary: cluster size >= 8, order parameter > 0.55
+  if (!tierAchieved[9]) {
+    for (const cl of clusters) {
+      if (cl.length >= 8 && _lipidOrderParam(cl) > 0.55) { promoteTier(9); break; }
+    }
+  }
+
+  // T10 — Closed compartment (enclosure detected)
+  if (!tierAchieved[10] && latestEnc > 0) promoteTier(10);
+
+  // T11 — Interior differentiation: AA density inside >= 1.8x outside
+  if (!tierAchieved[11] && tierAchieved[10] && _interiorRatio(clusters) >= 1.8)
+    promoteTier(11);
+
+  // T12 — Compartment stability: enclosure persists 800+ UI-update cycles
+  if (latestEnc > 0) enclosureAge++; else enclosureAge = 0;
+  if (!tierAchieved[12] && enclosureAge >= 65) promoteTier(12); // ~780 ticks
+}
+
+// ── Speed control ─────────────────────────────────────────────
+// Physics steps per rendered frame — increase for faster evolution
+let SPEED = 4;
+
+document.addEventListener('keydown', e => {
+  if (e.key === '+' || e.key === '=') SPEED = Math.min(30, SPEED + 1);
+  if (e.key === '-' || e.key === '_') SPEED = Math.max(1,  SPEED - 1);
+  if (e.key === '0')                  SPEED = 4;  // reset
+});
+
+// ── Main loop ─────────────────────────────────────────────────
+function loop() {
+  for (let s = 0; s < SPEED; s++) {
+    update();
+    if (tick - lastUI >= 12) {
+      updateUI();
+      lastUI = tick;
+    }
+  }
+  render(latestChains, latestClusters, latestEnc);
+  requestAnimationFrame(loop);
+}
+
+init();
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pandora — Biome 10: Siliconia</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+canvas { display: block; position: absolute; inset: 0; z-index: 0; }
+
+/* ── HUD (left) ───────────────────────────────────────────── */
+#hud {
+  position: absolute; top: 24px; left: 24px; z-index: 10;
+  font-size: 11px; line-height: 2.1;
+  color: rgba(255, 160, 60, 0.7);
+  text-shadow: 0 0 8px rgba(255, 120, 20, 0.3);
+}
+.hk { color: rgba(180, 100, 40, 0.55); display: inline-block; width: 108px; }
+.hv { color: rgba(255, 210, 140, 0.92); }
+
+#title {
+  position: absolute; top: 24px; right: 290px; z-index: 10;
+  font-size: 13px; letter-spacing: 5px;
+  color: rgba(255, 160, 60, 0.28);
+  text-shadow: 0 0 20px rgba(255, 100, 20, 0.12);
+}
+#subtitle {
+  position: absolute; top: 46px; right: 290px; z-index: 10;
+  font-size: 9px; letter-spacing: 3px;
+  color: rgba(200, 120, 40, 0.22);
+}
+
+#graph-box {
+  position: absolute; bottom: 24px; right: 290px; z-index: 10;
+}
+#gl { font-size: 9px; letter-spacing: 3px; color: rgba(200,120,40,0.35); margin-bottom: 5px; }
+#gc { display: block; border: 1px solid rgba(200,100,30,0.12); }
+
+#elog {
+  position: absolute; bottom: 24px; left: 24px; z-index: 10;
+  font-size: 10px; line-height: 1.8;
+  color: rgba(255, 160, 60, 0.55);
+  width: 340px;
+}
+
+#legend {
+  position: absolute; top: 280px; left: 24px; z-index: 10;
+  font-size: 10px; line-height: 2.2;
+  color: rgba(180, 100, 40, 0.45);
+  border-top: 1px solid rgba(200, 100, 30, 0.12);
+  padding-top: 12px;
+}
+.ld {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  margin-right: 7px; vertical-align: middle;
+}
+
+#world-state {
+  position: absolute; top: 50%; left: calc(50% - 130px);
+  transform: translate(-50%, -50%);
+  font-size: 22px; letter-spacing: 8px;
+  pointer-events: none; z-index: 20;
+  opacity: 0; transition: opacity 1.5s;
+}
+#world-state.dead {
+  color: rgba(200, 80, 60, 0.75);
+  text-shadow: 0 0 40px rgba(200, 60, 40, 0.4);
+  opacity: 1;
+}
+#world-state.perturbed {
+  color: rgba(255, 200, 60, 0.8);
+  text-shadow: 0 0 30px rgba(255, 180, 40, 0.5);
+  opacity: 1;
+}
+
+/* ── Agent panel (right, collapsible) ────────────────────── */
+#agent-panel {
+  position: fixed; top: 0; right: 0;
+  width: 268px; height: 100vh;
+  background: rgba(5, 8, 14, 0.90);
+  backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(255, 140, 40, 0.10);
+  display: flex; flex-direction: column;
+  z-index: 50;
+  transition: transform 0.3s ease;
+}
+#agent-panel.collapsed { transform: translateX(256px); }
+
+#panel-toggle {
+  position: absolute; left: -28px; top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 54px;
+  background: rgba(5, 8, 14, 0.90);
+  border: 1px solid rgba(255, 140, 40, 0.10);
+  border-right: none;
+  cursor: pointer;
+  color: rgba(200, 130, 50, 0.55);
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  display: flex; align-items: center; justify-content: center;
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+}
+#panel-toggle:hover { color: rgba(255, 180, 80, 0.8); }
+
+#panel-header {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(255, 140, 40, 0.07);
+  flex-shrink: 0;
+}
+#panel-title {
+  font-size: 7px; letter-spacing: 4px;
+  color: rgba(200, 130, 50, 0.55);
+  margin-bottom: 3px;
+}
+#panel-agents {
+  font-size: 8px;
+  display: flex; gap: 8px;
+}
+.pagent { font-size: 7px; letter-spacing: 1px; }
+.pagent.OBSERVER { color: rgba(100, 180, 255, 0.6); }
+.pagent.ANALYST  { color: rgba(60, 210, 170, 0.6); }
+.pagent.NARRATOR { color: rgba(255, 200, 80, 0.6); }
+
+#agent-feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+#agent-feed::-webkit-scrollbar { width: 2px; }
+#agent-feed::-webkit-scrollbar-thumb { background: rgba(200, 120, 40, 0.2); }
+
+.ae { display: flex; flex-direction: column; gap: 3px; animation: fadein 0.4s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+.ae-meta { display: flex; gap: 8px; align-items: baseline; }
+.ae-name { font-size: 7px; letter-spacing: 2px; }
+.ae-time { font-size: 7px; color: rgba(150, 90, 40, 0.45); }
+.ae-msg  { font-size: 9.5px; line-height: 1.65; padding-left: 2px; }
+
+.ae-name.OBSERVER { color: rgba(100, 180, 255, 0.85); }
+.ae-name.ANALYST  { color: rgba(60, 210, 170, 0.85); }
+.ae-name.NARRATOR { color: rgba(255, 200, 80, 0.92); }
+.ae-name.SYSTEM   { color: rgba(200, 100, 50, 0.65); }
+
+.ae-msg.OBSERVER  { color: rgba(140, 200, 240, 0.60); }
+.ae-msg.ANALYST   { color: rgba(100, 220, 185, 0.60); }
+.ae-msg.NARRATOR  { color: rgba(225, 185, 80, 0.68); font-style: italic; }
+.ae-msg.SYSTEM    { color: rgba(190, 100, 50, 0.50); font-size: 9px; letter-spacing: 0.3px; }
+</style>
+</head>
+<body>
+
+<canvas id="main"></canvas>
+
+<div id="title">BIOME 10 — SILICONIA</div>
+<div id="subtitle">SILICON · SULFUR · OXIDE · HIGH-TEMPERATURE</div>
+
+<div id="hud">
+  <div><span class="hk">CHEMISTRY</span><span class="hv">Si / O / S</span></div>
+  <div><span class="hk">SOLVENT</span><span class="hv">Supercritical vapor</span></div>
+  <div><span class="hk">TEMP</span>    <span class="hv" id="v-t">900 K</span></div>
+  <div><span class="hk">PRESSURE</span><span class="hv" id="v-p">120 atm</span></div>
+  <div><span class="hk">Si ATOMS</span><span class="hv" id="v-si">—</span></div>
+  <div><span class="hk">Si-O BONDS</span><span class="hv" id="v-bonds">—</span></div>
+  <div><span class="hk">MAX CHAIN</span><span class="hv" id="v-mxl">—</span></div>
+  <div><span class="hk">BRANCH PTS</span><span class="hv" id="v-brn">—</span></div>
+  <div><span class="hk">RINGS</span>   <span class="hv" id="v-rings">—</span></div>
+  <div><span class="hk">COMPLEXITY</span><span class="hv" id="v-cx">—</span></div>
+  <div><span class="hk">TIER</span>    <span class="hv" id="v-tier">T0 — Inert</span></div>
+  <div><span class="hk">SPEED</span>   <span class="hv" id="v-speed">4×</span></div>
+  <div><span class="hk">TIME</span>    <span class="hv" id="v-time">—</span></div>
+</div>
+
+<div id="legend">
+  <div><span class="ld" style="background:rgba(255,140,30,0.9)"></span>silicon monomer (Si)</div>
+  <div><span class="ld" style="background:rgba(240,240,255,0.9)"></span>oxygen bridge (O)</div>
+  <div><span class="ld" style="background:rgba(120,255,100,0.85)"></span>sulfur catalyst (S)</div>
+</div>
+
+<div id="graph-box">
+  <div id="gl">NETWORK COMPLEXITY</div>
+  <canvas id="gc" width="220" height="90"></canvas>
+</div>
+
+<div id="world-state"></div>
+<div id="elog"></div>
+
+<!-- ── Agent panel ───────────────────────────────────────────── -->
+<div id="agent-panel">
+  <button id="panel-toggle" onclick="togglePanel()">AGENTS</button>
+  <div id="panel-header">
+    <div id="panel-title">FIELD AGENTS — SILICONIA</div>
+    <div id="panel-agents">
+      <span class="pagent OBSERVER">OBSERVER</span>
+      <span class="pagent ANALYST">ANALYST</span>
+      <span class="pagent NARRATOR">NARRATOR</span>
+    </div>
+  </div>
+  <div id="agent-feed"></div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+//  PANDORA — BIOME 10: SILICONIA
+//
+//  First non-carbon simulation. Silicon-oxygen network chemistry
+//  in a high-temperature (900 K) supercritical vapor environment.
+//
+//  Chemistry palette:
+//    SI  — silicon monomer (up to 4 bonds, tetrahedral geometry)
+//    OX  — oxygen bridge  (up to 2 bonds, links two SI atoms)
+//    SC  — sulfur catalyst (lowers activation energy for Si-O bond)
+//
+//  Emergent targets:
+//    1. Si-O bond formation  → silicate monomers
+//    2. Si-O-Si chains       → pyroxene-analog polymers
+//    3. Network branching    → silicate tetrahedra networks
+//    4. Ring closure         → cyclosilicate structures
+//    5. Extended network     → proto-mineral lattice
+// ═══════════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('main');
+const ctx    = canvas.getContext('2d');
+const gcv    = document.getElementById('gc');
+const gctx   = gcv.getContext('2d');
+
+let W, H;
+const resize = () => {
+  W = canvas.width  = innerWidth;
+  H = canvas.height = innerHeight;
+};
+resize();
+addEventListener('resize', resize);
+
+// ── Biome constants ───────────────────────────────────────────
+const T0     = 900;    // baseline temperature (K)
+const NOISE  = 0.28;   // Brownian variability
+const VENT_H = 0.50;   // thermal amplification near magma vent
+
+// Magma vent heat: intense near bottom-centre
+const lTemp = (x, y) =>
+  T0 * (1 + VENT_H * Math.max(0, 1 - Math.hypot(x - W * 0.5, y - H) / (H * 0.55)));
+
+// ── Agent type constants ──────────────────────────────────────
+const SI = 0;   // silicon monomer — network backbone
+const OX = 1;   // oxygen bridge  — linker
+const SC = 2;   // sulfur catalyst — energy proxy
+
+const MAX_SI_BONDS = 4;  // tetrahedral Si
+const MAX_OX_BONDS = 2;  // O bridges exactly two Si atoms
+
+// ── Simulation state ──────────────────────────────────────────
+let A      = [];
+let BONDS  = new Set();
+let tick   = 0;
+let uid    = 0;
+
+const bkey = (i, j) => i < j ? `${i},${j}` : `${j},${i}`;
+
+function newAgent(type, x, y) {
+  return {
+    id:    uid++,
+    type,
+    x:     x  ?? Math.random() * W,
+    y:     y  ?? (Math.random() * H * 0.85 + H * 0.05),
+    vx:    (Math.random() - 0.5) * 1.4,
+    vy:    (Math.random() - 0.5) * 1.4,
+    bonds: new Set(),
+    hot:   false,  // recently catalysed — glows brighter
+    hotT:  0,
+    idx:   -1,
+  };
+}
+
+function addAgent(type, x, y, vx, vy) {
+  const a = newAgent(type, x, y);
+  if (vx !== undefined) { a.vx = vx; a.vy = vy; }
+  a.idx = A.length;
+  A.push(a);
+}
+
+function init() {
+  A = []; BONDS.clear(); tick = 0; uid = 0;
+  for (let i = 0; i < 160; i++) addAgent(SI);
+  for (let i = 0; i < 120; i++) addAgent(OX);
+  for (let i = 0; i <  24; i++) addAgent(SC);
+}
+
+// ── Spatial hash ──────────────────────────────────────────────
+const CELL = 32;
+let gh = {};
+
+function buildGrid() {
+  gh = {};
+  for (let i = 0; i < A.length; i++) {
+    const a = A[i];
+    const k = `${(a.x / CELL) | 0},${(a.y / CELL) | 0}`;
+    (gh[k] = gh[k] || []).push(i);
+  }
+}
+
+function nearby(x, y, cells = 1) {
+  const cx = (x / CELL) | 0, cy = (y / CELL) | 0, out = [];
+  for (let dx = -cells; dx <= cells; dx++)
+    for (let dy = -cells; dy <= cells; dy++) {
+      const nb = gh[`${cx + dx},${cy + dy}`];
+      if (nb) for (const i of nb) out.push(i);
+    }
+  return out;
+}
+
+// ── Bond management ───────────────────────────────────────────
+let totalBondsFormed = 0;
+
+function addBond(i, j) {
+  const k = bkey(i, j);
+  if (BONDS.has(k)) return;
+  BONDS.add(k);
+  A[i].bonds.add(j);
+  A[j].bonds.add(i);
+  totalBondsFormed++;
+}
+
+function rmBond(i, j) {
+  const k = bkey(i, j);
+  if (!BONDS.has(k)) return;
+  BONDS.delete(k);
+  A[i].bonds.delete(j);
+  A[j].bonds.delete(i);
+}
+
+// ── Network analysis ──────────────────────────────────────────
+// Connected components (SI + OX nodes)
+function findComponents() {
+  const vis = new Uint8Array(A.length);
+  const comps = [];
+  for (let i = 0; i < A.length; i++) {
+    if (vis[i] || A[i].type === SC) continue;
+    const comp = { nodes: [], siCount: 0, bonds: 0 };
+    const q = [i];
+    while (q.length) {
+      const c = q.pop();
+      if (vis[c]) continue;
+      vis[c] = 1;
+      comp.nodes.push(c);
+      if (A[c].type === SI) comp.siCount++;
+      for (const nb of A[c].bonds) {
+        comp.bonds++;
+        if (!vis[nb]) q.push(nb);
+      }
+    }
+    comp.bonds = Math.floor(comp.bonds / 2); // each bond counted twice
+    if (comp.nodes.length >= 2) comps.push(comp);
+  }
+  return comps;
+}
+
+// Max SI count in any single component
+function maxChainLength(comps) {
+  return comps.reduce((m, c) => Math.max(m, c.siCount), 0);
+}
+
+// Branching points: SI atoms with 3+ OX bonds
+function countBranching() {
+  return A.filter(a => a.type === SI && a.bonds.size >= 3).length;
+}
+
+// Ring count heuristic: component with bonds > nodes-1 has cycles
+function countRings(comps) {
+  return comps.filter(c => c.bonds > c.nodes.length - 1).length;
+}
+
+// Complexity: sum(siCount^2) / total_SI  (analogous to Terra)
+function complexity(comps) {
+  const nSI = A.filter(a => a.type === SI).length;
+  if (!nSI) return 0;
+  return comps.reduce((s, c) => s + c.siCount * c.siCount, 0) / nSI;
+}
+
+// ── Event log (bottom-left) ───────────────────────────────────
+const elog = [];
+let lastLogT = -300;
+
+function logE(msg) {
+  if (tick - lastLogT < 80) return;
+  lastLogT = tick;
+  elog.unshift(`[t=${tick}]  ${msg}`);
+  if (elog.length > 7) elog.pop();
+}
+
+// ── Physics update ────────────────────────────────────────────
+const toBreak = [];
+let SPEED = 4;
+
+function update() {
+  tick++;
+
+  // Magma vent emissions (bottom-centre)
+  if (tick % 140 === 0 && A.filter(a => a.type === SI).length < 185) {
+    addAgent(SI, W*0.5 + (Math.random()-0.5)*W*0.12, H-4,
+             (Math.random()-0.5)*0.7, -2.4 - Math.random()*1.8);
+  }
+  if (tick % 200 === 0 && A.filter(a => a.type === OX).length < 140) {
+    addAgent(OX, W*0.5 + (Math.random()-0.5)*W*0.16, H-4,
+             (Math.random()-0.5)*0.6, -2.0 - Math.random()*1.4);
+  }
+  if (tick % 500 === 0 && A.filter(a => a.type === SC).length < 30) {
+    addAgent(SC, W*0.5 + (Math.random()-0.5)*W*0.14, H-4,
+             (Math.random()-0.5)*0.5, -3.2 - Math.random()*2.2);
+  }
+
+  buildGrid();
+
+  // ── Brownian motion + drag ────────────────────────────────
+  for (let i = 0; i < A.length; i++) {
+    const a  = A[i];
+    const Tl = lTemp(a.x, a.y);
+    const br = Math.sqrt(Tl / T0) * NOISE;
+
+    // Silicon network atoms damped more when bonded
+    const drag = (a.bonds.size > 0)
+      ? (a.type === SI ? 0.90 : 0.91)
+      : (a.type === SC ? 0.97 : 0.95);
+
+    a.vx += (Math.random() - 0.5) * br * 3.5;
+    a.vy += (Math.random() - 0.5) * br * 3.5;
+    a.vx *= drag;
+    a.vy *= drag;
+    a.x  += a.vx;
+    a.y  += a.vy;
+
+    // Wrap
+    if (a.x < 0) a.x += W; else if (a.x > W) a.x -= W;
+    if (a.y < 0) a.y += H; else if (a.y > H) a.y -= H;
+
+    if (a.hot && --a.hotT <= 0) a.hot = false;
+  }
+
+  // ── Pairwise interactions ─────────────────────────────────
+  for (let i = 0; i < A.length; i++) {
+    const a = A[i];
+    for (const j of nearby(a.x, a.y)) {
+      if (j <= i) continue;
+      const b  = A[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 > CELL*CELL) continue;
+      const d  = Math.sqrt(d2) + 0.001;
+      const Tl = lTemp((a.x+b.x)*0.5, (a.y+b.y)*0.5);
+
+      // ── SI + OX → Si-O bond ──────────────────────────────
+      const isSiOx = (a.type===SI && b.type===OX) || (a.type===OX && b.type===SI);
+      if (isSiOx) {
+        const si = a.type===SI ? a : b;
+        const si_i = a.type===SI ? i : j;
+        const ox = a.type===OX ? a : b;
+        const ox_j = a.type===OX ? j : i;
+        const bonded = si.bonds.has(ox_j);
+
+        if (!bonded && si.bonds.size < MAX_SI_BONDS && ox.bonds.size < MAX_OX_BONDS) {
+          // Check for SC catalyst nearby
+          let hasCat = false;
+          for (const k of nearby(si.x, si.y)) {
+            if (A[k].type === SC && Math.hypot(A[k].x-si.x, A[k].y-si.y) < CELL*1.5) {
+              hasCat = true; break;
+            }
+          }
+          // Arrhenius: Ea = 70 (Si-O bond, lower than peptide ~160)
+          const p = 0.005
+            * (hasCat ? 4.0 : 1)
+            * Math.exp(-70 / Tl);
+
+          if (Math.random() < p) {
+            addBond(si_i, ox_j);
+            // Spring attraction on bond formation
+            const f = 0.18 / d;
+            si.vx += dx * f * (a.type===SI ? 1 : -1);
+            si.vy += dy * f * (a.type===SI ? 1 : -1);
+            ox.vx -= dx * f * (b.type===OX ? 1 : -1);
+            ox.vy -= dy * f * (b.type===OX ? 1 : -1);
+            if (hasCat) {
+              si.hot = true; si.hotT = 50;
+              logE('sulfur-catalysed Si-O bond formed');
+            }
+          }
+        }
+
+        // Bonded: spring + thermal breaking
+        if (bonded) {
+          // Si-O bonds are strong — lower break probability than Terra peptides
+          const Pb = 6e-5 * Math.exp(Tl / 1100);
+          if (Math.random() < Pb) {
+            toBreak.push([si_i, ox_j]);
+          } else {
+            // Spring force
+            const rest = 18;  // rest distance
+            const stretch = d - rest;
+            const f = 0.06 * stretch / d;
+            si.vx += dx * f; si.vy += dy * f;
+            ox.vx -= dx * f; ox.vy -= dy * f;
+          }
+        }
+      }
+
+      // ── OX–OX: mild repulsion (prevents oxygen clumping) ─
+      if (a.type===OX && b.type===OX) {
+        if (d < 14) {
+          const f = 0.25 * (1 - d/14) / d;
+          a.vx -= dx*f; a.vy -= dy*f;
+          b.vx += dx*f; b.vy += dy*f;
+        }
+      }
+
+      // ── SI–SI: steric repulsion ──────────────────────────
+      if (a.type===SI && b.type===SI) {
+        if (d < 16) {
+          const f = 0.3 * (1 - d/16) / d;
+          a.vx -= dx*f; a.vy -= dy*f;
+          b.vx += dx*f; b.vy += dy*f;
+        }
+      }
+    }
+  }
+
+  while (toBreak.length) {
+    const [i, j] = toBreak.pop();
+    rmBond(i, j);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────
+let tierFlash = 0, tierFlashLabel = '';
+let perturbFlash = 0;
+let worldStatus = 'active';
+
+function render(comps, brn, rings) {
+
+  // Background — hot dark basalt
+  ctx.fillStyle = '#090402';
+  ctx.fillRect(0, 0, W, H);
+
+  // Dead world desaturation
+  if (worldStatus === 'dead') {
+    ctx.fillStyle = 'rgba(18,14,12,0.55)';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Perturbation flash
+  if (perturbFlash > 0) {
+    ctx.fillStyle = `rgba(255, 180, 40, ${perturbFlash/40 * 0.10})`;
+    ctx.fillRect(0, 0, W, H);
+    perturbFlash--;
+  }
+
+  // Tier promotion flash
+  if (tierFlash > 0) {
+    ctx.fillStyle = `rgba(255, 160, 50, ${(tierFlash/90) * 0.10})`;
+    ctx.fillRect(0, 0, W, H);
+    if (tierFlash > 50) {
+      ctx.save();
+      ctx.globalAlpha = (tierFlash-50)/40;
+      ctx.font = '13px Courier New';
+      ctx.fillStyle = 'rgba(255, 210, 120, 0.9)';
+      ctx.textAlign = 'center';
+      ctx.fillText(tierFlashLabel, W/2 - 130, H/2 - 12);
+      ctx.font = '10px Courier New';
+      ctx.fillStyle = 'rgba(220, 170, 80, 0.6)';
+      ctx.fillText('THRESHOLD CROSSED', W/2 - 130, H/2 + 10);
+      ctx.restore();
+    }
+    tierFlash--;
+  }
+
+  // Magma vent glow (bottom centre)
+  const vg = ctx.createRadialGradient(W*0.5, H, 10, W*0.5, H, H*0.55);
+  vg.addColorStop(0,   'rgba(255, 100, 20, 0.20)');
+  vg.addColorStop(0.4, 'rgba(180, 60,  10, 0.08)');
+  vg.addColorStop(1,   'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Heat shimmer near top — cooler zone
+  const cg = ctx.createLinearGradient(0, 0, 0, H*0.3);
+  cg.addColorStop(0, 'rgba(60, 20, 8, 0.04)');
+  cg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = cg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Network component auras — glow around large connected clusters
+  for (const comp of comps) {
+    if (comp.siCount < 3) continue;
+    let cx = 0, cy = 0;
+    for (const idx of comp.nodes) { cx += A[idx].x; cy += A[idx].y; }
+    cx /= comp.nodes.length; cy /= comp.nodes.length;
+    const r = Math.sqrt(comp.nodes.length) * 14;
+    const alpha = Math.min(0.10, comp.nodes.length * 0.004);
+    const ag = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    ag.addColorStop(0, `rgba(255, 130, 30, ${alpha * 2.0})`);
+    ag.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = ag;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Si-O bonds
+  ctx.lineWidth = 1.5;
+  for (const k of BONDS) {
+    const [si, sj] = k.split(',');
+    const a2 = A[+si], b2 = A[+sj];
+    if (!a2 || !b2) continue;
+    const len = (a2.bonds.size + b2.bonds.size) * 0.5;
+    const r2  = Math.min(255, 160 + len * 22);
+    const g2  = Math.max(50,  90  - len * 12);
+    ctx.strokeStyle = `rgba(${r2}, ${g2}, 20, 0.50)`;
+    ctx.beginPath();
+    ctx.moveTo(a2.x, a2.y);
+    ctx.lineTo(b2.x, b2.y);
+    ctx.stroke();
+  }
+
+  // OX agents — small bright oxygen bridge nodes
+  for (const a of A) {
+    if (a.type !== OX) continue;
+    const bonded = a.bonds.size > 0;
+    const r = bonded ? 3.2 : 2.2;
+
+    if (bonded) {
+      // Bridge glow
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 2.8, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(240, 240, 255, 0.04)';
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, r, 0, Math.PI*2);
+    ctx.fillStyle = bonded
+      ? 'rgba(240, 245, 255, 0.90)'
+      : 'rgba(200, 200, 220, 0.45)';
+    ctx.fill();
+  }
+
+  // SI agents — glowing silicon nodes, larger and brighter when bonded
+  for (const a of A) {
+    if (a.type !== SI) continue;
+    const bc = a.bonds.size;
+    const r  = 3.2 + bc * 0.9;
+
+    // Hot glow (catalysed)
+    if (a.hot) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 3.5, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255, 220, 80, 0.07)';
+      ctx.fill();
+    }
+
+    // Network halo for bonded atoms
+    if (bc > 0) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 2.0, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255, 120, 20, ${0.04 + bc * 0.015})`;
+      ctx.fill();
+    }
+
+    // Body gradient
+    const heat = Math.min(1, bc / 4);
+    const gr  = Math.round(220 - heat * 40);
+    const gg  = Math.round(110 - heat * 70);
+    const gb  = Math.round(20  + heat * 5);
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${gr}, ${gg}, ${gb}, ${0.65 + bc * 0.06})`;
+    ctx.fill();
+
+    // Specular
+    ctx.beginPath();
+    ctx.arc(a.x - r*0.3, a.y - r*0.35, r*0.38, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.fill();
+
+    // Tetrahedral bond count indicator for highly bonded Si
+    if (bc >= 3) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r + 3, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(255, 200, 80, ${0.12 + (bc-3) * 0.10})`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+  }
+
+  // SC agents — sulfur catalyst sparks (like PHOS in Terra)
+  for (const a of A) {
+    if (a.type !== SC) continue;
+    const sg2 = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, 7);
+    sg2.addColorStop(0, 'rgba(120, 255, 80, 0.95)');
+    sg2.addColorStop(1, 'rgba(80, 200, 40, 0)');
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, 7, 0, Math.PI*2);
+    ctx.fillStyle = sg2;
+    ctx.fill();
+  }
+}
+
+// ── HUD + complexity graph ─────────────────────────────────────
+const hist = [];
+let latestComps = [];
+let lastUI = 0;
+
+function updateUI() {
+  latestComps = findComponents();
+  const cx   = complexity(latestComps);
+  const mxl  = maxChainLength(latestComps);
+  const brn  = countBranching();
+  const rings = countRings(latestComps);
+
+  hist.push(cx);
+  if (hist.length > 220) hist.shift();
+
+  const nSI    = A.filter(a => a.type === SI).length;
+  const nBonds = BONDS.size;
+
+  document.getElementById('v-si').textContent    = nSI;
+  document.getElementById('v-bonds').textContent = nBonds;
+  document.getElementById('v-mxl').textContent   = mxl;
+  document.getElementById('v-brn').textContent   = brn;
+  document.getElementById('v-rings').textContent = rings;
+  document.getElementById('v-cx').textContent    = cx.toFixed(3);
+  document.getElementById('v-speed').textContent = `${SPEED}×  [ +/- to adjust ]`;
+  document.getElementById('v-time').textContent  = tick;
+
+  // Event log entries
+  if (mxl >= 3  && tick % 180 === 0) logE(`silicate chain — length ${mxl} Si atoms`);
+  if (brn >= 1  && tick % 250 === 0) logE(`branching point detected — ${brn} tetrahedral nodes`);
+  if (rings >= 1 && tick % 300 === 0) logE(`ring closure detected — ${rings} cyclic structures`);
+  if (cx > 3    && tick % 400 === 0) logE(`sustained network complexity > 3`);
+  if (mxl >= 8)                       logE(`silicate polymer — L=${mxl} — approaching mineral lattice`);
+
+  checkTiers(cx, mxl, brn, rings);
+  checkVitality(cx);
+
+  document.getElementById('elog').innerHTML =
+    elog.map(l => `<div>${l}</div>`).join('');
+
+  // Complexity graph
+  gctx.fillStyle = '#090402';
+  gctx.fillRect(0, 0, 220, 90);
+  if (hist.length > 1) {
+    const mx = Math.max(...hist, 0.5);
+    gctx.strokeStyle = 'rgba(255, 160, 50, 0.72)';
+    gctx.lineWidth   = 1;
+    gctx.beginPath();
+    hist.forEach((v, i) => {
+      const x = (i / hist.length) * 220;
+      const y = 90 - (v / mx) * 85;
+      i === 0 ? gctx.moveTo(x, y) : gctx.lineTo(x, y);
+    });
+    gctx.stroke();
+    gctx.strokeStyle = 'rgba(180, 80, 20, 0.15)';
+    gctx.lineWidth   = 0.5;
+    gctx.beginPath();
+    gctx.moveTo(0, 89); gctx.lineTo(220, 89);
+    gctx.stroke();
+  }
+
+  return { cx, mxl, brn, rings };
+}
+
+// ── Vitality / stagnation engine ──────────────────────────────
+const STAGNATION_WINDOW = 1400;  // slightly longer than Terra — Si is slower
+const COMPLEXITY_FLOOR  = 0.6;
+const MAX_INTERVENTIONS = 3;
+
+let peakComplexity  = 0;
+let peakTick        = 0;
+let interventions   = 0;
+
+const PERTURBATION_TYPES = [
+  {
+    name: '🌋 MAGMA SURGE',
+    desc: 'thermal energy surge — injecting fresh Si and catalysts from vent',
+    fn: () => {
+      for (let i = 0; i < 24; i++)
+        addAgent(SC, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
+                 (Math.random()-0.5)*0.7, -3.2-Math.random()*2.2);
+      for (let i = 0; i < 20; i++)
+        addAgent(SI, W*0.5+(Math.random()-0.5)*W*0.12, H-4,
+                 (Math.random()-0.5)*0.7, -2.5-Math.random()*2.0);
+    }
+  },
+  {
+    name: '💥 TECTONIC SHOCKWAVE',
+    desc: 'mechanical disruption — scattering all network nodes',
+    fn: () => {
+      for (const a of A) {
+        a.vx += (Math.random()-0.5) * 12;
+        a.vy += (Math.random()-0.5) * 12;
+      }
+    }
+  },
+  {
+    name: '☄️  EXOGENOUS SILICATE RAIN',
+    desc: 'incoming silicate and oxide molecules from above',
+    fn: () => {
+      for (let i = 0; i < 40; i++)
+        addAgent(OX, Math.random()*W, 8,
+                 (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
+      for (let i = 0; i < 18; i++)
+        addAgent(SI, Math.random()*W, 8,
+                 (Math.random()-0.5)*2.0, 1.5+Math.random()*2);
+    }
+  }
+];
+
+function checkVitality(cx) {
+  if (worldStatus === 'dead') return;
+
+  if (cx > peakComplexity) {
+    peakComplexity = cx;
+    peakTick       = tick;
+    if (worldStatus === 'perturbed') {
+      worldStatus = 'active';
+      document.getElementById('world-state').className  = '';
+      document.getElementById('world-state').textContent = '';
+      logE('complexity rising — siliconia responding to perturbation');
+      agentSay('ANALYST', 'Recovery confirmed. Network complexity rising. The perturbation worked.');
+    }
+  }
+
+  const stagnant = (tick - peakTick > STAGNATION_WINDOW) &&
+                   (cx < COMPLEXITY_FLOOR || tick - peakTick > STAGNATION_WINDOW);
+  if (!stagnant) return;
+
+  if (interventions >= MAX_INTERVENTIONS) {
+    worldStatus = 'dead';
+    const el = document.getElementById('world-state');
+    el.textContent = 'DEAD WORLD';
+    el.className   = 'dead';
+    logE('thermodynamic equilibrium — silicon network dissolved — DEAD WORLD');
+    agentSay('ANALYST',  'Complexity has not recovered. All interventions exhausted.');
+    agentSay('NARRATOR', 'Silicon is patient. It tried to become something. The temperature had other plans. We archive Siliconia now. Its chemistry will inform its children.');
+    return;
+  }
+
+  const p = PERTURBATION_TYPES[interventions % PERTURBATION_TYPES.length];
+  p.fn();
+  interventions++;
+  peakTick    = tick;
+  perturbFlash = 40;
+  worldStatus = 'perturbed';
+
+  const el = document.getElementById('world-state');
+  el.textContent = p.name;
+  el.className   = 'perturbed';
+  setTimeout(() => {
+    if (worldStatus !== 'dead') {
+      el.className = ''; el.textContent = '';
+    }
+  }, 3000);
+
+  logE(`intervention ${interventions}/${MAX_INTERVENTIONS}: ${p.desc}`);
+  agentSay('SYSTEM',   `PERTURBATION ${interventions}/${MAX_INTERVENTIONS}: ${p.name}`);
+  agentSay('ANALYST',  `Stagnation window exceeded. Issuing ${p.desc}. Monitoring for network response.`);
+}
+
+// ── Tier detection (silicon-specific T0–T12) ──────────────────
+const TIER_NAMES = [
+  'Inert', 'Molecular Activity', 'Persistent Structures',
+  'Reaction Diversity', 'Spatial Heterogeneity', 'Spontaneous Assembly',
+  'Sustained Complexity', 'Coupled Reactions', 'Emergent Catalysis',
+  'Boundary Formation', 'Closed Compartment', 'Interior Differentiation',
+  'Compartment Stability'
+];
+
+const tierAchieved = new Array(13).fill(false);
+let currentTier    = 0;
+
+let sustainedChainTicks = 0;
+let sustainedBranchTicks = 0;
+let sustainedRingTicks   = 0;
+let sustainedCxTicks     = 0;
+
+function promoteTier(t) {
+  if (tierAchieved[t]) return;
+  tierAchieved[t]  = true;
+  currentTier      = t;
+  tierFlash        = 90;
+  tierFlashLabel   = `T${t} — ${TIER_NAMES[t].toUpperCase()}`;
+  logE(`▲ TIER ${t} — ${TIER_NAMES[t]}`);
+  document.getElementById('v-tier').textContent = `T${t} — ${TIER_NAMES[t]}`;
+
+  // Agent commentary on tier transitions
+  const tierNarrative = {
+    1: ['OBSERVER',  'First Si-O bond confirmed. Molecular activity initiated. T1 achieved.'],
+    2: ['ANALYST',   `Persistent Si-O-Si chain detected. Silicate polymer forming. T2 confirmed.`],
+    3: ['CHEMIST_NOTE', null],  // Branching — custom below
+    4: ['NARRATOR',  'Ring closure. A silicate cycle. The network is folding back on itself — the first closed geometry in this world. T4 is the beginning of structure that remembers itself.'],
+    5: ['ANALYST',   'Spontaneous assembly confirmed. Si-O networks migrating away from the vent zone. T5.'],
+    6: ['OBSERVER',  'Sustained complexity for >960 ticks. The network is self-reinforcing. T6.'],
+    7: ['NARRATOR',  'The reactions are coupling. What one part of the network does is affecting what another part does. This is the first whisper of coordination.'],
+    8: ['ANALYST',   'Bond formation rate accelerating. Autocatalytic feedback loop suspected. T8.'],
+    9: ['OBSERVER',  'Network boundary forming. Dense cluster with sparse perimeter. Si-O lattice developing spatial identity. T9.'],
+  };
+
+  if (t === 3) {
+    agentSay('ANALYST',  `Branching detected — ${countBranching()} tetrahedral Si nodes. The chain has grown a fork. T3 confirmed.`);
+    agentSay('NARRATOR', 'It is no longer a line. It is a tree. Silicon has learned to make choices about where to go next.');
+  } else if (tierNarrative[t]) {
+    const [ag, msg] = tierNarrative[t];
+    if (msg) agentSay(ag === 'CHEMIST_NOTE' ? 'ANALYST' : ag, msg);
+  }
+}
+
+function checkTiers(cx, mxl, brn, rings) {
+  // T1 — any bond
+  if (!tierAchieved[1] && totalBondsFormed > 0) promoteTier(1);
+
+  // T2 — chain >= 3 Si atoms, sustained 300 ticks
+  if (mxl >= 3) sustainedChainTicks++; else sustainedChainTicks = 0;
+  if (!tierAchieved[2] && sustainedChainTicks >= 300) promoteTier(2);
+
+  // T3 — branching detected, sustained 200 ticks
+  if (brn >= 1) sustainedBranchTicks++; else sustainedBranchTicks = 0;
+  if (!tierAchieved[3] && sustainedBranchTicks >= 200) promoteTier(3);
+
+  // T4 — ring closure detected, sustained 150 ticks
+  if (rings >= 1) sustainedRingTicks++; else sustainedRingTicks = 0;
+  if (!tierAchieved[4] && sustainedRingTicks >= 150) promoteTier(4);
+
+  // T5 — large network migrated from vent zone
+  if (!tierAchieved[5]) {
+    for (const comp of latestComps) {
+      if (comp.siCount < 6) continue;
+      let cy2 = 0;
+      for (const idx of comp.nodes) cy2 += A[idx].y;
+      if (cy2 / comp.nodes.length < H * 0.62) { promoteTier(5); break; }
+    }
+  }
+
+  // T6 — sustained complexity > 1.5 for 10 UI intervals
+  if (hist.length >= 80) {
+    const win  = hist.slice(-80);
+    const mean = win.reduce((s,v)=>s+v,0)/win.length;
+    if (mean > 1.5) sustainedCxTicks++; else sustainedCxTicks = 0;
+  }
+  if (!tierAchieved[6] && sustainedCxTicks >= 10) promoteTier(6);
+}
+
+// ── Agent conversation system ─────────────────────────────────
+//
+//  Agents observe the simulation in real time and file entries
+//  to the panel on the right. Messages fire on events:
+//   — simulation start
+//   — periodic checkpoints (every ~600 ticks)
+//   — tier promotions  (handled in promoteTier above)
+//   — stagnation events (handled in checkVitality above)
+//   — notable measurements
+
+const agentFeed   = document.getElementById('agent-feed');
+let lastAgentTick = -600;
+let lastCheckpointMessage = -1;
+
+function agentSay(agent, msg) {
+  const entry = document.createElement('div');
+  entry.className = 'ae';
+  entry.innerHTML = `
+    <div class="ae-meta">
+      <span class="ae-name ${agent}">${agent}</span>
+      <span class="ae-time">t=${tick}</span>
+    </div>
+    <div class="ae-msg ${agent}">${msg}</div>
+  `;
+  agentFeed.appendChild(entry);
+  // Auto-scroll to bottom
+  agentFeed.scrollTop = agentFeed.scrollHeight;
+
+  // Trim feed to last 60 entries
+  while (agentFeed.children.length > 60) {
+    agentFeed.removeChild(agentFeed.firstChild);
+  }
+}
+
+// Periodic checkpoint agent messages
+const CHECKPOINTS = [
+  {
+    t: 1,
+    messages: [
+      ['OBSERVER',  'Biome-10 SILICONIA initialized. Silicon-oxygen chemistry in supercritical vapor at 900K. Monitoring begins.'],
+      ['ANALYST',   'Conditions logged: 120 atm, T₀ = 900K. Si:O ratio 4:3. Sulfur catalyst density 8%. Within expected parameters for silicate chemistry.'],
+      ['NARRATOR',  'Carbon had water. Silicon has fire. Let us see what builds itself in the heat.'],
+    ]
+  },
+  {
+    t: 400,
+    messages: [
+      ['OBSERVER',  `${() => A.filter(a=>a.type===SI).length} silicon atoms in field. Brownian diffusion nominal for 900K. First collision events recorded.`],
+    ]
+  },
+  {
+    t: 800,
+    condition: () => !tierAchieved[1],
+    messages: [
+      ['ANALYST',   'No bond formation yet. Temperature may be suppressing condensation — high T increases collision frequency but also bond break rate. Watching activation window.'],
+    ]
+  },
+  {
+    t: 1200,
+    condition: () => tierAchieved[1] && !tierAchieved[2],
+    messages: [
+      ['OBSERVER',  'Si-O bonds forming and breaking. Short-lived silicate monomers. No sustained chain yet.'],
+      ['ANALYST',   'Bond formation rate: adequate. Bond persistence: marginal. Need Si-O-Si chain to exceed thermal break rate.'],
+    ]
+  },
+  {
+    t: 2000,
+    condition: () => tierAchieved[2],
+    messages: [
+      ['NARRATOR',  'A silicate chain is a memory — each Si atom remembering the one before it, connected by an oxygen it shares with no one else. The chain is 900 degrees of commitment.'],
+    ]
+  },
+  {
+    t: 3000,
+    messages: [
+      ['ANALYST',   `Current peak chain: ${() => maxChainLength(latestComps)} Si atoms. Branching count: ${countBranching()}. Network is ${tierAchieved[3] ? 'branching — T3 confirmed' : 'still linear — watching for tetrahedral Si nodes'}.`],
+    ]
+  },
+  {
+    t: 5000,
+    messages: [
+      ['OBSERVER',  `${BONDS.size} active Si-O bonds. Total bonds ever formed: ${() => totalBondsFormed}. Network has cycled through ${() => totalBondsFormed - BONDS.size} broken connections.`],
+      ['NARRATOR',  'Every broken bond is information. The world is learning what shapes are stable. The shapes that survive become the shapes that persist. This is the beginning of something like memory.'],
+    ]
+  },
+];
+
+let checkpointIdx = 0;
+
+function runAgentCheckpoints() {
+  while (checkpointIdx < CHECKPOINTS.length) {
+    const cp = CHECKPOINTS[checkpointIdx];
+    if (tick < cp.t) break;
+    // Check condition
+    if (!cp.condition || cp.condition()) {
+      for (const [agent, msgOrFn] of cp.messages) {
+        const msg = typeof msgOrFn === 'function' ? msgOrFn() : msgOrFn;
+        agentSay(agent, msg);
+      }
+    }
+    checkpointIdx++;
+  }
+
+  // Periodic narrative updates every 1200 ticks after all checkpoints done
+  if (checkpointIdx >= CHECKPOINTS.length && tick - lastAgentTick >= 1200) {
+    lastAgentTick = tick;
+    const cx    = hist.length ? hist[hist.length-1] : 0;
+    const mxl   = maxChainLength(latestComps);
+    const brn   = countBranching();
+    const rings = countRings(latestComps);
+
+    const PERIODIC = [
+      () => agentSay('OBSERVER',
+        `Status update at t=${tick}. Bonds active: ${BONDS.size}. Max chain: ${mxl} Si. Branching: ${brn}. Rings: ${rings}. Complexity: ${cx.toFixed(3)}.`),
+      () => agentSay('ANALYST',
+        mxl >= 5
+          ? `Silicon network growing. Chain length ${mxl} — ${brn > 0 ? 'branching confirmed' : 'still unbranched'}. ${rings > 0 ? `${rings} cyclic structure${rings>1?'s':''} detected.` : 'No ring closures yet.'}`
+          : `Network struggling. Max chain ${mxl}. High temperature competing with bond stability. ${interventions > 0 ? `${interventions} perturbation${interventions>1?'s':''} applied.` : 'No interventions yet.'}`),
+      () => {
+        if (tierAchieved[4]) agentSay('NARRATOR', 'Rings mean the network can close on itself. A closed thing can hold something inside. We are watching the precondition of containment form in molten rock.');
+        else if (tierAchieved[3]) agentSay('NARRATOR', 'The branches grow. Each fork is a question — which direction is more stable? Silicon asks this question with every bond it forms. Geology asks this question over millions of years.');
+        else if (tierAchieved[2]) agentSay('NARRATOR', 'The chains persist. They are not yet complex enough to be interesting. But they are complex enough to be real.');
+        else agentSay('NARRATOR', 'Siliconia is quieter than Terra. The chemistry is slower, more deliberate. This is not a failure — this is silicon\'s way.');
+      },
+    ];
+
+    PERIODIC[Math.floor(Math.random() * PERIODIC.length)]();
+  }
+}
+
+// ── Panel toggle ──────────────────────────────────────────────
+function togglePanel() {
+  document.getElementById('agent-panel').classList.toggle('collapsed');
+}
+
+// ── Speed control ─────────────────────────────────────────────
+let SPEED_VAL = 4;
+document.addEventListener('keydown', e => {
+  if (e.key === '+' || e.key === '=') SPEED_VAL = Math.min(30, SPEED_VAL + 1);
+  if (e.key === '-')                   SPEED_VAL = Math.max(1,  SPEED_VAL - 1);
+  if (e.key === '0')                   SPEED_VAL = 4;
+  SPEED = SPEED_VAL;
+});
+
+// ── Main loop ─────────────────────────────────────────────────
+let lastUITick = 0;
+const UI_INTERVAL = 12;  // update HUD every 12 ticks
+
+function loop() {
+  requestAnimationFrame(loop);
+
+  for (let s = 0; s < SPEED_VAL; s++) update();
+
+  if (tick - lastUITick >= UI_INTERVAL) {
+    lastUITick = tick;
+    const { cx, mxl, brn, rings } = updateUI();
+    render(latestComps, brn, rings);
+    runAgentCheckpoints();
+  } else {
+    render(latestComps, countBranching(), countRings(latestComps));
+  }
+}
+
+init();
+loop();
+</script>
+</body>
+</html>

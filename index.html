@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pandora — The Living Archive</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+/* ── Reset ───────────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#040810;
+  --glass:rgba(8,16,28,0.7);
+  --border:rgba(60,110,160,0.15);
+  --text:rgba(180,218,255,0.75);
+  --dim:rgba(90,130,165,0.5);
+  --font:'Courier New',monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow-x:hidden;}
+::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar-thumb{background:rgba(60,110,160,0.3);}
+
+/* ── Star canvas ─────────────────────────────────────────── */
+#starfield{position:fixed;inset:0;z-index:0;pointer-events:none;}
+
+/* ── Layout wrapper ─────────────────────────────────────── */
+#app{position:relative;z-index:1;}
+
+/* ── Header ──────────────────────────────────────────────── */
+#header{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  height:58px;display:flex;align-items:center;
+  padding:0 32px;gap:24px;
+  background:rgba(4,8,16,0.85);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+#logo{
+  font-size:20px;letter-spacing:10px;
+  background:linear-gradient(90deg,rgba(120,190,255,0.9),rgba(80,160,240,0.5));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  flex-shrink:0;
+}
+#logo-sub{font-size:9px;letter-spacing:3px;color:var(--dim);margin-top:-2px;}
+#nav{display:flex;gap:3px;margin-left:auto;}
+.nav-btn{
+  padding:6px 20px;font-family:var(--font);font-size:9px;letter-spacing:3px;
+  background:transparent;border:1px solid var(--border);color:var(--dim);
+  cursor:pointer;transition:all 0.2s;
+}
+.nav-btn:hover,.nav-btn.active{
+  border-color:rgba(80,160,240,0.5);color:rgba(160,210,255,0.9);
+  background:rgba(40,90,160,0.1);
+}
+#live-ticker{
+  font-size:9px;letter-spacing:2px;color:var(--dim);
+  display:flex;gap:20px;flex-shrink:0;
+}
+.tick-item{white-space:nowrap;}
+.tick-val{color:rgba(160,210,255,0.85);}
+
+/* ── Page ────────────────────────────────────────────────── */
+.page{padding:74px 32px 60px;min-height:100vh;}
+.page-hidden{display:none!important;}
+
+/* ── Hero strip ──────────────────────────────────────────── */
+#hero{
+  margin-bottom:32px;
+  padding:24px 28px;
+  background:linear-gradient(135deg,rgba(10,20,40,0.9),rgba(6,14,28,0.95));
+  border:1px solid rgba(80,140,220,0.12);
+  display:flex;align-items:center;gap:28px;
+  position:relative;overflow:hidden;
+}
+#hero::before{
+  content:'';position:absolute;inset:0;z-index:0;
+  background:radial-gradient(ellipse at 20% 50%,rgba(60,120,220,0.06) 0%,transparent 70%);
+  pointer-events:none;
+}
+#hero-label{font-size:9px;letter-spacing:4px;color:var(--dim);margin-bottom:6px;}
+#hero-name{font-size:24px;letter-spacing:3px;color:rgba(210,235,255,0.95);margin-bottom:4px;}
+#hero-tier{
+  display:inline-block;padding:3px 12px;margin-bottom:10px;
+  font-size:9px;letter-spacing:3px;border:1px solid rgba(255,200,80,0.3);
+  color:rgba(255,200,80,0.8);background:rgba(40,30,10,0.6);
+}
+#hero-desc{font-size:11px;line-height:1.8;color:var(--dim);max-width:500px;}
+#hero-right{margin-left:auto;text-align:right;flex-shrink:0;position:relative;z-index:1;}
+.hero-stat{margin-bottom:10px;}
+.hero-stat-val{font-size:28px;letter-spacing:2px;color:rgba(180,215,255,0.9);}
+.hero-stat-label{font-size:8px;letter-spacing:3px;color:var(--dim);}
+#hero-enter{
+  margin-top:16px;padding:9px 22px;
+  font-family:var(--font);font-size:9px;letter-spacing:3px;
+  background:rgba(40,90,180,0.15);border:1px solid rgba(80,150,240,0.3);
+  color:rgba(140,200,255,0.8);cursor:pointer;transition:all 0.2s;
+}
+#hero-enter:hover{background:rgba(50,110,200,0.25);border-color:rgba(100,170,255,0.5);}
+
+/* ── Tier distribution bar ───────────────────────────────── */
+#tier-bar{
+  margin-bottom:28px;padding:16px 20px;
+  background:rgba(6,12,22,0.8);border:1px solid var(--border);
+}
+#tier-bar-label{font-size:9px;letter-spacing:3px;color:var(--dim);margin-bottom:12px;}
+#tier-bar-track{display:flex;height:3px;gap:2px;margin-bottom:8px;}
+.tier-seg{height:100%;flex:1;opacity:0.7;transition:opacity 0.2s;}
+.tier-seg:hover{opacity:1;}
+#tier-bar-labels{display:flex;gap:12px;flex-wrap:wrap;}
+.tier-chip{
+  font-size:8px;letter-spacing:1px;padding:2px 7px;
+  border:1px solid transparent;cursor:default;
+}
+
+/* ── Section header ──────────────────────────────────────── */
+.section-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:18px;padding-bottom:12px;
+  border-bottom:1px solid var(--border);
+  font-size:9px;letter-spacing:4px;color:var(--dim);
+}
+.filter-tabs{display:flex;gap:3px;}
+.tab{
+  padding:5px 14px;font-family:var(--font);font-size:9px;letter-spacing:2px;
+  background:transparent;border:1px solid var(--border);color:var(--dim);cursor:pointer;transition:all 0.2s;
+}
+.tab.active,.tab:hover{border-color:rgba(80,150,220,0.4);color:rgba(160,210,255,0.85);background:rgba(40,90,160,0.08);}
+
+/* ── Biome grid ──────────────────────────────────────────── */
+#biome-grid,#archive-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+  gap:8px;margin-bottom:40px;
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+.biome-card{
+  position:relative;
+  background:var(--glass);
+  border:1px solid var(--border);
+  padding:0;overflow:hidden;
+  cursor:pointer;transition:transform 0.18s,border-color 0.18s,box-shadow 0.18s;
+}
+.biome-card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 30px rgba(0,0,0,0.5);
+}
+.biome-card.dead{opacity:0.45;filter:saturate(0.2) brightness(0.7);}
+.biome-card.forming{opacity:0.65;}
+.biome-card.live-sim{
+  border-color:rgba(80,200,140,0.25)!important;
+  box-shadow:0 0 20px rgba(60,180,120,0.08)!important;
+}
+
+/* card top glow strip */
+.card-strip{height:2px;width:100%;}
+/* card inner */
+.card-inner{padding:14px 16px;}
+
+.card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;}
+.card-id{font-size:8px;letter-spacing:2px;color:var(--dim);}
+.card-badges{display:flex;gap:4px;align-items:center;}
+.live-badge{
+  font-size:7px;letter-spacing:2px;padding:2px 6px;
+  background:rgba(40,160,90,0.2);border:1px solid rgba(60,180,100,0.4);
+  color:rgba(80,220,130,0.9);
+}
+.live-badge .dot{
+  display:inline-block;width:4px;height:4px;border-radius:50%;
+  background:#50e090;margin-right:3px;animation:pulse 1.5s infinite;
+}
+
+.card-name{font-size:13px;letter-spacing:1px;color:rgba(200,228,255,0.92);margin-bottom:5px;line-height:1.25;}
+.card-chem{font-size:8px;color:var(--dim);letter-spacing:1px;margin-bottom:10px;}
+
+/* tier badge */
+.card-tier{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:8px;letter-spacing:2px;padding:3px 8px;margin-bottom:9px;
+}
+/* tier progress arc */
+.tier-progress{
+  width:100%;height:2px;background:rgba(255,255,255,0.06);margin-bottom:10px;
+}
+.tier-progress-fill{height:100%;transition:width 0.3s;}
+
+.card-footer{display:flex;align-items:center;justify-content:space-between;}
+.status-indicator{display:flex;align-items:center;gap:5px;font-size:8px;letter-spacing:2px;}
+.sdot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.sdot.active{background:#40d080;box-shadow:0 0 5px #40d08088;animation:pulse 2s infinite;}
+.sdot.dead{background:#803030;}
+.sdot.forming{background:#506070;animation:blink 3s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.35}}
+@keyframes blink{0%,100%{opacity:0.3}50%{opacity:0.8}}
+
+/* forming shimmer */
+.biome-card.forming::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(80,130,200,0.04),transparent);
+  animation:shimmer 3s infinite;
+}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+
+/* Archive section */
+.archive-hdr{
+  font-size:9px;letter-spacing:4px;color:rgba(160,70,60,0.55);
+  margin-bottom:14px;padding-bottom:10px;
+  border-bottom:1px solid rgba(100,30,30,0.2);
+  display:flex;align-items:center;gap:10px;
+}
+.archive-hdr::before{content:'';width:6px;height:6px;border-radius:50%;background:rgba(160,50,40,0.5);display:block;}
+
+/* ── Lineage page ─────────────────────────────────────────── */
+#lineage-container{
+  width:100%;height:calc(100vh - 120px);
+  background:rgba(4,8,14,0.9);
+  border:1px solid var(--border);
+  position:relative;overflow:hidden;
+}
+#lineage-hint{font-size:9px;letter-spacing:2px;color:var(--dim);margin-bottom:10px;}
+#l-tooltip{
+  position:absolute;pointer-events:none;
+  background:rgba(4,10,20,0.96);border:1px solid rgba(60,120,180,0.25);
+  padding:10px 14px;font-size:10px;line-height:1.7;color:var(--text);
+  max-width:200px;z-index:10;opacity:0;transition:opacity 0.12s;
+}
+
+/* ── Modal ───────────────────────────────────────────────── */
+#modal-overlay{
+  position:fixed;inset:0;
+  background:rgba(2,6,14,0.82);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;
+  z-index:500;opacity:0;pointer-events:none;transition:opacity 0.2s;
+}
+#modal-overlay.open{opacity:1;pointer-events:auto;}
+#modal{
+  background:linear-gradient(160deg,rgba(8,16,30,0.98),rgba(6,12,22,0.99));
+  border:1px solid rgba(60,120,180,0.2);
+  width:520px;max-width:92vw;max-height:88vh;overflow-y:auto;
+  padding:30px;position:relative;
+  transform:translateY(12px);transition:transform 0.2s;
+}
+#modal-overlay.open #modal{transform:translateY(0);}
+#modal-close{
+  position:absolute;top:18px;right:18px;
+  background:transparent;border:none;
+  color:var(--dim);font-size:16px;cursor:pointer;font-family:var(--font);
+}
+#modal-close:hover{color:rgba(200,220,255,0.7);}
+
+.modal-top-strip{height:2px;width:100%;margin:-30px -30px 24px;width:calc(100% + 60px);}
+#m-id{font-size:8px;letter-spacing:3px;color:var(--dim);margin-bottom:6px;}
+#m-name{font-size:22px;letter-spacing:2px;color:rgba(210,235,255,0.96);margin-bottom:6px;}
+#m-tier{display:inline-block;padding:3px 12px;margin-bottom:10px;font-size:9px;letter-spacing:3px;}
+#m-chem{font-size:9px;color:var(--dim);letter-spacing:2px;margin-bottom:14px;}
+#m-desc{font-size:11px;line-height:1.9;color:rgba(155,195,230,0.7);margin-bottom:18px;border-left:1px solid var(--border);padding-left:14px;}
+
+.m-section-label{font-size:8px;letter-spacing:3px;color:var(--dim);margin-bottom:8px;}
+.m-stats-row{display:flex;gap:20px;margin-bottom:20px;flex-wrap:wrap;}
+.m-stat-val{font-size:14px;color:rgba(180,215,255,0.9);margin-top:2px;}
+
+#m-parents{margin-bottom:20px;}
+#m-parents-list{font-size:10px;line-height:2;color:var(--dim);}
+.parent-link{
+  color:rgba(100,180,255,0.8);cursor:pointer;
+  text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;
+  transition:color 0.15s;
+}
+.parent-link:hover{color:rgba(140,210,255,1);}
+
+#m-children{margin-bottom:20px;font-size:10px;color:var(--dim);line-height:2;}
+
+#m-enter{
+  width:100%;padding:12px;
+  font-family:var(--font);font-size:9px;letter-spacing:4px;
+  background:rgba(30,80,180,0.12);border:1px solid rgba(60,140,240,0.25);
+  color:rgba(130,195,255,0.8);cursor:pointer;transition:all 0.2s;
+  margin-top:4px;
+}
+#m-enter:hover:not(:disabled){background:rgba(40,100,200,0.22);border-color:rgba(90,170,255,0.45);}
+#m-enter:disabled{opacity:0.3;cursor:not-allowed;}
+
+/* ── Agent log ───────────────────────────────────────────── */
+#m-agent-log{margin-top:22px;border-top:1px solid var(--border);padding-top:18px;}
+.log-entry{display:flex;gap:10px;margin-bottom:9px;align-items:flex-start;}
+.log-time{font-size:8px;letter-spacing:1px;color:var(--dim);flex-shrink:0;padding-top:1px;min-width:46px;}
+.log-agent{font-size:7px;letter-spacing:2px;flex-shrink:0;min-width:64px;padding-top:2px;}
+.log-agent.OBSERVER{color:rgba(100,180,255,0.8);}
+.log-agent.ANALYST{color:rgba(60,210,180,0.8);}
+.log-agent.CHEMIST{color:rgba(90,220,120,0.8);}
+.log-agent.NARRATOR{color:rgba(255,200,80,0.85);}
+.log-agent.SYSTEM{color:rgba(110,110,130,0.7);}
+.log-msg{font-size:10px;line-height:1.7;color:rgba(155,195,230,0.72);}
+.log-msg.narrator-msg{color:rgba(220,185,90,0.7);font-style:italic;}
+.log-msg.system-msg{color:rgba(100,100,120,0.6);letter-spacing:0.5px;}
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<div id="app">
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<div id="header">
+  <div>
+    <div id="logo">PANDORA</div>
+    <div id="logo-sub">THE LIVING ARCHIVE</div>
+  </div>
+  <nav id="nav">
+    <button class="nav-btn active" onclick="showPage('dashboard')">WORLDS</button>
+    <button class="nav-btn" onclick="showPage('lineage')">LINEAGE</button>
+  </nav>
+  <div id="live-ticker">
+    <div class="tick-item">ACTIVE <span class="tick-val" id="s-active">—</span></div>
+    <div class="tick-item">ARCHIVED <span class="tick-val" id="s-dead">—</span></div>
+    <div class="tick-item">FORMING <span class="tick-val" id="s-forming">—</span></div>
+    <div class="tick-item">PEAK <span class="tick-val" id="s-peak">—</span></div>
+  </div>
+</div>
+
+<!-- ── Dashboard page ─────────────────────────────────────── -->
+<div id="dashboard-page" class="page">
+
+  <!-- Hero: top-tier world -->
+  <div id="hero">
+    <div>
+      <div id="hero-label">HIGHEST TIER WORLD</div>
+      <div id="hero-name">—</div>
+      <div id="hero-tier">—</div>
+      <div id="hero-desc">—</div>
+    </div>
+    <div id="hero-right">
+      <div class="hero-stat"><div class="hero-stat-val" id="s-total">100</div><div class="hero-stat-label">TOTAL WORLDS</div></div>
+      <div class="hero-stat"><div class="hero-stat-val" id="s-tiers">—</div><div class="hero-stat-label">TIERS REACHED</div></div>
+      <button id="hero-enter" onclick="openModal(97)">VIEW LEADER →</button>
+    </div>
+  </div>
+
+  <!-- Tier distribution -->
+  <div id="tier-bar">
+    <div id="tier-bar-label">TIER DISTRIBUTION ACROSS ALL WORLDS</div>
+    <div id="tier-bar-track"></div>
+    <div id="tier-bar-labels"></div>
+  </div>
+
+  <div class="section-hdr">
+    <span>ACTIVE &amp; FORMING WORLDS</span>
+    <div class="filter-tabs">
+      <button class="tab active" onclick="setFilter('all')">ALL</button>
+      <button class="tab" onclick="setFilter('active')">ACTIVE</button>
+      <button class="tab" onclick="setFilter('forming')">FORMING</button>
+    </div>
+  </div>
+  <div id="biome-grid"></div>
+
+  <div id="archive-section">
+    <div class="archive-hdr">DEAD WORLDS — ARCHIVED</div>
+    <div id="archive-grid"></div>
+  </div>
+</div>
+
+<!-- ── Lineage page ────────────────────────────────────────── -->
+<div id="lineage-page" class="page page-hidden">
+  <div class="section-hdr">
+    <span>LINEAGE — GENEALOGY OF WORLDS</span>
+  </div>
+  <div id="lineage-hint">Drag to pan · scroll to zoom · hover for details · click to inspect</div>
+  <div id="lineage-container">
+    <div id="l-tooltip"></div>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<!-- ── Modal ───────────────────────────────────────────────── -->
+<div id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div id="modal">
+    <button id="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-top-strip" id="m-strip"></div>
+    <div id="m-id"></div>
+    <div id="m-name"></div>
+    <div id="m-tier"></div>
+    <div id="m-chem"></div>
+    <div id="m-desc"></div>
+    <div class="m-section-label">METRICS</div>
+    <div class="m-stats-row" id="m-stats"></div>
+    <div id="m-parents">
+      <div class="m-section-label">LINEAGE</div>
+      <div id="m-parents-list"></div>
+    </div>
+    <div id="m-children">
+      <div class="m-section-label">DESCENDANTS</div>
+      <div id="m-children-list"></div>
+    </div>
+    <div id="m-agent-log">
+      <div class="m-section-label">FIELD NOTES — AGENT LOG</div>
+      <div id="m-log-entries"></div>
+    </div>
+    <button id="m-enter" onclick="enterSim()">—</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════════
+//  PANDORA WORLD INDEX — 100 biomes across 9 chemistry families
+// ══════════════════════════════════════════════════════════════
+
+const TIER_NAMES = [
+  'Inert','Molecular Activity','Persistent Structures','Reaction Diversity',
+  'Spatial Heterogeneity','Spontaneous Assembly','Sustained Complexity',
+  'Coupled Reactions','Emergent Catalysis','Boundary Formation',
+  'Closed Compartment','Interior Differentiation','Compartment Stability'
+];
+
+// [glow-color, bg, text, border]
+const TS = [
+  ['#3d1515','rgba(18,6,6,0.9)','#8a5050','rgba(80,25,25,0.4)'],
+  ['#1a3055','rgba(6,12,24,0.9)','#5090c0','rgba(30,70,120,0.4)'],
+  ['#1e4070','rgba(6,14,28,0.9)','#60a8e0','rgba(35,85,150,0.4)'],
+  ['#106060','rgba(5,18,20,0.9)','#40c0c0','rgba(18,85,85,0.4)'],
+  ['#126040','rgba(5,18,14,0.9)','#40b888','rgba(18,90,60,0.4)'],
+  ['#158040','rgba(5,22,14,0.9)','#50d078','rgba(20,110,60,0.4)'],
+  ['#1a8820','rgba(6,22,8,0.9)','#60e050','rgba(25,120,32,0.4)'],
+  ['#229010','rgba(7,24,6,0.9)','#70e838','rgba(32,128,18,0.4)'],
+  ['#2a9010','rgba(8,24,4,0.9)','#85e828','rgba(40,128,16,0.4)'],
+  ['#357a10','rgba(10,22,4,0.9)','#98d820','rgba(52,115,14,0.4)'],
+  ['#406010','rgba(12,18,4,0.9)','#aec018','rgba(68,100,12,0.4)'],
+  ['#484808','rgba(14,14,4,0.9)','#c0a818','rgba(82,82,10,0.4)'],
+  ['#503808','rgba(16,10,4,0.9)','#d09020','rgba(100,65,10,0.4)'],
+];
+
+const BIOMES = [
+  {id:0,  name:"Terra",                chem:"C · N · O · P / H₂O",     tier:2,status:"active", parent:null,   desc:"The reference world. Carbon hydrothermal chemistry in liquid water — our baseline for what complexity looks like when we already know life is possible.",file:"biome-00-terra.html"},
+  {id:1,  name:"Hadean",               chem:"C · H₂O · SO₄",            tier:1,status:"active", parent:0,      desc:"Hot early-carbon with volcanic sulfate. Aggressive thermal gradient. Running."},
+  {id:2,  name:"Primordius",           chem:"C · NH₃ · H₂O",            tier:0,status:"dead",   parent:0,      desc:"Carbon in mixed ammonia-water. Thermal collapse at t=8400. The ammonia won."},
+  {id:3,  name:"Old Stone",            chem:"C · silicate · H₂O",       tier:2,status:"active", parent:0,      desc:"Carbon chemistry on mineral surfaces. Slower than Terra, but persistent."},
+  {id:4,  name:"Warm Soup",            chem:"C · H₂O · clay",            tier:3,status:"active", parent:0,      desc:"Clay-catalysed carbon world. Montmorillonite surfaces doing real work. Best carbon-family result."},
+  {id:5,  name:"Carbon Copy",          chem:"C · H₂O · FeS₂",            tier:1,status:"active", parent:2,      desc:"Born from Primordius's failure — iron sulfide catalysis added. The irony of carbon needing iron."},
+  {id:6,  name:"Origin Story",         chem:"C · H₂O · P",               tier:1,status:"forming",parent:4,      desc:"Daughter of Warm Soup. Phosphate-enriched. Inherits clay knowledge."},
+  {id:7,  name:"The Prebiotic",        chem:"C · HCN · H₂O",             tier:0,status:"dead",   parent:0,      desc:"HCN-based carbon. Too reactive — no structure survived above t=2100."},
+  {id:8,  name:"Archaean",             chem:"C · H₂O · Fe",              tier:1,status:"active", parent:3,      desc:"Ancient mineral-iron carbon chemistry, descended from Old Stone."},
+  {id:9,  name:"Once Upon",            chem:"C · H₂O",                   tier:0,status:"dead",   parent:null,   desc:"The very first attempt, before Terra. Nothing happened. The silence was educational."},
+  {id:10, name:"Siliconia",            chem:"Si · O · S",                tier:1,status:"active", parent:null,   desc:"First foray into non-carbon territory. Silicon-sulfur at high temperature.",file:"biome-10-siliconia.html"},
+  {id:11, name:"Glass Act",            chem:"Si · O · N",                tier:0,status:"dead",   parent:10,     desc:"Silicate nitrogen world. Crystallised beautifully and then absolutely nothing."},
+  {id:12, name:"The Forge",            chem:"Si · S · Fe",               tier:2,status:"active", parent:10,     desc:"Hot silicon-sulfur with iron catalysts. Most successful silicon run in the archive."},
+  {id:13, name:"Crystal Meth[od]",     chem:"Si · O · Al",               tier:1,status:"active", parent:12,     desc:"Aluminosilicate chemistry. The name raised eyebrows at the briefing."},
+  {id:14, name:"Obsidian Heart",       chem:"Si · O · Mg",               tier:1,status:"active", parent:10,     desc:"Magnesium silicate in molten state. Slow and dramatic."},
+  {id:15, name:"Quartz Dreams",        chem:"Si · O",                    tier:0,status:"dead",   parent:10,     desc:"Pure silica. Crystals formed instantly. Chemistry never did."},
+  {id:16, name:"Hot Take",             chem:"Si · S · N",                tier:1,status:"forming",parent:12,     desc:"Silicon-sulfur-nitrogen ternary. Inherits The Forge's iron-catalysis knowledge."},
+  {id:17, name:"The Smeltery",         chem:"Si · Fe · Ni",              tier:0,status:"dead",   parent:null,   desc:"Metal silicate experiment. Everything fused into one inert mass at t=1200."},
+  {id:18, name:"Lava Lamp",            chem:"Si · O · Fe",               tier:1,status:"active", parent:12,     desc:"Iron-silicate in convective melt. The most visually spectacular silicon world."},
+  {id:19, name:"Vitreous Rex",         chem:"Si · O · Ca",               tier:1,status:"forming",parent:12,     desc:"Calcium silicate glass chemistry. What if structure evolved before metabolism?"},
+  {id:20, name:"Freeze Frame",         chem:"N · H / NH₃",               tier:1,status:"active", parent:null,   desc:"First cold-chemistry world. Low-temperature ammonia solvent."},
+  {id:21, name:"Brain Freeze",         chem:"C · N · H / NH₃",           tier:0,status:"dead",   parent:20,     desc:"Carbon in ammonia at 200K. Bonding rates too slow. Very literally froze."},
+  {id:22, name:"Ammonia Dreams",       chem:"N · S / NH₃",               tier:2,status:"active", parent:20,     desc:"Nitrogen-sulfur in ammonia solvent. Unexpected persistence. Best cold result."},
+  {id:23, name:"Ice Ice Maybe",        chem:"N · H · O / NH₃",           tier:1,status:"active", parent:22,     desc:"Oxygen added to Ammonia Dreams lineage. Cautiously optimistic."},
+  {id:24, name:"Sub Zero",             chem:"N · P / NH₃",               tier:0,status:"dead",   parent:20,     desc:"Phosphorus-nitrogen in ammonia. P dissolved into the solvent at t=3300."},
+  {id:25, name:"Cool Story",           chem:"N · Si / NH₃",              tier:1,status:"forming",parent:22,     desc:"Silicon added to the successful ammonia lineage. Cross-family experiment."},
+  {id:26, name:"The Chill",            chem:"N · H / NH₃",               tier:1,status:"active", parent:20,     desc:"Pure nitrogen-hydrogen in ammonia. Sparse. Persistent. Takes its time."},
+  {id:27, name:"Polar Express",        chem:"N · F / NH₃",               tier:0,status:"dead",   parent:20,     desc:"Fluorine experiment. HF formation destroyed everything within t=800."},
+  {id:28, name:"Cold Open",            chem:"N · B / NH₃",               tier:1,status:"forming",parent:26,     desc:"Boron-nitrogen in ammonia. The most exotic cold experiment initiated."},
+  {id:29, name:"Nitrogen Nights",      chem:"N · C / NH₃",               tier:3,status:"active", parent:22,     desc:"Best cold-chemistry world. Descended from Ammonia Dreams, learned from Brain Freeze's failure."},
+  {id:30, name:"Brimstone",            chem:"S · O / H₂SO₄",             tier:1,status:"active", parent:null,   desc:"First acid-world experiment. Sulfuric acid solvent chemistry."},
+  {id:31, name:"The Yellow One",       chem:"S · O",                     tier:0,status:"dead",   parent:30,     desc:"Pure sulfur oxide. Beautiful yellows. No complexity whatsoever."},
+  {id:32, name:"Acid House",           chem:"S · O · Fe / H₂SO₄",        tier:0,status:"dead",   parent:30,     desc:"Iron-sulfate experiment. Corrosion won comprehensively."},
+  {id:33, name:"Sour World",           chem:"S · N / H₂SO₄",             tier:2,status:"active", parent:30,     desc:"Sulfur-nitrogen in acid solvent. Holding at T2 with unusual tenacity."},
+  {id:34, name:"Vinegar Tide",         chem:"S · C / H₂SO₄",             tier:1,status:"active", parent:33,     desc:"Carbon added to the Sour World lineage."},
+  {id:35, name:"Rotten Egg Theory",    chem:"S · H · FeS₂",              tier:1,status:"active", parent:30,     desc:"Iron sulfide chemistry. Named for reasons immediately apparent."},
+  {id:36, name:"Brine Time",           chem:"S · Cl · H₂O",              tier:0,status:"dead",   parent:30,     desc:"Chlorine-sulfur experiment. The chlorine was ambitious, then catastrophic."},
+  {id:37, name:"The Stench",           chem:"S · P / H₂SO₄",             tier:1,status:"forming",parent:33,     desc:"Phosphorus-sulfate chemistry. We apologise for the name."},
+  {id:38, name:"Yellow Submarine",     chem:"S · N · C / H₂SO₄",         tier:2,status:"active", parent:33,     desc:"Carbon-nitrogen in sulfuric acid. Surprisingly stable."},
+  {id:39, name:"Full Sulfur",          chem:"S · Fe · N / H₂SO₄",        tier:1,status:"forming",parent:38,     desc:"Full sulfur-iron-nitrogen system. Maximum ambition in the acid family."},
+  {id:40, name:"Titan's Cousin",       chem:"C₂H₂N / CH₄",               tier:1,status:"active", parent:null,   desc:"Acrylonitrile membranes in liquid methane. Directly inspired by Titan astrobiology."},
+  {id:41, name:"Pale Yellow",          chem:"N · C / CH₄",               tier:0,status:"dead",   parent:40,     desc:"Nitrogen-carbon in methane at 90K. Simply too cold. Everything stopped."},
+  {id:42, name:"Ethane Afternoon",     chem:"C₂H₆ · N / CH₄",            tier:1,status:"active", parent:40,     desc:"Ethane-methane mix. Marginally warmer. Marginally less dead."},
+  {id:43, name:"Cryogenic Blues",      chem:"HCN / CH₄",                 tier:2,status:"active", parent:40,     desc:"Hydrogen cyanide chemistry in methane solvent. Unexpected persistence at T2."},
+  {id:44, name:"The Slow One",         chem:"C₂H₂N · N₂ / CH₄",          tier:1,status:"active", parent:43,     desc:"Everything happens here, just very slowly. Patience is being tested."},
+  {id:45, name:"Cassini's Dream",      chem:"C · N / CH₄",               tier:0,status:"dead",   parent:40,     desc:"Inspired by Cassini data. Did not replicate Cassini data. Cassini would be disappointed."},
+  {id:46, name:"Azotosome",            chem:"C₂H₂N / CH₄–C₂H₆",          tier:2,status:"active", parent:43,     desc:"Named for the proposed Titan membrane chemistry. Most faithful Titan simulation in the archive."},
+  {id:47, name:"Smoggy Bottom",        chem:"HC₃N / CH₄",                tier:1,status:"forming",parent:46,     desc:"Cyanoacetylene chemistry inspired by Titan's atmospheric haze layer."},
+  {id:48, name:"Methane Morning",      chem:"C₂H₂N · P / CH₄",           tier:1,status:"forming",parent:46,     desc:"Phosphorus added to the Azotosome lineage. First phosphorus in the cold family."},
+  {id:49, name:"The Deep Cold",        chem:"C · N / C₂H₆",              tier:1,status:"active", parent:42,     desc:"Ultra-cold pure ethane solvent. Record low temperature in the archive."},
+  {id:50, name:"Boronia",              chem:"B · N / H₂O",               tier:2,status:"active", parent:null,   desc:"Boron-nitrogen as carbon analog. The structural similarities are philosophically unsettling."},
+  {id:51, name:"Triangle World",       chem:"B · N · F",                 tier:0,status:"dead",   parent:50,     desc:"Boron trifluoride experiment. Extraordinarily reactive. Gone by t=400."},
+  {id:52, name:"Electron Deficient",   chem:"B · N · O",                 tier:1,status:"active", parent:50,     desc:"Named for boron's well-known electron personality."},
+  {id:53, name:"Boron to Be Wild",     chem:"B · N · S",                 tier:1,status:"active", parent:50,     desc:"Sulfur-boron chemistry. The name was inevitable."},
+  {id:54, name:"Three's Company",      chem:"B · N · C",                 tier:3,status:"active", parent:50,     desc:"Carbon-boron-nitrogen ternary. Most complex boron run in the archive."},
+  {id:55, name:"Lewis Acid Land",      chem:"B · N · Al",                tier:0,status:"dead",   parent:50,     desc:"Two Lewis acids walked into a biome. Neither survived."},
+  {id:56, name:"Borax Dreams",         chem:"B · Na · O / H₂O",          tier:1,status:"active", parent:54,     desc:"Sodium borate in water. Soap chemistry goes looking for complexity."},
+  {id:57, name:"The Hexagon",          chem:"B · N · H",                 tier:2,status:"active", parent:54,     desc:"Hexagonal boron nitride analog. Structurally beautiful. Mechanically fascinating."},
+  {id:58, name:"Hard Boron",           chem:"B · C · N",                 tier:1,status:"forming",parent:54,     desc:"Cubic analog chemistry. Very hard. Very slow. Very stubborn."},
+  {id:59, name:"Softly Softly",        chem:"B · N · P / H₂O",           tier:1,status:"forming",parent:57,     desc:"Gentler boron-nitrogen-phosphorus chemistry. A calmer sister to The Hexagon."},
+  {id:60, name:"Phosphoria",           chem:"P · O / H₂O",               tier:2,status:"active", parent:null,   desc:"Phosphorus-oxygen in water. Surprising structural richness at low concentration."},
+  {id:61, name:"Match Head",           chem:"P · S · O",                 tier:0,status:"dead",   parent:60,     desc:"Red phosphorus sulfur. The ignition was spectacular. The aftermath was ash."},
+  {id:62, name:"Glow World",           chem:"P · H / H₂O",               tier:1,status:"active", parent:60,     desc:"White phosphorus in water. Faint bioluminescent precursor chemistry."},
+  {id:63, name:"Phosphor Blue",        chem:"P · N · O / H₂O",           tier:2,status:"active", parent:60,     desc:"Nitrogen-phosphorus in water. Deep blue coloring from PI orbital compounds."},
+  {id:64, name:"The Alchemist",        chem:"P · C · N / H₂O",           tier:3,status:"active", parent:60,     desc:"Most promising phosphorus world. Carbon-nitrogen-phosphorus approaching RNA-territory."},
+  {id:65, name:"Hellfire Chemistry",   chem:"P · S · Fe",                tier:0,status:"dead",   parent:60,     desc:"The name was, in retrospect, prophetic."},
+  {id:66, name:"P4 Life",              chem:"P · H · Na / H₂O",          tier:1,status:"active", parent:63,     desc:"Sodium phosphorus chemistry. Stable. Predictable. Alive."},
+  {id:67, name:"Ignition Sequence",    chem:"P · O · C / H₂O",           tier:2,status:"forming",parent:64,     desc:"Carbon added to The Alchemist's lineage. Highest-expectation forming biome."},
+  {id:68, name:"Red Planet Redux",     chem:"P · Fe · O / H₂O",          tier:1,status:"forming",parent:64,     desc:"Iron phosphate chemistry. Mars-inspired. Not actually Mars."},
+  {id:69, name:"Phosphate Dreams",     chem:"P · O · N · C",             tier:1,status:"forming",parent:67,     desc:"Full phosphate system approaching nucleotide-analog territory."},
+  {id:70, name:"Iron Veil",            chem:"Fe · S / H₂O",              tier:3,status:"active", parent:null,   desc:"Iron sulfide chemistry. Inspired by Wächtershäuser's iron-sulfur world hypothesis."},
+  {id:71, name:"Rusty World",          chem:"Fe · O / H₂O",              tier:1,status:"active", parent:70,     desc:"Iron oxide in water. Slow chemistry, high tenacity."},
+  {id:72, name:"Chrome Dreams",        chem:"Cr · O / H₂O",              tier:0,status:"dead",   parent:70,     desc:"Chromium chemistry. Very stable. Too stable. The most polished dead world in the archive."},
+  {id:73, name:"The Ferrous Wheel",    chem:"Fe · S · C / H₂O",          tier:2,status:"active", parent:70,     desc:"Carbon added to iron sulfide. The wheel turns, slowly."},
+  {id:74, name:"Metallic Taste",       chem:"Fe · Ni · S",               tier:1,status:"active", parent:70,     desc:"Iron-nickel sulfide chemistry. Mimics deep-Earth hydrothermal vent conditions."},
+  {id:75, name:"Cobalt Dreams",        chem:"Co · N · S",                tier:1,status:"forming",parent:74,     desc:"Cobalt-nitrogen chemistry. Inspired by cobalamin (B12) precursor systems."},
+  {id:76, name:"Manganese Sunset",     chem:"Mn · O / H₂O",              tier:1,status:"active", parent:70,     desc:"Manganese oxide chemistry. Beautiful colors. Some actual chemistry too."},
+  {id:77, name:"Oxide Mind",           chem:"Fe · O · N / H₂O",          tier:2,status:"active", parent:73,     desc:"Iron oxide-nitride system. Approaching T3 boundary."},
+  {id:78, name:"The Smeltery II",      chem:"Fe · Si · O",               tier:0,status:"dead",   parent:null,   desc:"Sequel to The Smeltery. Same result. We needed the data."},
+  {id:79, name:"Deep Vein",            chem:"Fe · S · Ni · C",           tier:2,status:"forming",parent:73,     desc:"Full iron sulfide-nickel-carbon system. Deepest simulation forming."},
+  {id:80, name:"Fluorine Dreams",      chem:"C · F / HF",                tier:1,status:"active", parent:null,   desc:"Hydrogen fluoride solvent at -83°C. Extremely exotic. Surprisingly not dead."},
+  {id:81, name:"Acid Trip",            chem:"S · F / HF",                tier:0,status:"dead",   parent:80,     desc:"HF-sulfur experiment. The HF won at t=650."},
+  {id:82, name:"The Sharp One",        chem:"N · F / HF",                tier:1,status:"forming",parent:80,     desc:"Nitrogen in HF solvent. Unexpectedly promising."},
+  {id:83, name:"Etch-a-World",         chem:"Si · F / HF",               tier:0,status:"dead",   parent:80,     desc:"Silicon etching chemistry. Everything dissolved. Including our expectations."},
+  {id:84, name:"Fluorite Dreams",      chem:"Ca · F / HF",               tier:1,status:"active", parent:80,     desc:"Calcium fluoride on mineral surfaces in HF. Most exotic currently-alive world."},
+  {id:85, name:"The Hybrid",           chem:"C · Si / H₂O",              tier:2,status:"active", parent:[0,10], desc:"Carbon-silicon hybrid. Bridging the two most studied families. Identity crisis ongoing."},
+  {id:86, name:"Chimera",              chem:"C · N · S · P",             tier:3,status:"active", parent:[4,29], desc:"Four-element experiment. Chaotic, productive, descended from our two best single-family worlds."},
+  {id:87, name:"The Crossover",        chem:"Si · N / H₂O",              tier:1,status:"active", parent:[10,20],desc:"Silicon-nitrogen in water. Both families uncomfortable with the result."},
+  {id:88, name:"Late Night Chemistry", chem:"C · B · N",                 tier:2,status:"active", parent:[0,50], desc:"Carbon-boron-nitrogen experiment. Conceived at an unusual hour. Possibly our most interesting."},
+  {id:89, name:"The Compromise",       chem:"Si · C / NH₃",              tier:1,status:"forming",parent:[10,20],desc:"Silicon and carbon in ammonia. Neither family is happy about it."},
+  {id:90, name:"Quantum Soup",         chem:"P · C · B · N",             tier:2,status:"active", parent:[60,50],desc:"Phosphorus-carbon-boron-nitrogen. Named optimistically. Surprisingly justifying the name."},
+  {id:91, name:"The Odd One",          chem:"Ge · O / H₂O",              tier:0,status:"dead",   parent:null,   desc:"Germanium chemistry. Germanium had other plans. We respect that."},
+  {id:92, name:"Arsenic Lullaby",      chem:"As · O / H₂O",              tier:1,status:"active", parent:null,   desc:"Arsenic analog to phosphorus chemistry. Controversial but the data is interesting."},
+  {id:93, name:"Dark Chemistry",       chem:"C / H₂O + dark matter",     tier:0,status:"dead",   parent:0,      desc:"We invited dark matter to participate. The dark matter did not respond."},
+  {id:94, name:"The Philosopher's Stone",chem:"P · C · Au / H₂O",        tier:1,status:"active", parent:[60,0], desc:"Gold-phosphorus-carbon in water. Extremely expensive to run. Marginal but nonzero results."},
+  {id:95, name:"Maximum Entropy",      chem:"random",                    tier:0,status:"dead",   parent:null,   desc:"We randomised every parameter. Entropy agreed enthusiastically with itself."},
+  {id:96, name:"Schrödinger's Biome",  chem:"C / H₂O",                   tier:1,status:"active", parent:0,      desc:"Either alive or dead until observed. Currently: both, depending on your interpretation."},
+  {id:97, name:"The Last Hope",        chem:"C · N · S · P / H₂O",       tier:4,status:"active", parent:[4,70,29,64],desc:"Our most complex multi-lineage experiment. Four parent biomes, each contributing a breakthrough. Highest tier in the archive."},
+  {id:98, name:"Almost Life",          chem:"C · N · S · P · Fe / H₂O",  tier:3,status:"active", parent:[97,73],desc:"Daughter of The Last Hope with iron sulfide chemistry added. T3 and climbing."},
+  {id:99, name:"The Becoming",         chem:"C · N · S · P · Si / H₂O",  tier:2,status:"forming",parent:[97,12],desc:"The most ambitious biome currently initializing. Formed from the best silicon and carbon lineages."},
+];
+
+// ── Helpers ───────────────────────────────────────────────
+const ts   = t => TS[Math.min(t, TS.length-1)];
+const padId = id => 'BIOME-' + String(id).padStart(2,'0');
+
+function getFamily(id) {
+  if(id<=9)  return 'Carbon / H₂O';
+  if(id<=19) return 'Silicon / High-T';
+  if(id<=29) return 'Ammonia / Cold';
+  if(id<=39) return 'Sulfur / Acid';
+  if(id<=49) return 'Titan / Methane';
+  if(id<=59) return 'Boron-Nitrogen';
+  if(id<=69) return 'Phosphorus';
+  if(id<=79) return 'Iron / Metal';
+  if(id<=84) return 'Hydrogen Fluoride';
+  return 'Cross-Family Hybrid';
+}
+
+function getChildren(id) {
+  return BIOMES.filter(b => {
+    const p = b.parent;
+    return p !== null && (Array.isArray(p) ? p.includes(id) : p === id);
+  });
+}
+
+// ── Starfield background ──────────────────────────────────
+(function initStars() {
+  const c = document.getElementById('starfield');
+  const ctx = c.getContext('2d');
+  let W, H, stars;
+  function setup() {
+    W = c.width = innerWidth; H = c.height = innerHeight;
+    stars = Array.from({length:220}, () => ({
+      x: Math.random()*W, y: Math.random()*H,
+      r: Math.random()*1.2, o: Math.random()*0.5+0.05,
+      v: Math.random()*0.15+0.03
+    }));
+  }
+  setup();
+  addEventListener('resize', setup);
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    for(const s of stars) {
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(180,210,255,${s.o + Math.sin(Date.now()*s.v*0.001)*0.08})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ── Dashboard state ────────────────────────────────────────
+let currentFilter = 'all';
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.tab').forEach(t =>
+    t.classList.toggle('active', t.textContent.toLowerCase().replace(' ','')===f));
+  renderGrid();
+}
+
+function renderGrid() {
+  const grid    = document.getElementById('biome-grid');
+  const archive = document.getElementById('archive-grid');
+  grid.innerHTML = archive.innerHTML = '';
+
+  const live = BIOMES
+    .filter(b => b.status !== 'dead' && (currentFilter==='all' || b.status===currentFilter))
+    .sort((a,b) => b.tier - a.tier || a.id - b.id);
+
+  const dead = BIOMES.filter(b => b.status==='dead').sort((a,b) => b.tier - a.tier);
+
+  live.forEach(b => grid.appendChild(makeCard(b)));
+  dead.forEach(b => archive.appendChild(makeCard(b)));
+}
+
+function makeCard(b) {
+  const div  = document.createElement('div');
+  const s    = ts(b.tier);
+  const isLive = !!b.file;
+
+  div.className = `biome-card ${b.status}${isLive?' live-sim':''}`;
+  div.style.borderColor = s[3];
+
+  const pct = Math.round((b.tier / 12) * 100);
+
+  div.innerHTML = `
+    <div class="card-strip" style="background:${b.status!=='dead'?s[0]:'#2a0808'}"></div>
+    <div class="card-inner">
+      <div class="card-header">
+        <div class="card-id">${padId(b.id)}</div>
+        <div class="card-badges">
+          ${isLive ? `<div class="live-badge"><span class="dot"></span>LIVE</div>` : ''}
+        </div>
+      </div>
+      <div class="card-name">${b.name}</div>
+      <div class="card-chem">${b.chem}</div>
+      <div class="card-tier" style="border:1px solid ${s[3]};background:${s[1]};color:${s[2]}">
+        <span>T${b.tier}</span><span style="color:${s[3]};margin:0 3px">·</span><span>${TIER_NAMES[b.tier]}</span>
+      </div>
+      <div class="tier-progress">
+        <div class="tier-progress-fill" style="width:${pct}%;background:${s[0]};opacity:0.6"></div>
+      </div>
+      <div class="card-footer">
+        <div class="status-indicator">
+          <div class="sdot ${b.status}"></div>
+          <span style="color:${s[2]}">${{active:'ACTIVE',dead:'DEAD',forming:'FORMING'}[b.status]}</span>
+        </div>
+        <div style="font-size:8px;color:${s[3]}">${getFamily(b.id).split('/')[0].trim()}</div>
+      </div>
+    </div>
+  `;
+  div.onclick = () => openModal(b.id);
+  return div;
+}
+
+// ── Hero + tier bar ────────────────────────────────────────
+function buildHero() {
+  const peak    = Math.max(...BIOMES.map(b=>b.tier));
+  const topB    = BIOMES.find(b=>b.tier===peak);
+  const s       = ts(peak);
+  const tiersHit= [...new Set(BIOMES.map(b=>b.tier))].sort().length;
+
+  document.getElementById('hero-name').textContent  = topB.name;
+  document.getElementById('hero-tier').textContent  = `T${peak} — ${TIER_NAMES[peak]}`;
+  document.getElementById('hero-tier').style.color  = s[2];
+  document.getElementById('hero-tier').style.borderColor = s[3];
+  document.getElementById('hero-tier').style.background  = s[1];
+  document.getElementById('hero-desc').textContent  = topB.desc;
+  document.getElementById('s-total').textContent    = BIOMES.length;
+  document.getElementById('s-tiers').textContent    = tiersHit;
+  document.getElementById('s-active').textContent   = BIOMES.filter(b=>b.status==='active').length;
+  document.getElementById('s-dead').textContent     = BIOMES.filter(b=>b.status==='dead').length;
+  document.getElementById('s-forming').textContent  = BIOMES.filter(b=>b.status==='forming').length;
+  document.getElementById('s-peak').textContent     = `T${peak} · ${topB.name}`;
+  document.getElementById('hero-enter').onclick     = () => openModal(topB.id);
+
+  // Tier bar
+  const track  = document.getElementById('tier-bar-track');
+  const labels = document.getElementById('tier-bar-labels');
+  track.innerHTML = labels.innerHTML = '';
+  for(let t=0; t<=12; t++) {
+    const count = BIOMES.filter(b=>b.tier===t).length;
+    const seg = document.createElement('div');
+    seg.className = 'tier-seg';
+    seg.style.background = TS[t][0];
+    seg.title = `T${t}: ${count} worlds`;
+    track.appendChild(seg);
+
+    if(count > 0) {
+      const chip = document.createElement('div');
+      chip.className = 'tier-chip';
+      chip.style.borderColor = TS[t][3];
+      chip.style.color = TS[t][2];
+      chip.style.background = TS[t][1];
+      chip.textContent = `T${t} ×${count}`;
+      chip.onclick = () => { setFilter('all'); };
+      labels.appendChild(chip);
+    }
+  }
+}
+
+// ── Modal ─────────────────────────────────────────────────
+let modalId = null;
+
+function openModal(id) {
+  const b = BIOMES.find(x => x.id===id);
+  if(!b) return;
+  modalId = id;
+  const s = ts(b.tier);
+
+  document.getElementById('m-strip').style.background = s[0];
+  document.getElementById('m-id').textContent   = padId(b.id);
+  document.getElementById('m-name').textContent = b.name;
+  document.getElementById('m-chem').textContent = b.chem;
+  document.getElementById('m-desc').textContent = b.desc;
+
+  const tier = document.getElementById('m-tier');
+  tier.textContent   = `T${b.tier} — ${TIER_NAMES[b.tier]}`;
+  tier.style.background   = s[1];
+  tier.style.border       = `1px solid ${s[3]}`;
+  tier.style.color        = s[2];
+  tier.style.letterSpacing = '3px';
+  tier.style.fontSize     = '9px';
+  tier.style.padding      = '3px 12px';
+  tier.style.marginBottom = '8px';
+  tier.style.display      = 'inline-block';
+
+  // Stats
+  const statusLabel = {active:'ACTIVE',dead:'DEAD',forming:'FORMING'}[b.status];
+  document.getElementById('m-stats').innerHTML = `
+    <div class="modal-stat"><div class="m-section-label">STATUS</div><div class="m-stat-val">${statusLabel}</div></div>
+    <div class="modal-stat"><div class="m-section-label">TIER</div><div class="m-stat-val" style="color:${s[2]}">T${b.tier} / 29</div></div>
+    <div class="modal-stat"><div class="m-section-label">FAMILY</div><div class="m-stat-val" style="font-size:11px">${getFamily(b.id)}</div></div>
+  `;
+
+  // Parents — with clickable links
+  const pEl = document.getElementById('m-parents-list');
+  if(b.parent !== null) {
+    const pIds = Array.isArray(b.parent) ? b.parent : [b.parent];
+    const pLinks = pIds.map(pid => {
+      const pb = BIOMES.find(x=>x.id===pid);
+      return `<span class="parent-link" onclick="openModal(${pid})">${pb.name} <span style="color:var(--dim);font-size:8px">(T${pb.tier})</span></span>`;
+    });
+    pEl.innerHTML = `Learned from: ${pLinks.join(' <span style="color:var(--dim)">+</span> ')}`;
+  } else {
+    pEl.innerHTML = `<span style="color:var(--dim)">Origin world — no parent biome</span>`;
+  }
+
+  // Children
+  const kids = getChildren(id);
+  const cEl  = document.getElementById('m-children-list');
+  if(kids.length > 0) {
+    cEl.innerHTML = kids.map(k =>
+      `<span class="parent-link" onclick="openModal(${k.id})">${k.name} <span style="color:var(--dim);font-size:8px">(T${k.tier})</span></span>`
+    ).join('  ·  ');
+  } else {
+    cEl.innerHTML = `<span style="color:var(--dim)">No descendants yet</span>`;
+  }
+
+  // Enter button
+  const btn = document.getElementById('m-enter');
+  if(b.file) {
+    btn.disabled = false;
+    btn.textContent = '⬤  ENTER SIMULATION →';
+    btn.style.borderColor = 'rgba(60,180,120,0.35)';
+    btn.style.color = 'rgba(100,220,160,0.85)';
+    btn.style.background = 'rgba(20,80,50,0.15)';
+  } else if(b.status === 'dead') {
+    btn.disabled = true;
+    btn.textContent = '✕  SIMULATION ARCHIVED';
+  } else if(b.status === 'forming') {
+    btn.disabled = true;
+    btn.textContent = '◌  SIMULATION INITIALIZING — STAND BY';
+  } else {
+    btn.disabled = true;
+    btn.textContent = '—  SIMULATION NOT YET DEPLOYED';
+  }
+
+  // Agent log
+  renderAgentLog(b);
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+function handleOverlayClick(e) {
+  if(e.target === document.getElementById('modal-overlay')) closeModal();
+}
+function enterSim() {
+  const b = BIOMES.find(x=>x.id===modalId);
+  if(b && b.file) window.open(b.file, '_self');
+}
+
+// ── Agent log generator ───────────────────────────────────
+function generateAgentLog(b) {
+  const entries = [];
+  const tick = n => 't=' + String(n).padStart(5,'0');
+
+  function add(t, agent, msg) { entries.push({t: tick(t), agent, msg}); }
+
+  // Per-biome hand-written overrides for notable worlds
+  const overrides = {
+    0:  [ // Terra
+      [0,     'SYSTEM',   'Biome-00 TERRA initialized. Reference world. Carbon / H₂O chemistry. Baseline establishment mode active.'],
+      [400,   'OBSERVER', 'Amino acid flux nominal. Lipid aggregation initiating ahead of schedule. Something about this solvent.'],
+      [1200,  'CHEMIST',  'Peptide chain length sustained at 4+ monomers for 300 ticks. T2 confirmed. Clay surfaces are doing real work here.'],
+      [2100,  'ANALYST',  'Reaction diversity index rising. Four concurrent pathway types detected. The system has found multiple strategies simultaneously.'],
+      [3200,  'NARRATOR', 'Terra is our mirror. We built it to show us what we already knew: that carbon, water, and a little patience can fill a world. And it does. Every time.'],
+      [9999,  'OBSERVER', 'Monitoring ongoing. All metrics nominal. This is home base.'],
+    ],
+    97: [ // The Last Hope
+      [0,     'SYSTEM',   'Biome-97 THE LAST HOPE initialized. Four-parent lineage: Warm Soup, Iron Veil, Nitrogen Nights, The Alchemist. Maximum learned complexity seeding.'],
+      [310,   'CHEMIST',  'Cross-family chemistry activating faster than any prior biome. The four-parent inheritance is paying off immediately.'],
+      [1100,  'ANALYST',  'Complexity index climbing at 2.3× the Terra baseline rate. We have never seen this slope before.'],
+      [2400,  'OBSERVER', 'Reaction diversity confirmed at T3. The world has already surpassed 94 of its siblings. Still climbing.'],
+      [3600,  'CHEMIST',  'Spatial differentiation confirmed. High-complexity zones persisting >600 ticks. Gradient-driven chemistry active between zones.'],
+      [3900,  'ANALYST',  'T4 confirmed — Spatial Heterogeneity. Highest tier ever reached in the archive. Current peak: The Last Hope.'],
+      [4000,  'NARRATOR', 'It carried the memory of four dead worlds and built something none of them could alone. This is what lineage means. This is why we keep the archive.'],
+      [9999,  'NARRATOR', 'Still climbing. Agents on full watch. If anything is going to reach T5 — Spontaneous Assembly — it is this world.'],
+    ],
+    4:  [ // Warm Soup
+      [0,     'SYSTEM',   'Biome-04 WARM SOUP initialized. Clay catalyst surfaces enabled. High montmorillonite density. Inherited Terra baseline chemistry.'],
+      [600,   'CHEMIST',  'Montmorillonite surface reactions above expectation. Clay is acting as a template — chains are forming in registry, not randomly.'],
+      [1500,  'ANALYST',  'T2 → T3 transition observed. Multiple reaction pathway types emerging from clay interface interactions. Fastest carbon family ascent on record.'],
+      [2200,  'NARRATOR', 'The clay remembered. That is the only way to describe it. Warm Soup did not discover complexity — it inherited the shape of it from mineral surfaces 4 billion years old.'],
+      [9999,  'OBSERVER', 'T3 holding. Clay surfaces stable. Best carbon world in the archive pending The Last Hope.'],
+    ],
+    86: [ // Chimera
+      [0,     'SYSTEM',   'Biome-86 CHIMERA initialized. Four elements: C · N · S · P. Parent lineages: Warm Soup (T3), Nitrogen Nights (T3). Highest-risk cross-family experiment to date.'],
+      [200,   'ANALYST',  'Initial instability as expected. C-N and S-P subsystems competing for solvent resources. Chaotic phase beginning.'],
+      [800,   'CHEMIST',  'Sulfur chains forming bridges between carbon clusters. Novel bond geometry not observed in any single-family biome. Logging for archive.'],
+      [1600,  'OBSERVER', 'The competition resolved into cooperation. Nitrogen nodes are acting as reaction hubs for both carbon and sulfur pathways simultaneously.'],
+      [2100,  'NARRATOR', 'Chimera is the most honest name we have given anything. It is four grammars arguing their way into one sentence.'],
+      [9999,  'ANALYST',  'T3 stable. Phosphorus subsystem approaching T4 threshold behavior. Monitoring closely.'],
+    ],
+    2:  [ // Primordius (dead)
+      [0,     'SYSTEM',   'Biome-02 PRIMORDIUS initialized. Carbon in ammonia-water mix. High-temperature gradient. Inherited Terra design.'],
+      [300,   'CHEMIST',  'Ammonia solvent is destabilizing peptide bond formation. Hydrolysis rate exceeding synthesis rate. Concerning.'],
+      [600,   'OBSERVER', 'Complexity briefly positive, now declining. Bond half-life too short in this solvent.'],
+      [800,   'SYSTEM',   'Stagnation flag raised. PERTURBATION: Geothermal pulse applied.'],
+      [1200,  'ANALYST',  'Temporary complexity spike. Falling again. The ammonia is aggressive.'],
+      [1400,  'SYSTEM',   'PERTURBATION: Exogenous influx applied.'],
+      [1800,  'NARRATOR', 'Primordius wanted to live. The chemistry simply did not allow it. Some solvents are not patient with complexity.'],
+      [1810,  'SYSTEM',   'MAX INTERVENTIONS. Thermal collapse confirmed at t=8400. World classified DEAD. Lineage knowledge archived: ammonia unsuitable as primary solvent for C-based chemistry.'],
+    ],
+    70: [ // Iron Veil
+      [0,     'SYSTEM',   'Biome-70 IRON VEIL initialized. Iron sulfide chemistry. Inspired by Wächtershäuser iron-sulfur world hypothesis.'],
+      [500,   'CHEMIST',  'FeS₂ surfaces acting as redox catalysts. Electron transfer chemistry active. Bond formation rates above baseline.'],
+      [1400,  'OBSERVER', 'Spatial clustering around iron sulfide patches. The mineral surface is directing traffic.'],
+      [2100,  'ANALYST',  'Reaction diversity expanding. T3 threshold detected. Iron veil chemistry has more tricks than we expected.'],
+      [2200,  'NARRATOR', 'Iron and sulfur, the original alchemists. Wächtershäuser was right — the mineral surface is the first membrane.'],
+      [9999,  'OBSERVER', 'T3 stable. Three children biomes spawned. Lineage growing.'],
+    ],
+  };
+
+  if(overrides[b.id]) {
+    overrides[b.id].forEach(([t, agent, msg]) => add(t, agent, msg));
+    return entries;
+  }
+
+  // ── Generic generator for all other biomes ────────────────
+  add(0, 'SYSTEM', `${padId(b.id)} initialized. Chemistry: ${b.chem}. Agents assigned. Monitoring begins.`);
+
+  if(b.status === 'forming') {
+    add(10,  'OBSERVER', 'Parameters locked. Chemistry seeding in progress. No structures yet. Awaiting first spontaneous event.');
+    add(20,  'ANALYST',  'T=0 confirmed. Standing by. Patience is the protocol.');
+    return entries;
+  }
+
+  add(200, 'OBSERVER', 'Thermal noise present. Molecules agitating. No ordered structures yet. Normal.');
+
+  if(b.status === 'dead' && b.tier === 0) {
+    add(400,  'ANALYST',  'Complexity index flat across 400 ticks. Bond formation below noise threshold.');
+    add(410,  'SYSTEM',   'Stagnation flag raised. PERTURBATION: Geothermal pulse applied.');
+    add(700,  'OBSERVER', 'No response to perturbation. Entropy asserting itself.');
+    add(710,  'SYSTEM',   'PERTURBATION: Exogenous chemical influx applied.');
+    add(1000, 'ANALYST',  'Second perturbation failed. No recovery path detected.');
+    add(1010, 'NARRATOR', b.desc.split('.').slice(0,2).join('.') + '.');
+    add(1020, 'SYSTEM',   'MAX INTERVENTIONS. World classified DEAD. Archiving with T0 record.');
+    return entries;
+  }
+
+  if(b.tier >= 1) {
+    add(480, 'ANALYST',  'Bond formation event confirmed. First persistent structure above threshold lifetime. T1 achieved.');
+    add(490, 'NARRATOR', 'Something formed. Small, fragile, temporary — but there was a moment when the nothing became a something.');
+  }
+  if(b.tier >= 2) {
+    add(1350, 'CHEMIST',  'Chain length ≥3 sustained for 300+ ticks. Complexity index rising above baseline. T2 confirmed.');
+    add(1360, 'OBSERVER', 'Structures persisting beyond predicted thermal half-life. These are not accidents.');
+  }
+  if(b.tier >= 3) {
+    add(2200, 'CHEMIST',  'Multiple simultaneous reaction pathway types active. The system is no longer following a single script.');
+    add(2250, 'ANALYST',  'Spatial clustering detected. Differentiated zones forming. Complexity accumulating unevenly. T3 confirmed.');
+    add(2260, 'NARRATOR', 'The world is learning to be different from itself.');
+  }
+  if(b.tier >= 4) {
+    add(3800, 'OBSERVER', 'Stable high-complexity zones persisting >500 ticks. Gradient-driven chemistry between regions detected.');
+    add(3900, 'NARRATOR', 'Regions with different characters. Different densities, different rates. This is geography. Something like anatomy. T4 confirmed.');
+  }
+
+  if(b.status === 'dead' && b.tier > 0) {
+    add(4200, 'ANALYST',  `Complexity plateau at T${b.tier} for >1200 ticks. Growth stalled. Initiating perturbation protocol.`);
+    add(4220, 'SYSTEM',   'PERTURBATION: Geothermal pulse applied.');
+    add(4800, 'OBSERVER', 'Temporary spike. Falling back. The world cannot hold what it briefly became.');
+    add(5100, 'ANALYST',  'Second stagnation. Shockwave perturbation deploying.');
+    add(5120, 'SYSTEM',   'PERTURBATION: Shockwave applied.');
+    add(5600, 'NARRATOR', `T${b.tier}. It saw the edge of the next tier and could not cross. Not every world can. This one mattered anyway.`);
+    add(5610, 'SYSTEM',   'MAX INTERVENTIONS. World classified DEAD. Knowledge archived for child biome inheritance.');
+    return entries;
+  }
+
+  if(b.status === 'active') {
+    const statusLines = [
+      null,
+      'T1 holding. Chemistry stable. Monitoring for T2 threshold — chain persistence.',
+      'T2 stable. Structures persisting. Agents watching for reaction diversity expansion.',
+      'T3 sustained. Chemistry is diversifying. One of the stronger worlds in its family.',
+      'T4 — spatial differentiation confirmed. Among the highest tiers in the archive. Something real is building here.',
+    ];
+    add(9999, 'NARRATOR', statusLines[Math.min(b.tier, 4)] || 'T0. Quiet. We wait. Sometimes a world needs time before it decides to begin.');
+  }
+
+  return entries;
+}
+
+function renderAgentLog(b) {
+  const entries = generateAgentLog(b);
+  const container = document.getElementById('m-log-entries');
+  container.innerHTML = entries.map(e => {
+    const isNarrator = e.agent === 'NARRATOR';
+    const isSystem   = e.agent === 'SYSTEM';
+    return `<div class="log-entry">
+      <span class="log-time">${e.t}</span>
+      <span class="log-agent ${e.agent}">${e.agent}</span>
+      <span class="log-msg${isNarrator?' narrator-msg':isSystem?' system-msg':''}">${e.msg}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Page switching ─────────────────────────────────────────
+let lineageDone = false;
+function showPage(name) {
+  document.getElementById('dashboard-page').classList.toggle('page-hidden', name!=='dashboard');
+  document.getElementById('lineage-page').classList.toggle('page-hidden', name!=='lineage');
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active',
+      (name==='dashboard' && b.textContent==='WORLDS') ||
+      (name==='lineage'   && b.textContent==='LINEAGE'));
+  });
+  if(name==='lineage' && !lineageDone) { lineageDone=true; renderLineage(); }
+}
+
+// ── Lineage D3 graph ──────────────────────────────────────
+function renderLineage() {
+  const container = document.getElementById('lineage-container');
+  const W = container.clientWidth, H = container.clientHeight;
+  const tip = document.getElementById('l-tooltip');
+
+  const svg = d3.select(container).append('svg')
+    .attr('width',W).attr('height',H);
+
+  const defs = svg.append('defs');
+  // Glow filter
+  const filt = defs.append('filter').attr('id','glow').attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
+  filt.append('feGaussianBlur').attr('stdDeviation','3').attr('result','blur');
+  const merge = filt.append('feMerge');
+  merge.append('feMergeNode').attr('in','blur');
+  merge.append('feMergeNode').attr('in','SourceGraphic');
+
+  const g = svg.append('g');
+  svg.call(d3.zoom().scaleExtent([0.15,4]).on('zoom', e => g.attr('transform', e.transform)));
+
+  const nodes = BIOMES.map(b => ({...b}));
+  const links = [];
+  BIOMES.forEach(b => {
+    const ps = b.parent===null ? [] : Array.isArray(b.parent) ? b.parent : [b.parent];
+    ps.forEach(pid => links.push({source:pid, target:b.id}));
+  });
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(80).strength(0.5))
+    .force('charge', d3.forceManyBody().strength(-220))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide(d => 12+d.tier*1.5));
+
+  // Link lines
+  const link = g.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke','rgba(60,110,160,0.2)')
+    .attr('stroke-width',1)
+    .attr('stroke-dasharray','3,4');
+
+  // Node groups
+  const node = g.append('g').selectAll('g').data(nodes).join('g')
+    .style('cursor','pointer')
+    .call(d3.drag()
+      .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag', (e,d)=>{d.fx=e.x;d.fy=e.y;})
+      .on('end',  (e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;})
+    )
+    .on('mouseover',(e,d)=>{
+      const s=ts(d.tier);
+      tip.style.opacity='1';
+      tip.style.left=(e.offsetX+14)+'px';
+      tip.style.top=(e.offsetY-10)+'px';
+      tip.innerHTML=`
+        <div style="color:var(--dim);font-size:8px;letter-spacing:2px;margin-bottom:3px">${padId(d.id)}</div>
+        <div style="color:rgba(210,235,255,0.95);margin-bottom:3px">${d.name}</div>
+        <div style="color:${s[2]};font-size:9px;margin-bottom:2px">T${d.tier} · ${TIER_NAMES[d.tier]}</div>
+        <div style="color:var(--dim);font-size:9px">${d.chem}</div>
+        <div style="color:${d.status==='active'?'#50d080':d.status==='dead'?'#a04040':'#708090'};font-size:8px;margin-top:3px">${{active:'● ACTIVE',dead:'✕ DEAD',forming:'◌ FORMING'}[d.status]}</div>
+      `;
+    })
+    .on('mousemove',e=>{tip.style.left=(e.offsetX+14)+'px';tip.style.top=(e.offsetY-10)+'px';})
+    .on('mouseout', ()=>{tip.style.opacity='0';})
+    .on('click',    (e,d)=>openModal(d.id));
+
+  // Glow ring for high-tier active worlds
+  node.filter(d=>d.status==='active'&&d.tier>=2)
+    .append('circle')
+    .attr('r',d=>14+d.tier*2)
+    .attr('fill','none')
+    .attr('stroke',d=>ts(d.tier)[0])
+    .attr('stroke-width',0.8)
+    .attr('opacity',0.25)
+    .attr('filter','url(#glow)');
+
+  // Main circle
+  node.append('circle')
+    .attr('r',d=>8+d.tier*1.5)
+    .attr('fill',d=>d.status==='dead'?'rgba(14,6,6,0.95)':ts(d.tier)[1])
+    .attr('stroke',d=>d.status==='dead'?'rgba(80,30,30,0.5)':ts(d.tier)[0])
+    .attr('stroke-width',1.5);
+
+  // Tier label inside node
+  node.filter(d=>d.status!=='dead')
+    .append('text')
+    .attr('text-anchor','middle').attr('dy','0.35em')
+    .attr('fill',d=>ts(d.tier)[2])
+    .attr('font-family','Courier New').attr('font-size',8)
+    .text(d=>`T${d.tier}`);
+
+  // Dead X
+  node.filter(d=>d.status==='dead')
+    .append('text')
+    .attr('text-anchor','middle').attr('dy','0.35em')
+    .attr('fill','rgba(160,60,60,0.6)').attr('font-size',9)
+    .text('✕');
+
+  // Name label
+  node.append('text')
+    .attr('text-anchor','middle')
+    .attr('dy',d=>16+d.tier*1.5+9)
+    .attr('fill',d=>d.status==='dead'?'rgba(100,70,70,0.4)':'rgba(150,195,235,0.55)')
+    .attr('font-family','Courier New').attr('font-size',8)
+    .text(d=>d.name);
+
+  sim.on('tick',()=>{
+    link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+        .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    node.attr('transform',d=>`translate(${d.x},${d.y})`);
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────
+buildHero();
+renderGrid();
+</script>
+</body>
+</html>
