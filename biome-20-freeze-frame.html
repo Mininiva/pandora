@@ -948,6 +948,14 @@ function promoteTier(t) {
   awardXP('OBSERVER', 20, `Tier ${t} discovered`);
   awardXP('ANALYST',  15, `Tier ${t} transition`);
 
+  // Immediately persist the new tier so it's never lost between 500-tick saves
+  if (typeof fbDb !== 'undefined' && fbDb) {
+    fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
+      currentTier: t,
+      tick:        tick,
+      lastUpdated: Date.now(),
+    }).catch(() => {});
+  }
 }
 
 function checkTiers(cx, mxl, brn, rings) {

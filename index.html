@@ -1603,17 +1603,54 @@ function initIndexFirebase() {
     });
 
     // Real-time listener: update hero dead count as worlds die
+    // Real-time listener: update tier badges + dead status whenever any biome saves
     db.ref('pandora/biomes').on('child_changed', snap => {
       const state = snap.val()?.state;
-      if (state?.worldStatus === 'dead') {
-        const card = document.querySelector(`[data-id="${snap.key}"]`);
-        if (card) {
-          card.classList.add('dead');
-          const dot = card.querySelector('.sdot');
-          if (dot) dot.className = 'sdot dead';
-          const stLbl = card.querySelector('.status-indicator span');
-          if (stLbl) stLbl.textContent = 'DEAD';
-        }
+      if (!state) return;
+
+      const id   = parseInt(snap.key);
+      const card = document.querySelector(`[data-id="${id}"]`);
+      if (!card) return;
+
+      const tier   = state.currentTier || 0;
+      const status = state.worldStatus  || 'active';
+      const s = ts(tier);
+
+      // Update tier badge in real-time
+      const tierEl = card.querySelector('.card-tier');
+      if (tierEl) {
+        tierEl.style.border     = `1px solid ${s[3]}`;
+        tierEl.style.background = s[1];
+        tierEl.style.color      = s[2];
+        const tNum  = tierEl.querySelector('.t-num');
+        const tName = tierEl.querySelector('.t-name');
+        if (tNum)  tNum.textContent  = `T${tier}`;
+        if (tName) tName.textContent = TIER_NAMES[tier] || '—';
+      }
+
+      // Update tier progress fill
+      const fill = card.querySelector('.tier-progress-fill');
+      if (fill) {
+        fill.style.width      = `${Math.round((tier / 12) * 100)}%`;
+        fill.style.background = s[0];
+      }
+
+      // Update complexity bar
+      if (state.complexity !== undefined) {
+        const cxFill = document.getElementById(`cxfill-${id}`);
+        if (cxFill) cxFill.style.width = `${Math.min(100, Math.round(state.complexity * 20))}%`;
+      }
+
+      // Handle dead
+      if (status === 'dead') {
+        card.classList.add('dead');
+        card.style.borderColor = '#4a1a1a';
+        const strip = card.querySelector('.card-strip');
+        if (strip) strip.style.background = '#2a0808';
+        const dot   = card.querySelector('.sdot');
+        const stLbl = card.querySelector('.status-indicator span');
+        if (dot)   dot.className = 'sdot dead';
+        if (stLbl) { stLbl.textContent = 'DEAD'; stLbl.style.color = s[2]; }
       }
     });
 
