@@ -1633,7 +1633,7 @@ function initIndexFirebase() {
         // Update tier progress bar
         const fill = card.querySelector('.tier-progress-fill');
         if (fill) {
-          fill.style.width      = `${Math.round((tier/12)*100)}%`;
+          fill.style.width      = `${Math.round((tier/20)*100)}%`;
           fill.style.background = s[0];
         }
 
@@ -1718,6 +1718,9 @@ function initIndexFirebase() {
         }
         const heroName = document.getElementById('hero-name');
         if (heroName) heroName.textContent = topB.name;
+        // Also update the ticker strip — this was the missing link
+        const sPeak = document.getElementById('s-peak');
+        if (sPeak) sPeak.textContent = `T${maxTier} · ${topB.name}`;
       }
 
       // ── Populate the real dead-worlds archive grid from Firebase archives ──
@@ -2000,7 +2003,7 @@ function startBackgroundWorker() {
           if (tNum)  tNum.textContent  = `T${tier}`;
           if (tName) tName.textContent = TIER_NAMES[tier] || '—';
           const fill = card.querySelector('.tier-progress-fill');
-          if (fill) { fill.style.width=`${Math.round((tier/12)*100)}%`; fill.style.background=s2[0]; }
+          if (fill) { fill.style.width=`${Math.round((tier/20)*100)}%`; fill.style.background=s2[0]; }
         }
       }
     };
