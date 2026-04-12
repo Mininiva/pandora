@@ -1671,17 +1671,13 @@ function initIndexFirebase() {
 
         if (tier > maxTier) { maxTier = tier; maxTierBiome = {id, tier, status}; }
 
-        // ← THE KEY FIX: update BIOMES array so rebuildTierBar() sees real Firebase tiers
+        // Update BIOMES array so rebuildTierBar() sees real Firebase tiers
         const bObj = BIOMES.find(x => x.id === id);
         if (bObj && tier > 0) { bObj.tier = tier; bObj.status = status; }
 
         // Seed the BioMini with real tier so mini-sim starts from correct level
         const sim = MINI[id];
         if (sim && tier > sim.tier) { sim.tier = tier; }
-
-        // Keep BIOMES array in sync so sort order stays correct
-        const bObj = BIOMES.find(x => x.id === id);
-        if (bObj && tier > 0) bObj.tier = tier;
       });
 
       // Re-sort the live grid by tier (highest first) after Firebase updates
