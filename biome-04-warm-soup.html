@@ -2212,13 +2212,14 @@ setTimeout(async function _pandoraResume() {
     ]);
     const pos = snap ? snap.val() : null;
     const pxArr = pos && pos.px ? (Array.isArray(pos.px) ? pos.px : Object.values(pos.px)) : null;
+    let _posRestored = false;
     if (pxArr && pxArr.length >= 5 && pos.worldStatus !== 'dead') {
       // Restore positions into the already-running simulation
-      // Patch pos.px to be a proper array in case Firebase returned an object
       pos.px = pxArr;
       pos.py = pos.py ? (Array.isArray(pos.py) ? pos.py : Object.values(pos.py)) : pxArr.map(()=>0);
       pos.types = pos.types ? (Array.isArray(pos.types) ? pos.types : Object.values(pos.types)) : [];
       _restorePositions(pos);
+      _posRestored = true;
       const wsLbl = document.getElementById('ws-lbl');
       if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
     } else {
@@ -2253,8 +2254,16 @@ setTimeout(async function _pandoraResume() {
         new Promise(r => setTimeout(() => r(null), 2000))
       ]);
       const savedGenome = genomeSnap ? genomeSnap.val() : null;
+      // Always update genome multipliers from Firebase.
+      // But only reinit the simulation if we didn't already restore live positions —
+      // otherwise we'd destroy a T10 restore by resetting to T0.
       if (savedGenome && typeof savedGenome === 'object') {
         _genome = { n1:1, n2:1, n3:1, noiseScale:1, ...savedGenome };
+        if (_posRestored) {
+          // Positions already restored — just update genome params, don't reinit
+          const wsLbl = document.getElementById('ws-lbl');
+          if (wsLbl) wsLbl.textContent = _generation > 1 ? `GEN ${_generation} — LIVE` : 'RESUMING WORLD';
+        } else {
         // Starting a fresh generation — reset all counters so we don't carry
         // stale values from the worker or a previous generation's Firebase state.
         worldStatus     = 'active';
@@ -2274,6 +2283,7 @@ setTimeout(async function _pandoraResume() {
         if (typeof A !== 'undefined' && A.length === 0) init();
         const wsLbl = document.getElementById('ws-lbl');
         if (wsLbl) wsLbl.textContent = _generation > 1 ? `GEN ${_generation} — EVOLVED` : 'RESUMING WORLD';
+        } // end else (!_posRestored)
       }
       _updateGenDisplay();
     } catch(e) { console.warn('[Pandora] genome load error:', e); }
