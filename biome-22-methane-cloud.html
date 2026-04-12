@@ -144,8 +144,8 @@ const BC = {
     '✦ Sentience'
   ],
   // World physics
-  worldR:      93,
-  nBase:       390,
+  worldR:      159,
+  nBase:       1950,
   thermalNoise:0.32,
   bondCut:     20,
   bondSpring:  0.09,
@@ -179,7 +179,7 @@ const BC = {
   sunInt:      1.8,
   fillColor:   0x301800,
   bondColor:   0x705020,
-  cameraZ:     139,
+  cameraZ:     238,
   rotateSpeed: 0.28,
 };
 
@@ -232,7 +232,7 @@ scene.add(new THREE.Mesh(
 ));
 
 // Bond lines
-const MAX_BL=1200;
+const MAX_BL=8000;
 const bPos=new Float32Array(MAX_BL*6);
 const bGeo=new THREE.BufferGeometry();
 bGeo.setAttribute('position',new THREE.BufferAttribute(bPos,3));
@@ -246,11 +246,30 @@ window.addEventListener('resize',()=>{
   renderer.setSize(window.innerWidth,window.innerHeight);
 });
 
-// Particle geometry cache
-const sGeos = BC.types.map(t=>new THREE.SphereGeometry(t[2],10,8));
-const sMats = BC.types.map(t=>new THREE.MeshPhongMaterial({
-  color:t[1], emissive:new THREE.Color(t[1]).multiplyScalar(0.12), shininess:60
-}));
+// InstancedMesh — one mesh per particle type, all instances rendered in one draw call
+const INST_CAP=Math.ceil(BC.nBase*0.5);
+const iMeshes=BC.types.map((t,ti)=>{
+  const im=new THREE.InstancedMesh(
+    new THREE.SphereGeometry(t[2],8,6),
+    new THREE.MeshPhongMaterial({color:t[1],emissive:new THREE.Color(t[1]).multiplyScalar(0.12),shininess:60}),
+    INST_CAP
+  );
+  im.count=0;scene.add(im);return im;
+});
+const _dummy=new THREE.Object3D();
+const _tCounts=new Int32Array(BC.types.length);
+function updateInstancedMeshes(){
+  _tCounts.fill(0);
+  for(let i=0;i<particles.length;i++){
+    const p=particles[i];
+    _dummy.position.set(p.x,p.y,p.z);_dummy.updateMatrix();
+    iMeshes[p.type].setMatrixAt(_tCounts[p.type]++,_dummy.matrix);
+  }
+  for(let ti=0;ti<BC.types.length;ti++){
+    iMeshes[ti].count=_tCounts[ti];
+    iMeshes[ti].instanceMatrix.needsUpdate=true;
+  }
+}
 
 // ── STATE ──────────────────────────────────────────────────────
 let particles=[]; let _tick=0; let uiTick=0;
@@ -260,7 +279,30 @@ let tierHistory=[]; let _isDead=false; let _deathRunning=false;
 let _lastComps=[]; let _lastMaxClus=0; let _lastTotalBd=0; let _lastClosed=false;
 let discoveredStructures=new Map();
 let _genome={n1:1,n2:1,n3:1,noiseScale:1};
+let _sustainedHigh20=0;
 function _clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+
+// Spatial hash grid — O(n) neighbor lookup
+const CELL=38; // covers LJ cutoff (36) + buffer
+let _grid=new Map();
+function _buildGrid(){
+  _grid.clear();
+  for(let i=0;i<particles.length;i++){
+    const p=particles[i];
+    const k=(Math.floor(p.x/CELL)+12)*625+(Math.floor(p.y/CELL)+12)*25+(Math.floor(p.z/CELL)+12);
+    let c=_grid.get(k);if(!c){c=[];_grid.set(k,c);}c.push(i);
+  }
+}
+function _nbrs(i){
+  const p=particles[i];
+  const cx=Math.floor(p.x/CELL),cy=Math.floor(p.y/CELL),cz=Math.floor(p.z/CELL);
+  const r=[];
+  for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){
+    const c=_grid.get((cx+dx+12)*625+(cy+dy+12)*25+(cz+dz+12));
+    if(c)for(let k=0;k<c.length;k++)r.push(c[k]);
+  }
+  return r;
+}
 
 function defGenome(){return{n1:1,n2:1,n3:1,noiseScale:1};}
 function _evolveGenome(archives,g){
@@ -280,7 +322,7 @@ function _evolveGenome(archives,g){
 
 // ── INIT ──────────────────────────────────────────────────────
 function init(g){
-  particles.forEach(p=>scene.remove(p.mesh)); particles=[];
+  particles=[]; iMeshes.forEach(im=>{im.count=0;im.instanceMatrix.needsUpdate=true;});
   const n=Math.round(BC.nBase*(0.95+0.2*Math.random()));
   const nTypes=BC.types.length;
   const counts=BC.ratios.map((r,i)=>Math.round(r*n));
@@ -291,9 +333,7 @@ function init(g){
       const r=BC.worldR*0.78*Math.cbrt(Math.random());
       const x=r*Math.sin(phi)*Math.cos(th),y=r*Math.sin(phi)*Math.sin(th),z=r*Math.cos(phi);
       const sp=BC.thermalNoise*2.5;
-      const mesh=new THREE.Mesh(sGeos[ti],sMats[ti]);
-      mesh.position.set(x,y,z); scene.add(mesh);
-      particles.push({x,y,z,vx:(Math.random()-0.5)*sp,vy:(Math.random()-0.5)*sp,vz:(Math.random()-0.5)*sp,type:ti,mesh,bonds:new Set(),id:particles.length});
+      particles.push({x,y,z,vx:(Math.random()-0.5)*sp,vy:(Math.random()-0.5)*sp,vz:(Math.random()-0.5)*sp,type:ti,bonds:new Set(),id:particles.length});
     }
   }
   _tick=0; uiTick=0; tierHistory=[]; _stagnTicks=0; _lastTierVal=0;
@@ -303,18 +343,19 @@ function init(g){
 
 // ── PHYSICS ──────────────────────────────────────────────────
 function physicsStep(g){
-  const n=particles.length, dt=0.55;
-  const eps=0.025*(g.n2||1), ns=BC.thermalNoise*(g.noiseScale||1);
+  const n=particles.length,dt=0.55;
+  const eps=0.025*(g.n2||1),ns=BC.thermalNoise*(g.noiseScale||1);
   const fx=new Float32Array(n),fy=new Float32Array(n),fz=new Float32Array(n);
   const sig=BC.ljSig;
-
-  for(let i=0;i<n-1;i++){
+  _buildGrid();
+  for(let i=0;i<n;i++){
     const pi=particles[i];
-    for(let j=i+1;j<n;j++){
-      const pj=particles[j];
-      if(pi.bonds.has(j)) continue;
+    const nbs=_nbrs(i);
+    for(let k=0;k<nbs.length;k++){
+      const j=nbs[k];if(j<=i)continue;
+      const pj=particles[j];if(pi.bonds.has(j))continue;
       const dx=pj.x-pi.x,dy=pj.y-pi.y,dz=pj.z-pi.z;
-      const r2=dx*dx+dy*dy+dz*dz; if(r2<1) continue;
+      const r2=dx*dx+dy*dy+dz*dz;if(r2<1)continue;
       const r=Math.sqrt(r2);
       if(r<7){const f=-0.45/r2;fx[i]+=f*dx;fy[i]+=f*dy;fz[i]+=f*dz;fx[j]-=f*dx;fy[j]-=f*dy;fz[j]-=f*dz;continue;}
       if(r<36){
@@ -328,10 +369,10 @@ function physicsStep(g){
   for(let i=0;i<n;i++){
     const pi=particles[i];
     for(const j of pi.bonds){
-      if(j<=i) continue;
+      if(j<=i)continue;
       const pj=particles[j];
       const dx=pj.x-pi.x,dy=pj.y-pi.y,dz=pj.z-pi.z;
-      const r=Math.sqrt(dx*dx+dy*dy+dz*dz); if(r<0.1) continue;
+      const r=Math.sqrt(dx*dx+dy*dy+dz*dz);if(r<0.1)continue;
       if(r>BC.bondBreak){pi.bonds.delete(j);pj.bonds.delete(i);continue;}
       const f=BC.bondSpring*(g.n2||1)*(r-BC.bondRest)/r;
       fx[i]+=f*dx;fy[i]+=f*dy;fz[i]+=f*dz;fx[j]-=f*dx;fy[j]-=f*dy;fz[j]-=f*dz;
@@ -347,24 +388,23 @@ function physicsStep(g){
     const spd=Math.sqrt(pi.vx*pi.vx+pi.vy*pi.vy+pi.vz*pi.vz);
     if(spd>4.0){const s=4.0/spd;pi.vx*=s;pi.vy*=s;pi.vz*=s;}
     pi.x+=pi.vx*dt;pi.y+=pi.vy*dt;pi.z+=pi.vz*dt;
-    // Soft wall + gentle central pull
     const dist=Math.sqrt(pi.x*pi.x+pi.y*pi.y+pi.z*pi.z);
     if(dist>BC.worldR-4){const ex=dist-(BC.worldR-4),f=BC.wallK*ex/dist;pi.vx-=f*pi.x;pi.vy-=f*pi.y;pi.vz-=f*pi.z;}
-    // Gentle inward pull beyond 65% of radius (keeps density high near center)
     if(dist>BC.worldR*0.65){const f=0.003*(dist-BC.worldR*0.65)/dist;pi.vx-=f*pi.x;pi.vy-=f*pi.y;pi.vz-=f*pi.z;}
-    pi.mesh.position.set(pi.x,pi.y,pi.z);
   }
 }
 
 function updateBonds(g){
   const n=particles.length,rate=BC.bondRate*(g.n1||1);
-  for(let i=0;i<n-1;i++){
-    const pi=particles[i];if(pi.bonds.size>=BC.types[pi.type][3]) continue;
-    for(let j=i+1;j<n;j++){
+  for(let i=0;i<n;i++){
+    const pi=particles[i];if(pi.bonds.size>=BC.types[pi.type][3])continue;
+    const nbs=_nbrs(i);
+    for(let k=0;k<nbs.length;k++){
+      const j=nbs[k];if(j<=i)continue;
       const pj=particles[j];
-      if(pj.bonds.size>=BC.types[pj.type][3]||pi.bonds.has(j)) continue;
+      if(pj.bonds.size>=BC.types[pj.type][3]||pi.bonds.has(j))continue;
       const dx=pj.x-pi.x,dy=pj.y-pi.y,dz=pj.z-pi.z;
-      if(dx*dx+dy*dy+dz*dz>BC.bondCut*BC.bondCut) continue;
+      if(dx*dx+dy*dy+dz*dz>BC.bondCut*BC.bondCut)continue;
       if(Math.random()<BC.affinity[pi.type][pj.type]*rate){pi.bonds.add(j);pj.bonds.add(i);}
     }
   }
@@ -485,6 +525,12 @@ function checkTiers(){
   if(t<12&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=2)           _setTier(12);
   if(t<13&&comps.some(c=>c.length>=55&&compIsSpherical(c)))                       _setTier(13);
   if(t<14&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=3)           _setTier(14);
+  if(t<15&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=5)            _setTier(15);
+  if(t<16&&comps.some(c=>c.length>=80&&compIsSpherical(c)))                        _setTier(16);
+  if(t<17&&_lastTotalBd>0&&_lastTotalBd/particles.length>1.8&&comps.filter(c=>c.length>=18&&compIsSpherical(c)).length>=4) _setTier(17);
+  if(t<18&&comps.filter(c=>c.length>=50&&compIsSpherical(c)&&compIsMixed(c)).length>=3) _setTier(18);
+  if(t<19&&comps.filter(c=>c.length>=80&&compIsSpherical(c)&&compIsMixed(c)).length>=2) _setTier(19);
+  if(t<20&&comps.filter(c=>c.length>=100&&compIsSpherical(c)&&compIsMixed(c)).length>=2&&_sustainedHigh20>500) _setTier(20);
 }
 function _setTier(t){
   if(tierAchieved[t])return;tierAchieved[t]=true;currentTier=t;
@@ -494,7 +540,8 @@ function _setTier(t){
   _addAgentMsg(SCIENTISTS[uiTick%3],`Tier ${t} confirmed: ${BC.tierNames[t]}.`);
 }
 function checkGraduation(){
-  if(currentTier>=13){_sustainedGrad++;if(_sustainedGrad>=2000&&!_deathRunning)_runDeathCycle('Evolutionary graduation — T13+ sustained');}
+  if(currentTier>=19)_sustainedHigh20++;else _sustainedHigh20=0;
+  if(currentTier>=15){_sustainedGrad++;if(_sustainedGrad>=3000&&!_deathRunning)_runDeathCycle('Evolutionary graduation — T15+ sustained');}
   else _sustainedGrad=0;
 }
 
@@ -511,9 +558,7 @@ const INTERVENTIONS=[
        const ti=k%BC.types.length;
        const phi=Math.acos(2*Math.random()-1),th=Math.random()*Math.PI*2,r=BC.worldR*0.5;
        const x=r*Math.sin(phi)*Math.cos(th),y=r*Math.sin(phi)*Math.sin(th),z=r*Math.cos(phi);
-       const mesh=new THREE.Mesh(sGeos[ti],sMats[ti]);
-       mesh.position.set(x,y,z);scene.add(mesh);
-       particles.push({x,y,z,vx:0,vy:0,vz:0,type:ti,mesh,bonds:new Set(),id:particles.length});
+       particles.push({x,y,z,vx:0,vy:0,vz:0,type:ti,bonds:new Set(),id:particles.length});
      }
    }},
   {name:'Osmotic Shock',reagent:'Hypotonic solution',desc:'Rapid osmotic pressure differential forces structural reorganisation of assembled clusters.',
@@ -602,8 +647,11 @@ async function _runDeathCycle(reason){
   const sSnap=await db.ref(`${ROOT}/genome/${currentGen}/seed`).once('value');
   if(sSnap.val()&&sSnap.val().positions){
     const saved=sSnap.val().positions;
-    particles.forEach(p=>scene.remove(p.mesh));particles=[];
-    saved.forEach((s,i)=>{const mesh=new THREE.Mesh(sGeos[s.type<BC.types.length?s.type:0],sMats[s.type<BC.types.length?s.type:0]);mesh.position.set(s.x,s.y,s.z);scene.add(mesh);particles.push({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,type:s.type<BC.types.length?s.type:0,mesh,bonds:new Set(),id:i});});
+    particles=[];
+    saved.forEach((s,i)=>{
+      const ti=s.type<BC.types.length?s.type:0;
+      particles.push({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,type:ti,bonds:new Set(),id:i});
+    });
     _tick=0;uiTick=0;tierHistory=[];_stagnTicks=0;_lastTierVal=0;_intActive=false;_intIdx=0;
     _addAgentMsg('🧬 NEW GENERATION',`Gen ${currentGen} seeded from inherited positions. Genome evolved from ${archives.length} archive entries.`);
   }else{init(_genome);}
@@ -669,7 +717,7 @@ function saveState(){
   }catch(e){}
 }
 
-const STEPS=3;
+const STEPS=2;
 function animate(){
   requestAnimationFrame(animate);
   if(_isDead){controls.update();renderer.render(scene,camera);return;}
@@ -678,7 +726,7 @@ function animate(){
     if(_tick%3===0)updateBonds(_genome);
     _tick++;
   }
-  uiTick++;renderBonds();
+  uiTick++;renderBonds();updateInstancedMeshes();
   if(_tick%160<STEPS){detectStructures();checkTiers();}
   checkGraduation();checkVitality();checkIntervention();tickIntervention();
   // Save to Firebase every ~300 uiTicks OR immediately on tier change
@@ -706,8 +754,11 @@ setTimeout(async function _pandoraResume(){
     const sSnap=await db.ref(`${ROOT}/genome/${currentGen}/seed`).once('value');
     if(sSnap.val()&&sSnap.val().positions){
       const saved=sSnap.val().positions;
-      particles.forEach(p=>scene.remove(p.mesh));particles=[];
-      saved.forEach((s,i)=>{const t=s.type<BC.types.length?s.type:0;const mesh=new THREE.Mesh(sGeos[t],sMats[t]);mesh.position.set(s.x,s.y,s.z);scene.add(mesh);particles.push({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,type:t,mesh,bonds:new Set(),id:i});});
+      particles=[];
+      saved.forEach((s,i)=>{
+        const t=s.type<BC.types.length?s.type:0;
+        particles.push({x:s.x,y:s.y,z:s.z,vx:0,vy:0,vz:0,type:t,bonds:new Set(),id:i});
+      });
       _tick=0;uiTick=0;_addAgentMsg('🔄 RESUME',`Gen ${currentGen} restored (${saved.length} particles).`);
     }else{
       init(_genome);
