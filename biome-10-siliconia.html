@@ -1993,58 +1993,53 @@ function loop() {
   }
 }
 
+// Start immediately — canvas never waits for network
+init();
 _connectSim();
-(async function _pandoraStart() {
-  let restored = false;
-  if (typeof firebase !== 'undefined' && typeof FB_CONFIG !== 'undefined') {
-    try {
-      const _fa = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
-      fbDb      = firebase.database();
+loop();
 
-      // 2.5s timeout — never let Firebase hang the canvas
-      const withTimeout = p => Promise.race([p, new Promise(r => setTimeout(() => r(null), 2500))]);
-
-      // Try positions first (full particle state)
-      const posSnap = await withTimeout(fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value'));
-      const pos = posSnap ? posSnap.val() : null;
-
-      if (pos && Array.isArray(pos.px) && pos.px.length >= 5 && pos.worldStatus !== 'dead') {
-        // Restore saved live state
-        _restorePositions(pos);
-        restored = true;
+// Firebase loads in background (100ms delay so first frame renders first)
+setTimeout(async function _pandoraResume() {
+  if (typeof firebase === 'undefined' || typeof FB_CONFIG === 'undefined') return;
+  try {
+    const _fa = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
+    fbDb      = firebase.database();
+    // 3s max wait — if Firebase is slow we already have a running simulation
+    const snap = await Promise.race([
+      fbDb.ref(`pandora/biomes/${BIOME_ID}/positions`).once('value'),
+      new Promise(r => setTimeout(() => r(null), 3000))
+    ]);
+    const pos = snap ? snap.val() : null;
+    if (pos && Array.isArray(pos.px) && pos.px.length >= 5 && pos.worldStatus !== 'dead') {
+      // Restore positions into the already-running simulation
+      _restorePositions(pos);
+      const wsLbl = document.getElementById('ws-lbl');
+      if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
+    } else {
+      // No positions yet — at least restore tick/tier from /state
+      const stSnap = await Promise.race([
+        fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value'),
+        new Promise(r => setTimeout(() => r(null), 2000))
+      ]);
+      const st = stSnap ? stSnap.val() : null;
+      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead') {
+        tick        = st.tick        || 0;
+        currentTier = st.currentTier || 0;
+        if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
+        if (typeof peakTick       !== 'undefined') peakTick = Math.max(st.peakTick||0, tick - 100);
+        if (typeof interventions  !== 'undefined') interventions  = st.interventions  || 0;
+        if (st.tierAchieved) st.tierAchieved.forEach((v,i)=>{ if(i<tierAchieved.length) tierAchieved[i]=v; });
+        if (currentTier > 0) {
+          const tv = document.getElementById('v-tier');
+          if (tv) tv.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
+        }
         const wsLbl = document.getElementById('ws-lbl');
         if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
-      } else if (!pos) {
-        // No positions yet — fall back to /state for at least tick/tier
-        const stateSnap = await withTimeout(fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value'));
-        const st = stateSnap ? stateSnap.val() : null;
-        if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead') {
-          // Fresh particles but restore the clock and tier
-          init();
-          tick           = st.tick           || 0;
-          currentTier    = st.currentTier    || 0;
-          if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
-          if (typeof peakTick !== 'undefined')       peakTick = st.peakTick || tick;
-          if (typeof interventions !== 'undefined')  interventions  = st.interventions  || 0;
-          worldStatus    = 'active';
-          if (st.tierAchieved) st.tierAchieved.forEach((v,i) => { if(i<tierAchieved.length) tierAchieved[i]=v; });
-          if (currentTier > 0) {
-            const tv = document.getElementById('v-tier');
-            if (tv) tv.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
-          }
-          restored = true;
-          const wsLbl = document.getElementById('ws-lbl');
-          if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
-        }
-        // If worldStatus=dead in /state: fall through to fresh init() = new generation
       }
-      // pos exists but worldStatus='dead': also falls through → new generation
-    } catch(e) { console.warn('[Pandora] resume error:', e); }
-  }
-  if (!restored) init();
-  if (typeof initFirebase === 'function') initFirebase();
-  loop();
-})();
+    }
+    if (typeof initFirebase === 'function') initFirebase();
+  } catch(e) { console.warn('[Pandora] resume error:', e); }
+}, 100);
 </script>
   <div id='ws-status' style='position:fixed;bottom:20px;right:20px;z-index:9999;font-family:monospace;font-size:10px;letter-spacing:0.12em;color:rgba(255,255,255,0.50);pointer-events:none;transition:opacity 1.0s;'>
     <div id='ws-lbl' style='margin-bottom:5px;'>LOADING ENGINE</div>
