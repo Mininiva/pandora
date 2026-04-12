@@ -1836,12 +1836,20 @@ function initIndexFirebase() {
         const id = parseInt(idStr);
         _biomeCurrentGen[id] = biome.currentGeneration || 1;
 
-        // Use peakTier (all-time high across all generations) as the display tier.
-        // currentTier resets to 0 each generation — peakTier never goes backwards.
-        // Merge into state object so _applyBiomeState receives the right value.
+        // Compute ALL-TIME maximum tier for this biome:
+        //   1. peakTier field (written by full simulation on every tier advance)
+        //   2. state.currentTier (current generation — reset each death)
+        //   3. archives[*].maxTier (every past generation's peak — already loaded)
+        // Archives are included in this once('value') read at no extra cost.
+        // This recovers historical T17+ values that predate the peakTier field.
         const stateCopy = { ...(biome.state || {}) };
-        const peakTier  = biome.peakTier || stateCopy.currentTier || 0;
-        stateCopy.currentTier = Math.max(stateCopy.currentTier || 0, peakTier);
+        let allTimeMax  = Math.max(biome.peakTier || 0, stateCopy.currentTier || 0);
+        if (biome.archives) {
+          Object.values(biome.archives).forEach(a => {
+            if ((a?.maxTier || 0) > allTimeMax) allTimeMax = a.maxTier;
+          });
+        }
+        stateCopy.currentTier = allTimeMax;
 
         // Apply state to DOM via the canonical function
         _applyBiomeState(id, stateCopy, _biomeCurrentGen[id]);
@@ -2038,17 +2046,21 @@ function initIndexFirebase() {
       else               el.textContent = t || 0;
     });
 
-    // Real-time listener — delegate everything to _applyBiomeState()
-    // Always use peakTier as the floor so evolutionary progress is never lost.
+    // Real-time listener — same all-time-max logic as the initial load.
     db.ref('pandora/biomes').on('child_changed', snap => {
       const val   = snap.val();
       const state = val?.state;
       if (!state) return;
-      const id = parseInt(snap.key);
-      // Merge peakTier into state — never display lower than all-time high
+      const id        = parseInt(snap.key);
       const stateCopy = { ...state };
-      const peak = val?.peakTier || 0;
-      stateCopy.currentTier = Math.max(stateCopy.currentTier || 0, peak);
+      // Compute all-time max: peakTier + current state + all archive maxTier values
+      let allTimeMax = Math.max(val?.peakTier || 0, stateCopy.currentTier || 0);
+      if (val?.archives) {
+        Object.values(val.archives).forEach(a => {
+          if ((a?.maxTier || 0) > allTimeMax) allTimeMax = a.maxTier;
+        });
+      }
+      stateCopy.currentTier = allTimeMax;
       _applyBiomeState(id, stateCopy, val?.currentGeneration);
       rebuildTierBar();
     });
@@ -2151,7 +2163,7 @@ setTimeout(startBackgroundWorker, 2000);
 
 <!-- Tier Legend Panel -->
 <div id="tier-legend" style="
-  max-width:960px; margin:60px auto 40px; padding:0 20px;
+  max-width:1100px; margin:60px auto 40px; padding:0 20px;
   font-family:'Courier New',monospace; color:#aaa;
 ">
   <div style="
@@ -2166,54 +2178,130 @@ setTimeout(startBackgroundWorker, 2000);
       Each Pandora world climbs from raw chemistry toward organised complexity.
       Tiers mark irreversible phase-transitions — once achieved, the world never falls below.
     </p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 40px;">
 
-      <!-- T0–T9 column -->
+    <!-- ERA I & II: Primordial + Emergence -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 40px;margin-bottom:24px;">
+
+      <!-- T0–T9: Primordial Era -->
       <div>
-        <div style="color:#334;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid #222;padding-bottom:6px;margin-bottom:12px;">
+        <div style="color:#3a5c3a;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid #1a2a1a;padding-bottom:6px;margin-bottom:12px;">
           Primordial Era  ·  T0 → T9
         </div>
         <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
           <tbody>
-            <tr><td style="color:#3a4a3a;padding:4px 0;width:38px;vertical-align:top;font-weight:700;">T0</td><td style="color:#4a4a4a;padding:4px 0;">Void — sterile chemistry, no meaningful structure</td></tr>
-            <tr><td style="color:#3d5c3d;padding:4px 0;font-weight:700;">T1</td><td style="color:#555;padding:4px 0;">Spark — first persistent particle bonds observed</td></tr>
-            <tr><td style="color:#405c40;padding:4px 0;font-weight:700;">T2</td><td style="color:#5a5a5a;padding:4px 0;">Drift — stable dimers; rudimentary chemistry</td></tr>
-            <tr><td style="color:#446044;padding:4px 0;font-weight:700;">T3</td><td style="color:#606060;padding:4px 0;">Chain — extended polymers; early replication candidate</td></tr>
-            <tr><td style="color:#4a6b4a;padding:4px 0;font-weight:700;">T4</td><td style="color:#686868;padding:4px 0;">Network — cross-linked mesh; topology emerges</td></tr>
-            <tr><td style="color:#507050;padding:4px 0;font-weight:700;">T5</td><td style="color:#707070;padding:4px 0;">Loop — autocatalytic cycles; self-sustaining reaction</td></tr>
-            <tr><td style="color:#567856;padding:4px 0;font-weight:700;">T6</td><td style="color:#787878;padding:4px 0;">Cluster — dense stable aggregates; proto-organelle</td></tr>
-            <tr><td style="color:#5c805c;padding:4px 0;font-weight:700;">T7</td><td style="color:#808080;padding:4px 0;">Cascade — multi-step reaction chains; signal propagation</td></tr>
-            <tr><td style="color:#628862;padding:4px 0;font-weight:700;">T8</td><td style="color:#888;padding:4px 0;">Boundary — first amphiphilic membranes observed</td></tr>
-            <tr><td style="color:#689068;padding:4px 0;font-weight:700;">T9</td><td style="color:#909090;padding:4px 0;">Gradient — chemical potential across a membrane</td></tr>
+            <tr><td style="color:#8a5050;padding:3px 0;width:38px;vertical-align:top;font-weight:700;">T0</td><td style="color:#4a4a4a;padding:3px 0;">Void — sterile chemistry, no meaningful structure</td></tr>
+            <tr><td style="color:#5090c0;padding:3px 0;font-weight:700;">T1</td><td style="color:#555;padding:3px 0;">Spark — first persistent particle bonds observed</td></tr>
+            <tr><td style="color:#60a8e0;padding:3px 0;font-weight:700;">T2</td><td style="color:#5a5a5a;padding:3px 0;">Drift — stable dimers; rudimentary chemistry</td></tr>
+            <tr><td style="color:#40c0c0;padding:3px 0;font-weight:700;">T3</td><td style="color:#606060;padding:3px 0;">Chain — extended polymers; early replication candidate</td></tr>
+            <tr><td style="color:#40b888;padding:3px 0;font-weight:700;">T4</td><td style="color:#686868;padding:3px 0;">Network — cross-linked mesh; topology emerges</td></tr>
+            <tr><td style="color:#50d078;padding:3px 0;font-weight:700;">T5</td><td style="color:#707070;padding:3px 0;">Loop — autocatalytic cycles; self-sustaining reaction</td></tr>
+            <tr><td style="color:#60e050;padding:3px 0;font-weight:700;">T6</td><td style="color:#787878;padding:3px 0;">Cluster — dense stable aggregates; proto-organelle</td></tr>
+            <tr><td style="color:#70e838;padding:3px 0;font-weight:700;">T7</td><td style="color:#808080;padding:3px 0;">Cascade — multi-step reaction chains; signal propagation</td></tr>
+            <tr><td style="color:#85e828;padding:3px 0;font-weight:700;">T8</td><td style="color:#888;padding:3px 0;">Boundary — first amphiphilic membranes observed</td></tr>
+            <tr><td style="color:#98d820;padding:3px 0;font-weight:700;">T9</td><td style="color:#909090;padding:3px 0;">Gradient — chemical potential across a membrane</td></tr>
           </tbody>
         </table>
       </div>
 
-      <!-- T10–T20 column -->
+      <!-- T10–T20: Emergence Era -->
       <div>
-        <div style="color:#334;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid #222;padding-bottom:6px;margin-bottom:12px;">
+        <div style="color:#5a5a20;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid #2a2a10;padding-bottom:6px;margin-bottom:12px;">
           Emergence Era  ·  T10 → T20
         </div>
         <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
           <tbody>
-            <tr><td style="color:#6e9870;padding:4px 0;width:38px;vertical-align:top;font-weight:700;">T10</td><td style="color:#999;padding:4px 0;">Compartment — closed lipid vesicle; proto-cell achieved</td></tr>
-            <tr><td style="color:#74a276;padding:4px 0;font-weight:700;">T11</td><td style="color:#a0a0a0;padding:4px 0;">Division — membrane growth and pinch-off events</td></tr>
-            <tr><td style="color:#7aac7c;padding:4px 0;font-weight:700;">T12</td><td style="color:#a8a8a8;padding:4px 0;">Inheritance — chemical state transmitted across generations</td></tr>
-            <tr><td style="color:#5a9a7a;padding:4px 0;font-weight:700;">T13</td><td style="color:#b0b0b0;padding:4px 0;">Cooperation — multi-cell clusters act in concert</td></tr>
-            <tr><td style="color:#4a8a70;padding:4px 0;font-weight:700;">T14</td><td style="color:#b8b8b8;padding:4px 0;">Differentiation — distinct roles arise within a colony</td></tr>
-            <tr><td style="color:#3a7a66;padding:4px 0;font-weight:700;">T15</td><td style="color:#c0c0c0;padding:4px 0;">Signalling — chemical messages between organisms</td></tr>
-            <tr><td style="color:#2a6a5c;padding:4px 0;font-weight:700;">T16</td><td style="color:#c8c8c8;padding:4px 0;">Memory — adaptive response to repeated stimuli</td></tr>
-            <tr><td style="color:#1a5a52;padding:4px 0;font-weight:700;">T17</td><td style="color:#d0d0d0;padding:4px 0;">Symbiosis — stable inter-species dependency forged</td></tr>
-            <tr><td style="color:#0a4a48;padding:4px 0;font-weight:700;">T18</td><td style="color:#d8d8d8;padding:4px 0;">Complexity — layered metabolic and structural hierarchy</td></tr>
-            <tr><td style="color:#003a3e;padding:4px 0;font-weight:700;">T19</td><td style="color:#e0e0e0;padding:4px 0;">Awareness — environmental sensing and directed motion</td></tr>
-            <tr><td style="color:#66ffee;padding:4px 0;font-weight:700;">T20</td><td style="color:#eee;padding:4px 0;">✦ Sentience — coordinated, purposeful collective behaviour</td></tr>
+            <tr><td style="color:#aec018;padding:3px 0;width:38px;vertical-align:top;font-weight:700;">T10</td><td style="color:#999;padding:3px 0;">Compartment — closed lipid vesicle; proto-cell achieved</td></tr>
+            <tr><td style="color:#c0a818;padding:3px 0;font-weight:700;">T11</td><td style="color:#a0a0a0;padding:3px 0;">Division — membrane growth and pinch-off events</td></tr>
+            <tr><td style="color:#d09020;padding:3px 0;font-weight:700;">T12</td><td style="color:#a8a8a8;padding:3px 0;">Inheritance — chemical state transmitted across generations</td></tr>
+            <tr><td style="color:#d87820;padding:3px 0;font-weight:700;">T13</td><td style="color:#b0b0b0;padding:3px 0;">Cooperation — multi-cell clusters act in concert</td></tr>
+            <tr><td style="color:#e06018;padding:3px 0;font-weight:700;">T14</td><td style="color:#b8b8b8;padding:3px 0;">Differentiation — distinct roles arise within a colony</td></tr>
+            <tr><td style="color:#e85020;padding:3px 0;font-weight:700;">T15</td><td style="color:#c0c0c0;padding:3px 0;">Signalling — chemical messages between organisms</td></tr>
+            <tr><td style="color:#f04028;padding:3px 0;font-weight:700;">T16</td><td style="color:#c8c8c8;padding:3px 0;">Memory — adaptive response to repeated stimuli</td></tr>
+            <tr><td style="color:#f83028;padding:3px 0;font-weight:700;">T17</td><td style="color:#d0d0d0;padding:3px 0;">Symbiosis — stable inter-species dependency forged</td></tr>
+            <tr><td style="color:#f82048;padding:3px 0;font-weight:700;">T18</td><td style="color:#d8d8d8;padding:3px 0;">Complexity — layered metabolic and structural hierarchy</td></tr>
+            <tr><td style="color:#f81870;padding:3px 0;font-weight:700;">T19</td><td style="color:#e0e0e0;padding:3px 0;">Awareness — environmental sensing and directed motion</td></tr>
+            <tr><td style="color:#f018a0;padding:3px 0;font-weight:700;">T20</td><td style="color:#eee;padding:3px 0;">Peak Complexity — coordinated multi-scale chemical organisation</td></tr>
           </tbody>
         </table>
       </div>
 
     </div>
+
+    <!-- Life Emergence threshold separator -->
+    <div style="border-top:1px solid #1a2030;margin:4px 0 20px;text-align:center;">
+      <span style="display:inline-block;margin-top:-9px;padding:0 16px;background:#0d0d16;font-size:0.6rem;letter-spacing:.2em;color:#223344;text-transform:uppercase;">— Life Emergence Threshold —</span>
+    </div>
+
+    <!-- ERA III, IV, V: Replication + Organismal + Sentience -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 32px;">
+
+      <!-- T21–T30: Replication & Metabolic Era -->
+      <div>
+        <div style="color:#206060;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid #102030;padding-bottom:6px;margin-bottom:10px;">
+          Replication Era  ·  T21 → T30
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.68rem;">
+          <tbody>
+            <tr><td style="color:#e020d0;padding:3px 0;width:34px;vertical-align:top;font-weight:700;">T21</td><td style="color:#888;padding:3px 0;">Replication — same topology appears across multiple assemblies</td></tr>
+            <tr><td style="color:#c030e8;padding:3px 0;font-weight:700;">T22</td><td style="color:#899;padding:3px 0;">Encapsulation — closed interior isolated from bulk solution</td></tr>
+            <tr><td style="color:#a040f8;padding:3px 0;font-weight:700;">T23</td><td style="color:#8aa;padding:3px 0;">Division — compartments split into daughter assemblies</td></tr>
+            <tr><td style="color:#8060ff;padding:3px 0;font-weight:700;">T24</td><td style="color:#8bb;padding:3px 0;">Heredity — bonding topology transmitted faithfully</td></tr>
+            <tr><td style="color:#6888ff;padding:3px 0;font-weight:700;">T25</td><td style="color:#8cc;padding:3px 0;">Catalysis — internal loops accelerate own production</td></tr>
+            <tr><td style="color:#50a8ff;padding:3px 0;font-weight:700;">T26</td><td style="color:#8bb;padding:3px 0;">Gradient Sensing — assemblies orient along gradients</td></tr>
+            <tr><td style="color:#40c0ff;padding:3px 0;font-weight:700;">T27</td><td style="color:#9bb;padding:3px 0;">Proto-Metabolism — sustained internal energy flux</td></tr>
+            <tr><td style="color:#38d8ff;padding:3px 0;font-weight:700;">T28</td><td style="color:#9cc;padding:3px 0;">Adaptive Response — structure reconfigures to environment</td></tr>
+            <tr><td style="color:#30f0f0;padding:3px 0;font-weight:700;">T29</td><td style="color:#9dd;padding:3px 0;">Cooperation — parallel assemblies divide chemical labour</td></tr>
+            <tr><td style="color:#28f8d8;padding:3px 0;font-weight:700;">T30</td><td style="color:#aee;padding:3px 0;">Colonial Intelligence — distributed decision-making emerges</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- T31–T40: Organismal & Autonomous Era -->
+      <div>
+        <div style="color:#2a6040;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid #102015;padding-bottom:6px;margin-bottom:10px;">
+          Organismal Era  ·  T31 → T40
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.68rem;">
+          <tbody>
+            <tr><td style="color:#28f8c0;padding:3px 0;width:34px;vertical-align:top;font-weight:700;">T31</td><td style="color:#aba;padding:3px 0;">Specialisation — subpopulations diverge into distinct roles</td></tr>
+            <tr><td style="color:#28f8a8;padding:3px 0;font-weight:700;">T32</td><td style="color:#aca;padding:3px 0;">Communication — reliable signals across the colony</td></tr>
+            <tr><td style="color:#28f890;padding:3px 0;font-weight:700;">T33</td><td style="color:#ada;padding:3px 0;">Collective Memory — colony encodes environmental history</td></tr>
+            <tr><td style="color:#30f870;padding:3px 0;font-weight:700;">T34</td><td style="color:#aea;padding:3px 0;">Proto-Immune — foreign chemistry detected and rejected</td></tr>
+            <tr><td style="color:#40f060;padding:3px 0;font-weight:700;">T35</td><td style="color:#afb;padding:3px 0;">Hierarchy — multi-level control structures emerge</td></tr>
+            <tr><td style="color:#58e850;padding:3px 0;font-weight:700;">T36</td><td style="color:#bc9;padding:3px 0;">Energy Storage — chemical energy cached and retrieved</td></tr>
+            <tr><td style="color:#78e038;padding:3px 0;font-weight:700;">T37</td><td style="color:#ca9;padding:3px 0;">Repair — structural damage actively detected and restored</td></tr>
+            <tr><td style="color:#98d828;padding:3px 0;font-weight:700;">T38</td><td style="color:#cb8;padding:3px 0;">Growth Regulation — mass governed by internal signals</td></tr>
+            <tr><td style="color:#bcd020;padding:3px 0;font-weight:700;">T39</td><td style="color:#db8;padding:3px 0;">Proto-Nervous — rapid signal propagation colony-wide</td></tr>
+            <tr><td style="color:#ddc820;padding:3px 0;font-weight:700;">T40</td><td style="color:#eb9;padding:3px 0;">Autonomy — self-directed behaviour; gradient-independent</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- T41–T50: Cognitive & Sentience Era -->
+      <div>
+        <div style="color:#6a5010;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid #302010;padding-bottom:6px;margin-bottom:10px;">
+          Sentience Era  ·  T41 → T50
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.68rem;">
+          <tbody>
+            <tr><td style="color:#f0c020;padding:3px 0;width:34px;vertical-align:top;font-weight:700;">T41</td><td style="color:#cca;padding:3px 0;">Sensation — stimuli classified and internally represented</td></tr>
+            <tr><td style="color:#f8b020;padding:3px 0;font-weight:700;">T42</td><td style="color:#cba;padding:3px 0;">Perception — persistent model of local environment</td></tr>
+            <tr><td style="color:#ffa020;padding:3px 0;font-weight:700;">T43</td><td style="color:#caa;padding:3px 0;">Memory Consolidation — experience encoded as structure</td></tr>
+            <tr><td style="color:#ff9020;padding:3px 0;font-weight:700;">T44</td><td style="color:#c99;padding:3px 0;">Learning — future behaviour shaped by accumulated history</td></tr>
+            <tr><td style="color:#ff8030;padding:3px 0;font-weight:700;">T45</td><td style="color:#c88;padding:3px 0;">Proto-Prediction — anticipatory response to patterns</td></tr>
+            <tr><td style="color:#ff7040;padding:3px 0;font-weight:700;">T46</td><td style="color:#c78;padding:3px 0;">Individual Identity — persistent self-distinguishing signature</td></tr>
+            <tr><td style="color:#ff6050;padding:3px 0;font-weight:700;">T47</td><td style="color:#c68;padding:3px 0;">Social Interaction — stable relationships between individuals</td></tr>
+            <tr><td style="color:#ff5068;padding:3px 0;font-weight:700;">T48</td><td style="color:#c58;padding:3px 0;">Language — structured symbolic exchange encodes meaning</td></tr>
+            <tr><td style="color:#ff4088;padding:3px 0;font-weight:700;">T49</td><td style="color:#c4a;padding:3px 0;">Self-Model — internal representation of own state and history</td></tr>
+            <tr><td style="color:#ffffa0;padding:3px 0;font-weight:700;text-shadow:0 0 8px rgba(255,255,120,0.5);">T50</td><td style="color:#ffe;padding:3px 0;">✦ Sentience — purposeful self-aware existence from chemistry</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
     <p style="text-align:center;font-size:0.65rem;color:#333;margin:18px 0 0;letter-spacing:.08em;">
-      GRADUATION fires at T13 · worlds above T5 are shielded from destructive perturbations
+      GRADUATION fires at T40 · worlds above T5 are shielded from destructive perturbations
     </p>
   </div>
 </div>

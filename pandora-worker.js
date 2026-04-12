@@ -396,17 +396,28 @@ async function workerDeathCycle(bid, snap, reason) {
   const nextGen = curGen + 1;
   const genome  = currentGenomes[bid] || { n1:1, n2:1, n3:1, noiseScale:1 };
 
-  // Save archive entry
+  // Save archive entry — use a transaction so we never overwrite a higher maxTier
+  // written by the full simulation (worker is capped at T12; full sim can reach T50).
+  const workerMaxTier = snap.currentTier;
   try {
-    await db.ref(`pandora/biomes/${idStr}/archives/${curGen}`).set({
-      generation:  curGen,
-      maxTier:     snap.currentTier,
-      genome:      genome,
-      deathReason: reason,
-      timestamp:   Date.now(),
-      source:      'background-worker',
+    await db.ref(`pandora/biomes/${idStr}/archives/${curGen}`).transaction(existing => {
+      const archive = {
+        generation:  curGen,
+        maxTier:     workerMaxTier,
+        genome:      genome,
+        deathReason: reason,
+        timestamp:   Date.now(),
+        source:      'background-worker',
+      };
+      if (!existing) return archive;
+      // Preserve any higher maxTier already written by the full simulation
+      return { ...archive, maxTier: Math.max(workerMaxTier, existing.maxTier || 0) };
     });
     await db.ref(`pandora/biomes/${idStr}/currentGeneration`).set(nextGen);
+    // Update peakTier in case full simulation hasn't run yet for this generation
+    db.ref(`pandora/biomes/${idStr}/peakTier`)
+      .transaction(prev => workerMaxTier > (prev || 0) ? workerMaxTier : undefined)
+      .catch(() => {});
   } catch(e) { console.warn(`[Worker] Archive save failed for biome ${bid}:`, e); }
 
   // Load all archives, evolve genome
