@@ -774,6 +774,11 @@ function updateUI() {
 
 // ── Vitality / stagnation engine ──────────────────────────────
 const STAGNATION_WINDOW = 800;
+function getStagnationWindow() {
+  // Higher-tier worlds get more time before stagnation death
+  return Math.round(STAGNATION_WINDOW * (1 + currentTier * 0.35));
+}
+
 const COMPLEXITY_FLOOR  = 0.35;
 const MEANINGFUL_DELTA  = 0.06;
 const MAX_INTERVENTIONS = 3;
@@ -859,7 +864,7 @@ function checkVitality(cx) {
     return;
   }
 
-  const stagnant = tick - peakTick > STAGNATION_WINDOW;
+  const stagnant = tick - peakTick > getStagnationWindow();
   if (!stagnant) return;
 
   if (interventions >= MAX_INTERVENTIONS) {
@@ -890,7 +895,9 @@ function checkVitality(cx) {
 const TIER_NAMES = [
   'Inert', 'Molecular Activity', 'Persistent Structures',
   'Reaction Diversity', 'Spatial Heterogeneity', 'Spontaneous Assembly',
-  'Sustained Complexity'
+  'Sustained Complexity', 'Redox Cycling', 'Iron-Sulfur Core',
+  'Mineral Membrane', 'Compartmented Cell', 'Proton Gradient',
+  'Proto-Metabolism'
 ];
 
 const tierAchieved = new Array(7).fill(false);
@@ -900,6 +907,10 @@ let sustainedChainTicks = 0;
 let sustainedBranchTicks = 0;
 let sustainedRingTicks   = 0;
 let sustainedCxTicks     = 0;
+let sustainedT7Ticks  = 0;  // multi-cluster
+let sustainedT9Ticks  = 0;  // high complexity
+let sustainedT10Ticks = 0;  // dense compound cluster
+let sustainedT12Ticks = 0;  // long-term stability
 
 function promoteTier(t) {
   if (tierAchieved[t]) return;
@@ -934,20 +945,20 @@ function checkTiers(cx, mxl, brn, rings) {
   if (!tierAchieved[1] && totalBondsFormed > 0) promoteTier(1);
 
   if (mxl >= 3) sustainedChainTicks++; else sustainedChainTicks = 0;
-  if (!tierAchieved[2] && sustainedChainTicks >= 300) promoteTier(2);
+  if (!tierAchieved[2] && sustainedChainTicks >= 30) promoteTier(2);
 
   if (brn >= 1) sustainedBranchTicks++; else sustainedBranchTicks = 0;
-  if (!tierAchieved[3] && sustainedBranchTicks >= 200) promoteTier(3);
+  if (!tierAchieved[3] && sustainedBranchTicks >= 20) promoteTier(3);
 
   if (rings >= 1) sustainedRingTicks++; else sustainedRingTicks = 0;
-  if (!tierAchieved[4] && sustainedRingTicks >= 150) promoteTier(4);
+  if (!tierAchieved[4] && sustainedRingTicks >= 15) promoteTier(4);
 
   if (!tierAchieved[5]) {
     for (const comp of latestComps) {
       if (comp.feCount < 6) continue;
       let cy2 = 0;
       for (const idx of comp.nodes) cy2 += A[idx].y;
-      if (cy2 / comp.nodes.length < H * 0.62) { promoteTier(5); break; }
+      if (cy2 / comp.nodes.length < H * 0.78) { promoteTier(5); break; }
     }
   }
 
@@ -956,7 +967,35 @@ function checkTiers(cx, mxl, brn, rings) {
     const mean = win.reduce((s,v)=>s+v,0)/win.length;
     if (mean > 1.5) sustainedCxTicks++; else sustainedCxTicks = 0;
   }
-  if (!tierAchieved[6] && sustainedCxTicks >= 10) promoteTier(6);
+  if (!tierAchieved[6] && sustainedCxTicks >= 4) promoteTier(6);
+  // T7 — 2+ distinct clusters of 4+ nodes, sustained 20 ticks
+  const largeClusters = latestComps.filter(c => c.nodes.length >= 4).length;
+  if (largeClusters >= 2) sustainedT7Ticks++; else sustainedT7Ticks = 0;
+  if (!tierAchieved[7] && sustainedT7Ticks >= 20) promoteTier(7);
+
+  // T8 — polyring topology: 3+ rings in the system
+  if (!tierAchieved[8] && tierAchieved[7] && rings >= 3) promoteTier(8);
+
+  // T9 — high sustained complexity (mean > 1.8 over 60 history points)
+  if (hist.length >= 60) {
+    const win9 = hist.slice(-60);
+    const mean9 = win9.reduce((s,v) => s + v, 0) / win9.length;
+    if (mean9 > 1.8) sustainedT9Ticks++; else sustainedT9Ticks = 0;
+  }
+  if (!tierAchieved[9] && sustainedT9Ticks >= 15) promoteTier(9);
+
+  // T10 — dense compound: cluster 6+ nodes, rings present, branching >= 3
+  const hasDense = latestComps.some(c => c.nodes.length >= 6) && rings >= 1 && brn >= 3;
+  if (hasDense) sustainedT10Ticks++; else sustainedT10Ticks = 0;
+  if (!tierAchieved[10] && sustainedT10Ticks >= 15) promoteTier(10);
+
+  // T11 — heavy branching (8+) and T10 already reached
+  if (!tierAchieved[11] && tierAchieved[10] && brn >= 8) promoteTier(11);
+
+  // T12 — sustained T10-quality state for 50 ticks → compartment stability
+  if (tierAchieved[10]) sustainedT12Ticks++; else sustainedT12Ticks = 0;
+  if (!tierAchieved[12] && sustainedT12Ticks >= 50) promoteTier(12);
+
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1474,6 +1513,12 @@ function initFirebase() {
     loadBiomeState();
     loadGlobalKnowledge();
     loadAgentRanks();
+
+  // Presence tracking — register this session in Firebase
+  const _sid = Math.random().toString(36).slice(2, 10);
+  const _presRef = fbDb.ref(`pandora/presence/${_sid}`);
+  _presRef.set({ page: `biome-${BIOME_ID}`, connectedAt: Date.now() });
+  _presRef.onDisconnect().remove();
   } catch(e) { console.warn('[Pandora Firebase] init failed:', e); }
 }
 
@@ -1554,6 +1599,8 @@ function saveToFirebase() {
     ANALYST:  {xp: AGENT_STATE.ANALYST.xp,  rank: AGENT_STATE.ANALYST.rank,  successful: AGENT_STATE.ANALYST.successful,  failed: AGENT_STATE.ANALYST.failed},
     NARRATOR: {xp: AGENT_STATE.NARRATOR.xp, rank: AGENT_STATE.NARRATOR.rank, successful: AGENT_STATE.NARRATOR.successful, failed: AGENT_STATE.NARRATOR.failed},
   }).catch(e => {});
+
+  fbDb.ref('pandora/stats/totalTicks').transaction(t => (t || 0) + 500).catch(() => {});
 }
 
 function writeKnowledgeToFirebase(entry) {

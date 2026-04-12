@@ -326,6 +326,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
     <div class="tick-item">ARCHIVED <span class="tick-val" id="s-dead">—</span></div>
     <div class="tick-item">FORMING <span class="tick-val" id="s-forming">—</span></div>
     <div class="tick-item">PEAK <span class="tick-val" id="s-peak">—</span></div>
+    <div class="tick-item">OBSERVERS <span class="tick-val" id="s-observers">—</span></div>
+    <div class="tick-item">COMPUTE <span class="tick-val" id="s-compute">—</span></div>
   </div>
 </div>
 
@@ -1576,6 +1578,29 @@ function initIndexFirebase() {
 
       console.log(`[Pandora] Firebase: loaded ${Object.keys(data).length} biome states.`);
     }).catch(e => console.warn('[Pandora Firebase] index load failed:', e));
+
+    // Presence tracking — register this browser session
+    const _sid = Math.random().toString(36).slice(2, 10);
+    const _presRef = db.ref(`pandora/presence/${_sid}`);
+    _presRef.set({ page: 'index', connectedAt: Date.now() });
+    _presRef.onDisconnect().remove();
+
+    // Live observer count (all pages combined)
+    db.ref('pandora/presence').on('value', snap => {
+      const el = document.getElementById('s-observers');
+      if (el) el.textContent = snap.numChildren() || 0;
+    });
+
+    // Cumulative compute ticks across all sessions ever
+    db.ref('pandora/stats/totalTicks').on('value', snap => {
+      const el = document.getElementById('s-compute');
+      if (!el) return;
+      const t = snap.val() || 0;
+      if (t >= 1e9)      el.textContent = (t / 1e9).toFixed(2) + 'B';
+      else if (t >= 1e6) el.textContent = (t / 1e6).toFixed(1) + 'M';
+      else if (t >= 1e3) el.textContent = Math.round(t / 1e3) + 'K';
+      else               el.textContent = t;
+    });
 
     // Real-time listener: update hero dead count as worlds die
     db.ref('pandora/biomes').on('child_changed', snap => {
