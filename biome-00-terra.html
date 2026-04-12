@@ -738,6 +738,23 @@ async function _runDeathCycle(deathReason) {
     summary:         `GEN ${_generation} · T${currentTier} · ${tick.toLocaleString()} ticks · cx=${peakComplexity.toFixed(3)} · ${deathReason}`,
   };
 
+  // Capture peak molecular state as inheritance seed for the next generation
+  // (must happen BEFORE positions.remove() erases the particle array)
+  const _inheritanceSeed = (typeof A !== 'undefined' && A.length > 0) ? {
+    px:            A.map(a => Math.round(a.x * 10) / 10),
+    py:            A.map(a => Math.round(a.y * 10) / 10),
+    types:         A.map(a => a.type),
+    bonds:         [...BONDS].map(k => k.split(',').map(Number)),
+    tick:          0,
+    currentTier:   currentTier,
+    peakComplexity: parseFloat(peakComplexity.toFixed(4)),
+    peakTick:      0,
+    interventions: 0,
+    worldStatus:   'active',
+    tierAchieved:  (typeof tierAchieved !== 'undefined') ? [...tierAchieved] : [],
+    inheritedAt:   Date.now()
+  } : null;
+
   if (typeof fbDb !== 'undefined' && fbDb) {
     try {
       await fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).push(archiveEntry);
@@ -797,6 +814,10 @@ async function _runDeathCycle(deathReason) {
     try {
       // Store this generation's genome at /genome/N so each gen is addressable
       await fbDb.ref(`pandora/biomes/${BIOME_ID}/genome/${nextGen}`).set(nextGenome);
+      // Save inheritance seed so next generation starts from parent's peak molecular state
+      if (_inheritanceSeed) {
+        await fbDb.ref(`pandora/biomes/${BIOME_ID}/genome/${nextGen}/seed`).set(_inheritanceSeed);
+      }
       // Track which generation is currently active
       await fbDb.ref(`pandora/biomes/${BIOME_ID}/currentGeneration`).set(nextGen);
       await fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
@@ -2131,24 +2152,51 @@ setTimeout(async function _pandoraResume() {
       const wsLbl = document.getElementById('ws-lbl');
       if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
     } else {
-      const stSnap = await Promise.race([
-        fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value'),
-        new Promise(r => setTimeout(() => r(null), 2000))
-      ]);
-      const st = stSnap ? stSnap.val() : null;
-      if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead' && tick < 50) {
-        tick        = st.tick        || 0;
-        currentTier = st.currentTier || 0;
-        if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
-        if (typeof peakTick       !== 'undefined') peakTick = Math.max(st.peakTick||0, tick - 100);
-        if (typeof interventions  !== 'undefined') interventions  = st.interventions  || 0;
-        if (st.tierAchieved) st.tierAchieved.forEach((v,i)=>{ if(i<tierAchieved.length) tierAchieved[i]=v; });
-        if (currentTier > 0) {
-          const tv = document.getElementById('v-tier');
-          if (tv) tv.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
+      // No live positions — check for inherited seed from parent generation first
+      if (_generation > 1) {
+        const _seedSnap = await Promise.race([
+          fbDb.ref(`pandora/biomes/${BIOME_ID}/genome/${_generation}/seed`).once('value'),
+          new Promise(r => setTimeout(() => r(null), 2000))
+        ]);
+        const _seed = _seedSnap ? _seedSnap.val() : null;
+        const _seedPx = _seed && _seed.px ? (Array.isArray(_seed.px) ? _seed.px : Object.values(_seed.px)) : null;
+        if (_seedPx && _seedPx.length >= 5) {
+          _seed.px    = _seedPx;
+          _seed.py    = _seed.py    ? (Array.isArray(_seed.py)    ? _seed.py    : Object.values(_seed.py))    : _seedPx.map(()=>0);
+          _seed.types = _seed.types ? (Array.isArray(_seed.types) ? _seed.types : Object.values(_seed.types)) : [];
+          _restorePositions(_seed);
+          _posRestored = true;
+          // Update Firebase so homepage shows correct inherited tier immediately
+          try {
+            await fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).update({
+              currentTier: currentTier, worldStatus: 'active', generation: _generation
+            });
+          } catch(e) {}
+          const wsLbl = document.getElementById('ws-lbl');
+          if (wsLbl) wsLbl.textContent = `GEN ${_generation} — INHERITED T${currentTier}`;
         }
-        const wsLbl = document.getElementById('ws-lbl');
-        if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
+      }
+      if (!_posRestored) {
+        // No seed either — restore at least tick/tier from /state so HUD is correct
+        const stSnap = await Promise.race([
+          fbDb.ref(`pandora/biomes/${BIOME_ID}/state`).once('value'),
+          new Promise(r => setTimeout(() => r(null), 2000))
+        ]);
+        const st = stSnap ? stSnap.val() : null;
+        if (st && (st.tick || 0) >= 200 && st.worldStatus !== 'dead' && tick < 50) {
+          tick        = st.tick        || 0;
+          currentTier = st.currentTier || 0;
+          if (typeof peakComplexity !== 'undefined') peakComplexity = st.peakComplexity || 0;
+          if (typeof peakTick       !== 'undefined') peakTick = Math.max(st.peakTick||0, tick - 100);
+          if (typeof interventions  !== 'undefined') interventions  = st.interventions  || 0;
+          if (st.tierAchieved) st.tierAchieved.forEach((v,i)=>{ if(i<tierAchieved.length) tierAchieved[i]=v; });
+          if (currentTier > 0) {
+            const tv = document.getElementById('v-tier');
+            if (tv) tv.textContent = `T${currentTier} — ${TIER_NAMES[currentTier]}`;
+          }
+          const wsLbl = document.getElementById('ws-lbl');
+          if (wsLbl) wsLbl.textContent = 'RESUMING WORLD';
+        }
       }
     }
 
