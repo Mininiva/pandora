@@ -501,27 +501,27 @@ const _biomeCurrentGen = {};
 const BIOMES = [
   {id:0,  name:"Terra",                chem:"C · N · O · P / H₂O",     tier:2,status:"active", parent:null,   desc:"The reference world. Carbon hydrothermal chemistry in liquid water — our baseline for what complexity looks like when we already know life is possible.",file:"biome-00-terra.html"},
   {id:1,  name:"Hadean",               chem:"C · H₂O · SO₄",            tier:1,status:"active", parent:0,      desc:"Hot early-carbon with volcanic sulfate. Aggressive thermal gradient. Running."},
-  {id:2,  name:"Primordius",           chem:"C · NH₃ · H₂O",            tier:0,status:"dead",   parent:0,      desc:"Carbon in mixed ammonia-water. Thermal collapse at t=8400. The ammonia won."},
+  {id:2,  name:"Hydrothermal",          chem:"H₂S · Fe · S / vent",      tier:0,status:"active", parent:null,   desc:"Black smoker vent chemistry. Hydrogen sulfide reacting with iron minerals at extreme temperature gradients. First foray into sulfide-based origin chemistry.",file:"biome-02-hydrothermal.html"},
   {id:3,  name:"Old Stone",            chem:"C · silicate · H₂O",       tier:2,status:"active", parent:0,      desc:"Carbon chemistry on mineral surfaces. Slower than Terra, but persistent."},
   {id:4,  name:"Warm Soup",            chem:"C · H₂O · clay",            tier:3,status:"active", parent:0,      desc:"Clay-catalysed carbon world. Montmorillonite surfaces doing real work. Best carbon-family result.",file:"biome-04-warm-soup.html"},
   {id:5,  name:"Carbon Copy",          chem:"C · H₂O · FeS₂",            tier:1,status:"active", parent:2,      desc:"Born from Primordius's failure — iron sulfide catalysis added. The irony of carbon needing iron."},
-  {id:6,  name:"Origin Story",         chem:"C · H₂O · P",               tier:1,status:"forming",parent:4,      desc:"Daughter of Warm Soup. Phosphate-enriched. Inherits clay knowledge."},
+  {id:6, name:"Tidal Pool", chem:"UV · NaCl · organic", tier:0,status:"active", parent:null, desc:"Cyclic wet-dry UV chemistry. Tidal concentration and evaporation creating conditions for organic molecule polymerization. Inspired by tidal flat origin hypotheses.",file:"biome-06-tidal-pool.html"},
   {id:7,  name:"The Prebiotic",        chem:"C · HCN · H₂O",             tier:0,status:"dead",   parent:0,      desc:"HCN-based carbon. Too reactive — no structure survived above t=2100."},
-  {id:8,  name:"Archaean",             chem:"C · H₂O · Fe",              tier:1,status:"active", parent:3,      desc:"Ancient mineral-iron carbon chemistry, descended from Old Stone."},
+  {id:8, name:"Clay Lattice", chem:"clay · Si · AA · P", tier:0,status:"active", parent:null, desc:"Mineral surface-catalysed template synthesis. Clay minerals acting as primitive replicators and catalysts. Tests the mineral-surface origin hypothesis.",file:"biome-08-clay-lattice.html"},
   {id:9,  name:"Once Upon",            chem:"C · H₂O",                   tier:0,status:"dead",   parent:null,   desc:"The very first attempt, before Terra. Nothing happened. The silence was educational."},
   {id:10, name:"Siliconia",            chem:"Si · O · S",                tier:1,status:"active", parent:null,   desc:"First foray into non-carbon territory. Silicon-sulfur at high temperature.",file:"biome-10-siliconia.html"},
   {id:11, name:"Glass Act",            chem:"Si · O · N",                tier:0,status:"dead",   parent:10,     desc:"Silicate nitrogen world. Crystallised beautifully and then absolutely nothing."},
-  {id:12, name:"The Forge",            chem:"Si · S · Fe",               tier:2,status:"active", parent:10,     desc:"Hot silicon-sulfur with iron catalysts. Most successful silicon run in the archive."},
+  {id:12, name:"Phospho World", chem:"P · ADP · nucleotide", tier:0,status:"active", parent:null, desc:"Phosphorus-driven energy coupling chemistry. ATP-analog reactions and nucleotide chain formation. The phosphate backbone may be life's oldest chemical invention.",file:"biome-12-phospho-world.html"},
   {id:13, name:"Crystal Meth[od]",     chem:"Si · O · Al",               tier:1,status:"active", parent:12,     desc:"Aluminosilicate chemistry. The name raised eyebrows at the briefing."},
   {id:14, name:"Obsidian Heart",       chem:"Si · O · Mg",               tier:1,status:"active", parent:10,     desc:"Magnesium silicate in molten state. Slow and dramatic."},
   {id:15, name:"Quartz Dreams",        chem:"Si · O",                    tier:0,status:"dead",   parent:10,     desc:"Pure silica. Crystals formed instantly. Chemistry never did."},
-  {id:16, name:"Hot Take",             chem:"Si · S · N",                tier:1,status:"forming",parent:12,     desc:"Silicon-sulfur-nitrogen ternary. Inherits The Forge's iron-catalysis knowledge."},
+  {id:16, name:"Nitrogen Sea", chem:"N₂ · NH₃ · nitrile", tier:0,status:"active", parent:null, desc:"Nitrogen fixation in a world drowning in N₂. Ammonia synthesis, nitrile chain formation, and the long road from atmospheric nitrogen to biological amino groups.",file:"biome-16-nitrogen-sea.html"},
   {id:17, name:"The Smeltery",         chem:"Si · Fe · Ni",              tier:0,status:"dead",   parent:null,   desc:"Metal silicate experiment. Everything fused into one inert mass at t=1200."},
   {id:18, name:"Lava Lamp",            chem:"Si · O · Fe",               tier:1,status:"active", parent:12,     desc:"Iron-silicate in convective melt. The most visually spectacular silicon world."},
   {id:19, name:"Vitreous Rex",         chem:"Si · O · Ca",               tier:1,status:"forming",parent:12,     desc:"Calcium silicate glass chemistry. What if structure evolved before metabolism?"},
   {id:20, name:"Freeze Frame",         chem:"N · H / NH₃",               tier:1,status:"active", parent:null,   desc:"First cold-chemistry world. Low-temperature ammonia solvent.",file:"biome-20-freeze-frame.html"},
   {id:21, name:"Brain Freeze",         chem:"C · N · H / NH₃",           tier:0,status:"dead",   parent:20,     desc:"Carbon in ammonia at 200K. Bonding rates too slow. Very literally froze."},
-  {id:22, name:"Ammonia Dreams",       chem:"N · S / NH₃",               tier:2,status:"active", parent:20,     desc:"Nitrogen-sulfur in ammonia solvent. Unexpected persistence. Best cold result."},
+  {id:22, name:"Methane Cloud", chem:"CH₄ · radical · polymer", tier:0,status:"active", parent:null, desc:"Gas-phase radical chemistry in a methane-rich atmosphere. Polymer chain formation under UV bombardment. A Titan-inspired gas-world chemistry experiment.",file:"biome-22-methane-cloud.html"},
   {id:23, name:"Ice Ice Maybe",        chem:"N · H · O / NH₃",           tier:1,status:"active", parent:22,     desc:"Oxygen added to Ammonia Dreams lineage. Cautiously optimistic."},
   {id:24, name:"Sub Zero",             chem:"N · P / NH₃",               tier:0,status:"dead",   parent:20,     desc:"Phosphorus-nitrogen in ammonia. P dissolved into the solvent at t=3300."},
   {id:25, name:"Cool Story",           chem:"N · Si / NH₃",              tier:1,status:"forming",parent:22,     desc:"Silicon added to the successful ammonia lineage. Cross-family experiment."},
@@ -529,7 +529,7 @@ const BIOMES = [
   {id:27, name:"Polar Express",        chem:"N · F / NH₃",               tier:0,status:"dead",   parent:20,     desc:"Fluorine experiment. HF formation destroyed everything within t=800."},
   {id:28, name:"Cold Open",            chem:"N · B / NH₃",               tier:1,status:"forming",parent:26,     desc:"Boron-nitrogen in ammonia. The most exotic cold experiment initiated."},
   {id:29, name:"Nitrogen Nights",      chem:"N · C / NH₃",               tier:3,status:"active", parent:22,     desc:"Best cold-chemistry world. Descended from Ammonia Dreams, learned from Brain Freeze's failure."},
-  {id:30, name:"Brimstone",            chem:"S · O / H₂SO₄",             tier:1,status:"active", parent:null,   desc:"First acid-world experiment. Sulfuric acid solvent chemistry."},
+  {id:30, name:"Sulfur Springs", chem:"S · H₂S · thiol", tier:0,status:"active", parent:null, desc:"Sulfur metabolism in acidic hydrothermal springs. Thiol and disulfide chemistry as primitive energy transduction. Sulfur: the element that smells like early life.",file:"biome-30-sulfur-springs.html"},
   {id:31, name:"The Yellow One",       chem:"S · O",                     tier:0,status:"dead",   parent:30,     desc:"Pure sulfur oxide. Beautiful yellows. No complexity whatsoever."},
   {id:32, name:"Acid House",           chem:"S · O · Fe / H₂SO₄",        tier:0,status:"dead",   parent:30,     desc:"Iron-sulfate experiment. Corrosion won comprehensively."},
   {id:33, name:"Sour World",           chem:"S · N / H₂SO₄",             tier:2,status:"active", parent:30,     desc:"Sulfur-nitrogen in acid solvent. Holding at T2 with unusual tenacity."},
@@ -539,7 +539,7 @@ const BIOMES = [
   {id:37, name:"The Stench",           chem:"S · P / H₂SO₄",             tier:1,status:"forming",parent:33,     desc:"Phosphorus-sulfate chemistry. We apologise for the name."},
   {id:38, name:"Yellow Submarine",     chem:"S · N · C / H₂SO₄",         tier:2,status:"active", parent:33,     desc:"Carbon-nitrogen in sulfuric acid. Surprisingly stable."},
   {id:39, name:"Full Sulfur",          chem:"S · Fe · N / H₂SO₄",        tier:1,status:"forming",parent:38,     desc:"Full sulfur-iron-nitrogen system. Maximum ambition in the acid family."},
-  {id:40, name:"Titan's Cousin",       chem:"C₂H₂N / CH₄",               tier:1,status:"active", parent:null,   desc:"Acrylonitrile membranes in liquid methane. Directly inspired by Titan astrobiology."},
+  {id:40, name:"Copper Web", chem:"Cu · oxide · chelate", tier:0,status:"active", parent:null, desc:"Copper-based redox catalysis. Chelate networks and porphyrin-analog formation. Copper was likely central to early electron-transfer chemistry.",file:"biome-40-copper-web.html"},
   {id:41, name:"Pale Yellow",          chem:"N · C / CH₄",               tier:0,status:"dead",   parent:40,     desc:"Nitrogen-carbon in methane at 90K. Simply too cold. Everything stopped."},
   {id:42, name:"Ethane Afternoon",     chem:"C₂H₆ · N / CH₄",            tier:1,status:"active", parent:40,     desc:"Ethane-methane mix. Marginally warmer. Marginally less dead."},
   {id:43, name:"Cryogenic Blues",      chem:"HCN / CH₄",                 tier:2,status:"active", parent:40,     desc:"Hydrogen cyanide chemistry in methane solvent. Unexpected persistence at T2."},
@@ -561,7 +561,7 @@ const BIOMES = [
   {id:59, name:"Softly Softly",        chem:"B · N · P / H₂O",           tier:1,status:"forming",parent:57,     desc:"Gentler boron-nitrogen-phosphorus chemistry. A calmer sister to The Hexagon."},
   {id:60, name:"Phosphoria",           chem:"P · O / H₂O",               tier:2,status:"active", parent:null,   desc:"Phosphorus-oxygen in water. Surprising structural richness at low concentration."},
   {id:61, name:"Match Head",           chem:"P · S · O",                 tier:0,status:"dead",   parent:60,     desc:"Red phosphorus sulfur. The ignition was spectacular. The aftermath was ash."},
-  {id:62, name:"Glow World",           chem:"P · H / H₂O",               tier:1,status:"active", parent:60,     desc:"White phosphorus in water. Faint bioluminescent precursor chemistry."},
+  {id:62, name:"Plasma Arc", chem:"ion · plasma · radical", tier:0,status:"active", parent:null, desc:"Ionized matter chemistry driven by electrical discharge. Plasma arc synthesis of complex molecules from simple precursors — a lightning-in-a-bottle world.",file:"biome-62-plasma-arc.html"},
   {id:63, name:"Phosphor Blue",        chem:"P · N · O / H₂O",           tier:2,status:"active", parent:60,     desc:"Nitrogen-phosphorus in water. Deep blue coloring from PI orbital compounds."},
   {id:64, name:"The Alchemist",        chem:"P · C · N / H₂O",           tier:3,status:"active", parent:60,     desc:"Most promising phosphorus world. Carbon-nitrogen-phosphorus approaching RNA-territory."},
   {id:65, name:"Hellfire Chemistry",   chem:"P · S · Fe",                tier:0,status:"dead",   parent:60,     desc:"The name was, in retrospect, prophetic."},
@@ -579,7 +579,7 @@ const BIOMES = [
   {id:77, name:"Oxide Mind",           chem:"Fe · O · N / H₂O",          tier:2,status:"active", parent:73,     desc:"Iron oxide-nitride system. Approaching T3 boundary."},
   {id:78, name:"The Smeltery II",      chem:"Fe · Si · O",               tier:0,status:"dead",   parent:null,   desc:"Sequel to The Smeltery. Same result. We needed the data."},
   {id:79, name:"Deep Vein",            chem:"Fe · S · Ni · C",           tier:2,status:"forming",parent:73,     desc:"Full iron sulfide-nickel-carbon system. Deepest simulation forming."},
-  {id:80, name:"Fluorine Dreams",      chem:"C · F / HF",                tier:1,status:"active", parent:null,   desc:"Hydrogen fluoride solvent at -83°C. Extremely exotic. Surprisingly not dead."},
+  {id:80, name:"Deep Crystal", chem:"crystal · lattice · defect", tier:0,status:"active", parent:null, desc:"High-pressure crystal lattice chemistry. Defect-mediated complexity in growing crystal structures. Testing whether crystalline order can scaffold information storage.",file:"biome-80-deep-crystal.html"},
   {id:81, name:"Acid Trip",            chem:"S · F / HF",                tier:0,status:"dead",   parent:80,     desc:"HF-sulfur experiment. The HF won at t=650."},
   {id:82, name:"The Sharp One",        chem:"N · F / HF",                tier:1,status:"forming",parent:80,     desc:"Nitrogen in HF solvent. Unexpectedly promising."},
   {id:83, name:"Etch-a-World",         chem:"Si · F / HF",               tier:0,status:"dead",   parent:80,     desc:"Silicon etching chemistry. Everything dissolved. Including our expectations."},
@@ -1723,18 +1723,32 @@ function initIndexFirebase() {
       // ── Populate the real dead-worlds archive grid from Firebase archives ──
       const archiveGrid = document.getElementById('archive-grid');
       const realBiomeNames = {
-        '0': 'Terra', '4': 'Warm Soup', '10': 'Siliconia',
-        '20': 'Freeze Frame', '50': 'Boronia', '70': 'Iron Veil'
+        '0':  'Terra',          '2':  'Hydrothermal',   '4':  'Warm Soup',
+        '6':  'Tidal Pool',     '8':  'Clay Lattice',   '10': 'Siliconia',
+        '12': 'Phospho World',  '16': 'Nitrogen Sea',   '20': 'Freeze Frame',
+        '22': 'Methane Cloud',  '30': 'Sulfur Springs', '40': 'Copper Web',
+        '50': 'Boronia',        '62': 'Plasma Arc',     '70': 'Iron Veil',
+        '80': 'Deep Crystal'
       };
       const realBiomeFiles = {
-        '0': 'biome-00-terra.html', '4': 'biome-04-warm-soup.html',
-        '10': 'biome-10-siliconia.html', '20': 'biome-20-freeze-frame.html',
-        '50': 'biome-50-boronia.html',   '70': 'biome-70-iron-veil.html'
+        '0':  'biome-00-terra.html',         '2':  'biome-02-hydrothermal.html',
+        '4':  'biome-04-warm-soup.html',     '6':  'biome-06-tidal-pool.html',
+        '8':  'biome-08-clay-lattice.html',  '10': 'biome-10-siliconia.html',
+        '12': 'biome-12-phospho-world.html', '16': 'biome-16-nitrogen-sea.html',
+        '20': 'biome-20-freeze-frame.html',  '22': 'biome-22-methane-cloud.html',
+        '30': 'biome-30-sulfur-springs.html','40': 'biome-40-copper-web.html',
+        '50': 'biome-50-boronia.html',       '62': 'biome-62-plasma-arc.html',
+        '70': 'biome-70-iron-veil.html',     '80': 'biome-80-deep-crystal.html'
       };
       const realBiomeChem = {
-        '0': 'C · N · O · P / H₂O', '4': 'C · H₂O · clay',
-        '10': 'Si · O · S', '20': 'N · H / NH₃',
-        '50': 'B · N / organic', '70': 'Fe · S / H₂O'
+        '0':  'C · N · O · P / H₂O', '2':  'H₂S · Fe · S / vent',
+        '4':  'C · H₂O · clay',      '6':  'UV · NaCl · organic',
+        '8':  'clay · Si · AA · P',   '10': 'Si · O · S',
+        '12': 'P · ADP · nucleotide', '16': 'N₂ · NH₃ · nitrile',
+        '20': 'N · H / NH₃',         '22': 'CH₄ · radical · polymer',
+        '30': 'S · H₂S · thiol',     '40': 'Cu · oxide · chelate',
+        '50': 'B · N / organic',     '62': 'ion · plasma · radical',
+        '70': 'Fe · S / H₂O',       '80': 'crystal · lattice · defect'
       };
       // Build archive cards for each real biome's archive entries
       const realArchiveCards = [];

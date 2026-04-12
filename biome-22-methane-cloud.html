@@ -2,32 +2,32 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Pandora — Biome 50: Boronia</title>
+<title>Pandora — Biome 22: METHANE CLOUD</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+body { background: #333333; overflow: hidden; font-family: 'Courier New', monospace; }
 canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 
 /* ── HUD (left) ───────────────────────────────────────────── */
 #hud {
   position: absolute; top: 24px; left: 24px; z-index: 10;
   font-size: 14px; line-height: 2.1;
-  color: rgba(80, 220, 200, 0.88);
-  text-shadow: 0 0 8px rgba(60, 180, 160, 0.3);
+  color: rgba(255, 160, 60, 0.88);
+  text-shadow: 0 0 8px rgba(255, 120, 20, 0.3);
 }
-.hk { color: rgba(50, 160, 140, 0.85); display: inline-block; width: 108px; }
-.hv { color: rgba(150, 245, 220, 0.92); }
+.hk { color: rgba(180, 100, 40, 0.85); display: inline-block; width: 108px; }
+.hv { color: rgba(255, 210, 140, 0.92); }
 
 #title {
   position: absolute; top: 24px; right: 318px; z-index: 10;
   font-size: 14px; letter-spacing: 5px;
-  color: rgba(80, 220, 200, 0.80);
-  text-shadow: 0 0 20px rgba(60, 180, 160, 0.12);
+  color: rgba(255, 160, 60, 0.80);
+  text-shadow: 0 0 20px rgba(255, 100, 20, 0.12);
 }
 #subtitle {
   position: absolute; top: 46px; right: 318px; z-index: 10;
   font-size: 12px; letter-spacing: 3px;
-  color: rgba(60, 180, 160, 0.80);
+  color: rgba(200, 120, 40, 0.80);
 }
 
 #graph-box {
@@ -39,15 +39,15 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 #elog {
   position: absolute; bottom: 24px; left: 24px; z-index: 10;
   font-size: 12px; line-height: 1.8;
-  color: rgba(80, 220, 200, 0.85);
+  color: rgba(255, 160, 60, 0.85);
   width: 340px;
 }
 
 #legend {
   position: absolute; top: 280px; left: 24px; z-index: 10;
   font-size: 12px; line-height: 2.2;
-  color: rgba(50, 160, 140, 0.82);
-  border-top: 1px solid rgba(80, 200, 180, 0.12);
+  color: rgba(180, 100, 40, 0.82);
+  border-top: 1px solid rgba(200, 100, 30, 0.12);
   padding-top: 12px;
 }
 .ld {
@@ -63,13 +63,13 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
   opacity: 0; transition: opacity 1.5s;
 }
 #world-state.dead {
-  color: rgba(80, 200, 180, 0.75);
-  text-shadow: 0 0 40px rgba(60, 160, 140, 0.4);
+  color: rgba(200, 80, 60, 0.75);
+  text-shadow: 0 0 40px rgba(200, 60, 40, 0.4);
   opacity: 1;
 }
 #world-state.perturbed {
-  color: rgba(150, 240, 220, 0.8);
-  text-shadow: 0 0 30px rgba(100, 200, 180, 0.5);
+  color: rgba(255, 200, 60, 0.8);
+  text-shadow: 0 0 30px rgba(255, 180, 40, 0.5);
   opacity: 1;
 }
 
@@ -79,7 +79,7 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
   width: 268px; height: 100vh;
   background: rgba(5, 8, 14, 0.90);
   backdrop-filter: blur(12px);
-  border-left: 1px solid rgba(80, 220, 200, 0.10);
+  border-left: 1px solid rgba(255, 140, 40, 0.10);
   display: flex; flex-direction: column;
   z-index: 50;
   transition: transform 0.3s ease;
@@ -91,26 +91,26 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
   transform: translateY(-50%);
   width: 28px; height: 54px;
   background: rgba(5, 8, 14, 0.90);
-  border: 1px solid rgba(80, 220, 200, 0.10);
+  border: 1px solid rgba(255, 140, 40, 0.10);
   border-right: none;
   cursor: pointer;
-  color: rgba(60, 180, 160, 0.85);
+  color: rgba(200, 130, 50, 0.85);
   font-family: 'Courier New', monospace;
   font-size: 12px;
   display: flex; align-items: center; justify-content: center;
   writing-mode: vertical-rl;
   letter-spacing: 2px;
 }
-#panel-toggle:hover { color: rgba(150, 240, 220, 0.8); }
+#panel-toggle:hover { color: rgba(255, 180, 80, 0.8); }
 
 #panel-header {
   padding: 14px 14px 10px;
-  border-bottom: 1px solid rgba(80, 220, 200, 0.07);
+  border-bottom: 1px solid rgba(255, 140, 40, 0.07);
   flex-shrink: 0;
 }
 #panel-title {
   font-size: 12px; letter-spacing: 4px;
-  color: rgba(60, 180, 160, 0.85);
+  color: rgba(200, 130, 50, 0.85);
   margin-bottom: 3px;
 }
 #panel-agents {
@@ -131,25 +131,25 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
   gap: 11px;
 }
 #agent-feed::-webkit-scrollbar { width: 2px; }
-#agent-feed::-webkit-scrollbar-thumb { background: rgba(80, 200, 180, 0.2); }
+#agent-feed::-webkit-scrollbar-thumb { background: rgba(200, 120, 40, 0.2); }
 
 .ae { display: flex; flex-direction: column; gap: 3px; animation: fadein 0.4s ease; }
 @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
 
 .ae-meta { display: flex; gap: 8px; align-items: baseline; }
 .ae-name { font-size: 12px; letter-spacing: 2px; }
-.ae-time { font-size: 12px; color: rgba(80, 150, 140, 0.82); }
+.ae-time { font-size: 12px; color: rgba(150, 90, 40, 0.82); }
 .ae-msg  { font-size: 12px; line-height: 1.65; padding-left: 2px; }
 
 .ae-name.OBSERVER { color: rgba(100, 180, 255, 0.85); }
 .ae-name.ANALYST  { color: rgba(60, 210, 170, 0.85); }
 .ae-name.NARRATOR { color: rgba(255, 200, 80, 0.92); }
-.ae-name.SYSTEM   { color: rgba(80, 200, 180, 0.88); }
+.ae-name.SYSTEM   { color: rgba(200, 100, 50, 0.88); }
 
 .ae-msg.OBSERVER  { color: rgba(140, 200, 240, 0.85); }
 .ae-msg.ANALYST   { color: rgba(100, 220, 185, 0.85); }
 .ae-msg.NARRATOR  { color: rgba(225, 185, 80, 0.88); font-style: italic; }
-.ae-msg.SYSTEM    { color: rgba(100, 180, 160, 0.85); font-size: 12px; letter-spacing: 0.3px; }
+.ae-msg.SYSTEM    { color: rgba(190, 100, 50, 0.85); font-size: 12px; letter-spacing: 0.3px; }
 
 .ae-highlight { border-left: 2px solid rgba(255, 200, 80, 0.25); padding-left: 5px; }
 .ae-type { font-size: 12px; letter-spacing: 1.5px; padding: 1px 4px; border-radius: 2px;
@@ -263,16 +263,16 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 
 <canvas id="main"></canvas>
 
-<div id="title">BIOME 50 — BORONIA</div>
-<div id="subtitle">BORON · NITROGEN · WATER · CARBON ANALOG</div>
+<div id="title">BIOME 22 — METHANE CLOUD</div>
+<div id="subtitle">METHANE · RADICAL · POLYMER · GAS</div>
 
 <div id="hud">
-  <div><span class="hk">CHEMISTRY</span><span class="hv">B / N / H₂O</span></div>
-  <div><span class="hk">SOLVENT</span><span class="hv">Aqueous suspension</span></div>
-  <div><span class="hk">TEMP</span>    <span class="hv" id="v-t">320 K</span></div>
-  <div><span class="hk">PRESSURE</span><span class="hv" id="v-p">8 atm</span></div>
-  <div><span class="hk">B ATOMS</span> <span class="hv" id="v-si">—</span></div>
-  <div><span class="hk">B-N BONDS</span><span class="hv" id="v-bonds">—</span></div>
+  <div><span class="hk">CHEMISTRY</span><span class="hv">CH4 / Radical / Polymer</span></div>
+  <div><span class="hk">SOLVENT</span><span class="hv">Methane vapor cloud</span></div>
+  <div><span class="hk">TEMP</span>    <span class="hv" id="v-t">77 K</span></div>
+  <div><span class="hk">PRESSURE</span><span class="hv" id="v-p">5 atm</span></div>
+  <div><span class="hk">Methane</span><span class="hv" id="v-si">—</span></div>
+  <div><span class="hk">Radical bonds</span><span class="hv" id="v-bonds">—</span></div>
   <div><span class="hk">MAX CHAIN</span><span class="hv" id="v-mxl">—</span></div>
   <div><span class="hk">BRANCH PTS</span><span class="hv" id="v-brn">—</span></div>
   <div><span class="hk">RINGS</span>   <span class="hv" id="v-rings">—</span></div>
@@ -284,9 +284,9 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 </div>
 
 <div id="legend">
-  <div><span class="ld" style="background:rgba(80,220,200,0.9)"></span>boron monomer (B)</div>
-  <div><span class="ld" style="background:rgba(180,255,220,0.75)"></span>nitrogen bridge (N)</div>
-  <div><span class="ld" style="background:rgba(100,200,255,0.7)"></span>water catalyst (H₂O)</div>
+  <div><span class="ld" style="background:rgba(180,180,200,0.9)"></span>methane (CH4)</div>
+  <div><span class="ld" style="background:rgba(255,200,80,0.9)"></span>free radical</div>
+  <div><span class="ld" style="background:rgba(200,200,150,0.85)"></span>polymer chain</div>
 </div>
 
 <div id="graph-box">
@@ -303,7 +303,7 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
   <div id="panel-header">
     <a href="index.html" id="home-btn"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M6 2L3 5L6 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>PANDORA HOME</a>
     
-    <div id="panel-title">FIELD AGENTS — BORONIA</div>
+    <div id="panel-title">FIELD AGENTS — METHANE CLOUD</div>
     <div id="panel-agents">
       <span class="pagent OBSERVER">OBSERVER</span>
       <span class="pagent ANALYST">ANALYST</span>
@@ -317,20 +317,22 @@ canvas { display: block; position: absolute; inset: 0; z-index: 0; }
 'use strict';
 
 // ═══════════════════════════════════════════════════════════════
-//  PANDORA — BIOME 50: BORONIA
+//  PANDORA — BIOME 10: SILICONIA
 //
-//  Boron-nitrogen chemistry in aqueous suspension.
-//  320K, moderate conditions. A carbon analog world.
+//  First non-carbon simulation. Silicon-oxygen network chemistry
+//  in a high-temperature (900 K) supercritical vapor environment.
 //
 //  Chemistry palette:
-//    BO  — boron monomer (up to 3 bonds, C-analog node)
-//    NB  — nitrogen bridge (up to 2 bonds, links BO atoms)
-//    WC  — water catalyst (enhances B-N bond formation)
+//    SI  — silicon monomer (up to 4 bonds, tetrahedral geometry)
+//    OX  — oxygen bridge  (up to 2 bonds, links two SI atoms)
+//    SC  — sulfur catalyst (lowers activation energy for Si-O bond)
 //
-//  Key insight: B-N is isoelectronic to C-C
-//  B-N bond: 1.44 Ångstrom
-//  C-C bond: 1.54 Ångstrom
-//  Nearly identical geometry. Same grammar, different language.
+//  Emergent targets:
+//    1. Si-O bond formation  → silicate monomers
+//    2. Si-O-Si chains       → pyroxene-analog polymers
+//    3. Network branching    → silicate tetrahedra networks
+//    4. Ring closure         → cyclosilicate structures
+//    5. Extended network     → proto-mineral lattice
 // ═══════════════════════════════════════════════════════════════
 
 const canvas = document.getElementById('main');
@@ -347,25 +349,27 @@ resize();
 addEventListener('resize', resize);
 
 // ── Biome constants ───────────────────────────────────────────
-const T0     = 320;
-let   NOISE  = 0.18;
-const _BASE_NOISE = 0.18;
-const VENT_H = 0.40;
+const T0     = 900;    // baseline temperature (K)
+let   NOISE  = 0.28;
+const _BASE_NOISE = 0.28;   // Brownian variability
+const VENT_H = 0.50;   // thermal amplification near magma vent
 
-const _BASE_N1 = 150;  // base BO count
-const _BASE_N2 = 130;  // base NB count
-const _BASE_N3 = 25;  // base WC count
+const _BASE_N1 = 160;  // base METHANE count
+  const _BASE_N2 = 90;   // base RADICAL count
+  const _BASE_N3 = 28;   // base POLYMER count  // base SC count
 
+// Magma vent heat: intense near bottom-centre
 const lTemp = (x, y) =>
-  T0 * (1 + VENT_H * Math.max(0, 1 - Math.hypot(x - W * 0.5, y - H) / (H * 0.6)));
+  T0 * (1 + VENT_H * Math.max(0, 1 - Math.hypot(x - W * 0.5, y - H) / (H * 0.55)));
 
 // ── Agent type constants ──────────────────────────────────────
-const BO = 0;   // boron monomer — network node
-const NB = 1;   // nitrogen bridge — linker
-const WC = 2;   // water catalyst
+const METHANE = 0;   // methane molecule
+  const RADICAL = 1;   // free radical
+  const POLYMER = 2;   // polymer chain
+  const AGGREGATE = 3; // aggregate cluster
 
-const MAX_BO_BONDS = 3;  // boron trigonal
-const MAX_NB_BONDS = 2;  // nitrogen bridges two BO atoms
+  const MAX_METHANE_BONDS = 2;
+  const MAX_POLYMER_BONDS = 3;  // O bridges exactly two Si atoms
 
 // ── Simulation state ──────────────────────────────────────────
 let A      = [];
@@ -447,10 +451,10 @@ function newAgent(type, x, y) {
     type,
     x:     x  ?? Math.random() * W,
     y:     y  ?? (Math.random() * H * 0.85 + H * 0.05),
-    vx:    (Math.random() - 0.5) * 1.1,
-    vy:    (Math.random() - 0.5) * 1.1,
+    vx:    (Math.random() - 0.5) * 1.4,
+    vy:    (Math.random() - 0.5) * 1.4,
     bonds: new Set(),
-    hot:   false,
+    hot:   false,  // recently catalysed — glows brighter
     hotT:  0,
     idx:   -1,
   };
@@ -467,9 +471,9 @@ function init(genome) {
   const g = genome || _genome;
   A = []; BONDS.clear(); tick = 0; uid = 0;
   NOISE = _BASE_NOISE * g.noiseScale;
-  for (let i = 0; i < Math.round(_BASE_N1 * g.n1); i++) addAgent(BO);
-  for (let i = 0; i < Math.round(_BASE_N2 * g.n2); i++) addAgent(NB);
-  for (let i = 0; i < Math.round(_BASE_N3 * g.n3); i++) addAgent(WC);
+  for (let i = 0; i < Math.round(_BASE_N1 * g.n1); i++) addAgent(METHANE);
+  for (let i = 0; i < Math.round(_BASE_N2 * g.n2); i++) addAgent(RADICAL);
+  for (let i = 0; i < Math.round(_BASE_N3 * g.n3); i++) addAgent(POLYMER);
 }
 
 // ── Spatial hash ──────────────────────────────────────────────
@@ -516,49 +520,54 @@ function rmBond(i, j) {
 }
 
 // ── Network analysis ──────────────────────────────────────────
+// Connected components (SI + OX nodes)
 function findComponents() {
   const vis = new Uint8Array(A.length);
   const comps = [];
   for (let i = 0; i < A.length; i++) {
-    if (vis[i] || A[i].type === WC) continue;
-    const comp = { nodes: [], boCount: 0, bonds: 0 };
+    if (vis[i] || A[i].type === SC) continue;
+    const comp = { nodes: [], siCount: 0, bonds: 0 };
     const q = [i];
     while (q.length) {
       const c = q.pop();
       if (vis[c]) continue;
       vis[c] = 1;
       comp.nodes.push(c);
-      if (A[c].type === BO) comp.boCount++;
+      if (A[c].type === SI) comp.siCount++;
       for (const nb of A[c].bonds) {
         comp.bonds++;
         if (!vis[nb]) q.push(nb);
       }
     }
-    comp.bonds = Math.floor(comp.bonds / 2);
+    comp.bonds = Math.floor(comp.bonds / 2); // each bond counted twice
     if (comp.nodes.length >= 2) comps.push(comp);
   }
   return comps;
 }
 
+// Max SI count in any single component
 function maxChainLength(comps) {
-  return comps.reduce((m, c) => Math.max(m, c.boCount), 0);
+  return comps.reduce((m, c) => Math.max(m, c.siCount), 0);
 }
 
+// Branching points: SI atoms with 3+ OX bonds
 function countBranching() {
-  return A.filter(a => a.type === BO && a.bonds.size >= 3).length;
+  return A.filter(a => a.type === SI && a.bonds.size >= 3).length;
 }
 
+// Ring count heuristic: component with bonds > nodes-1 has cycles
 function countRings(comps) {
   return comps.filter(c => c.bonds > c.nodes.length - 1).length;
 }
 
+// Complexity: sum(siCount^2) / total_SI  (analogous to Terra)
 function complexity(comps) {
-  const nBO = A.filter(a => a.type === BO).length;
-  if (!nBO) return 0;
-  return comps.reduce((s, c) => s + c.boCount * c.boCount, 0) / nBO;
+  const nSI = A.filter(a => a.type === SI).length;
+  if (!nSI) return 0;
+  return comps.reduce((s, c) => s + c.siCount * c.siCount, 0) / nSI;
 }
 
-// ── Event log ──────────────────────────────────────────────────
+// ── Event log (bottom-left) ───────────────────────────────────
 const elog = [];
 let lastLogT = -300;
 
@@ -815,17 +824,18 @@ function maintainBonds() {
 function update() {
   tick++;
 
-  if (tick % 150 === 0 && A.filter(a => a.type === BO).length < 180) {
-    addAgent(BO, W*0.5 + (Math.random()-0.5)*W*0.12, H-4,
-             (Math.random()-0.5)*0.8, -2.4 - Math.random()*1.6);
+  // Magma vent emissions (bottom-centre)
+  if (tick % 140 === 0 && A.filter(a => a.type === SI).length < 185) {
+    addAgent(SI, W*0.5 + (Math.random()-0.5)*W*0.12, H-4,
+             (Math.random()-0.5)*0.7, -2.4 - Math.random()*1.8);
   }
-  if (tick % 200 === 0 && A.filter(a => a.type === NB).length < 160) {
-    addAgent(NB, W*0.5 + (Math.random()-0.5)*W*0.16, H-4,
-             (Math.random()-0.5)*0.7, -2.0 - Math.random()*1.3);
+  if (tick % 200 === 0 && A.filter(a => a.type === OX).length < 140) {
+    addAgent(OX, W*0.5 + (Math.random()-0.5)*W*0.16, H-4,
+             (Math.random()-0.5)*0.6, -2.0 - Math.random()*1.4);
   }
-  if (tick % 450 === 0 && A.filter(a => a.type === WC).length < 35) {
-    addAgent(WC, W*0.5 + (Math.random()-0.5)*W*0.14, H-4,
-             (Math.random()-0.5)*0.5, -2.8 - Math.random()*1.8);
+  if (tick % 500 === 0 && A.filter(a => a.type === SC).length < 30) {
+    addAgent(SC, W*0.5 + (Math.random()-0.5)*W*0.14, H-4,
+             (Math.random()-0.5)*0.5, -3.2 - Math.random()*2.2);
   }
 
   buildGrid();
@@ -836,17 +846,19 @@ function update() {
     const Tl = lTemp(a.x, a.y);
     const br = Math.sqrt(Tl / T0) * NOISE;
 
+    // Silicon network atoms damped more when bonded
     const drag = (a.bonds.size > 0)
-      ? (a.type === BO ? 0.91 : 0.92)
-      : (a.type === WC ? 0.97 : 0.95);
+      ? (a.type === SI ? 0.90 : 0.91)
+      : (a.type === SC ? 0.97 : 0.95);
 
-    a.vx += (Math.random() - 0.5) * br * 3.0;
-    a.vy += (Math.random() - 0.5) * br * 3.0;
+    a.vx += (Math.random() - 0.5) * br * 3.5;
+    a.vy += (Math.random() - 0.5) * br * 3.5;
     a.vx *= drag;
     a.vy *= drag;
     a.x  += a.vx;
     a.y  += a.vy;
 
+    // Wrap
     if (a.x < 0) a.x += W; else if (a.x > W) a.x -= W;
     if (a.y < 0) a.y += H; else if (a.y > H) a.y -= H;
 
@@ -865,67 +877,73 @@ function update() {
       const d  = Math.sqrt(d2) + 0.001;
       const Tl = lTemp((a.x+b.x)*0.5, (a.y+b.y)*0.5);
 
-      // ── BO + NB → B-N bond ────────────────────────────────
-      const isBoNb = (a.type===BO && b.type===NB) || (a.type===NB && b.type===BO);
-      if (isBoNb) {
-        const bo = a.type===BO ? a : b;
-        const bo_i = a.type===BO ? i : j;
-        const nb = a.type===NB ? a : b;
-        const nb_j = a.type===NB ? j : i;
-        const bonded = bo.bonds.has(nb_j);
+      // ── SI + OX → Si-O bond ──────────────────────────────
+      const isSiOx = (a.type===SI && b.type===OX) || (a.type===OX && b.type===SI);
+      if (isSiOx) {
+        const si = a.type===SI ? a : b;
+        const si_i = a.type===SI ? i : j;
+        const ox = a.type===OX ? a : b;
+        const ox_j = a.type===OX ? j : i;
+        const bonded = si.bonds.has(ox_j);
 
-        if (!bonded && bo.bonds.size < MAX_BO_BONDS && nb.bonds.size < MAX_NB_BONDS) {
+        if (!bonded && si.bonds.size < MAX_SI_BONDS && ox.bonds.size < MAX_OX_BONDS) {
+          // Check for SC catalyst nearby
           let hasCat = false;
-          for (const k of nearby(bo.x, bo.y)) {
-            if (A[k].type === WC && Math.hypot(A[k].x-bo.x, A[k].y-bo.y) < CELL*1.5) {
+          for (const k of nearby(si.x, si.y)) {
+            if (A[k].type === SC && Math.hypot(A[k].x-si.x, A[k].y-si.y) < CELL*1.5) {
               hasCat = true; break;
             }
           }
+          // Arrhenius: Ea = 70 (Si-O bond, lower than peptide ~160)
           const p = 0.005
             * (hasCat ? 4.0 : 1)
-            * Math.exp(-75 / Tl);
+            * Math.exp(-70 / Tl);
 
           if (Math.random() < p) {
-            addBond(bo_i, nb_j);
-            const f = 0.17 / d;
-            bo.vx += dx * f * (a.type===BO ? 1 : -1);
-            bo.vy += dy * f * (a.type===BO ? 1 : -1);
-            nb.vx -= dx * f * (b.type===NB ? 1 : -1);
-            nb.vy -= dy * f * (b.type===NB ? 1 : -1);
+            addBond(si_i, ox_j);
+            // Spring attraction on bond formation
+            const f = 0.18 / d;
+            si.vx += dx * f * (a.type===SI ? 1 : -1);
+            si.vy += dy * f * (a.type===SI ? 1 : -1);
+            ox.vx -= dx * f * (b.type===OX ? 1 : -1);
+            ox.vy -= dy * f * (b.type===OX ? 1 : -1);
             if (hasCat) {
-              bo.hot = true; bo.hotT = 50;
-              logE('water-catalysed B-N bond formed');
+              si.hot = true; si.hotT = 50;
+              logE('sulfur-catalysed Si-O bond formed');
             }
           }
         }
 
+        // Bonded: spring + thermal breaking
         if (bonded) {
-          const Pb = 7e-5 * Math.exp(Tl / 550);
+          // Si-O bonds are strong — lower break probability than Terra peptides
+          const Pb = 6e-5 * Math.exp(Tl / 1100);
           if (Math.random() < Pb) {
-            toBreak.push([bo_i, nb_j]);
+            toBreak.push([si_i, ox_j]);
           } else {
-            const rest = 18;
+            // Spring force
+            const rest = 18;  // rest distance
             const stretch = d - rest;
-            const f = 0.055 * stretch / d;
-            bo.vx += dx * f; bo.vy += dy * f;
-            nb.vx -= dx * f; nb.vy -= dy * f;
+            const f = 0.06 * stretch / d;
+            si.vx += dx * f; si.vy += dy * f;
+            ox.vx -= dx * f; ox.vy -= dy * f;
           }
         }
       }
 
-      // ── NB–NB: mild repulsion ──────────────────────────────
-      if (a.type===NB && b.type===NB) {
-        if (d < 13) {
-          const f = 0.21 * (1 - d/13) / d;
+      // ── OX–OX: mild repulsion (prevents oxygen clumping) ─
+      if (a.type===OX && b.type===OX) {
+        if (d < 14) {
+          const f = 0.25 * (1 - d/14) / d;
           a.vx -= dx*f; a.vy -= dy*f;
           b.vx += dx*f; b.vy += dy*f;
         }
       }
 
-      // ── BO–BO: steric repulsion ────────────────────────────
-      if (a.type===BO && b.type===BO) {
-        if (d < 15) {
-          const f = 0.27 * (1 - d/15) / d;
+      // ── SI–SI: steric repulsion ──────────────────────────
+      if (a.type===SI && b.type===SI) {
+        if (d < 16) {
+          const f = 0.3 * (1 - d/16) / d;
           a.vx -= dx*f; a.vy -= dy*f;
           b.vx += dx*f; b.vy += dy*f;
         }
@@ -948,63 +966,67 @@ let worldStatus = 'active';
 
 function render(comps, brn, rings) {
 
-  // Background — teal/aqua
-  ctx.fillStyle = '#010a08';
+  // Background — hot dark basalt
+  ctx.fillStyle = '#090402';
   ctx.fillRect(0, 0, W, H);
 
+  // Dead world desaturation
   if (worldStatus === 'dead') {
-    ctx.fillStyle = 'rgba(8, 18, 16, 0.55)';
+    ctx.fillStyle = 'rgba(18,14,12,0.55)';
     ctx.fillRect(0, 0, W, H);
   }
 
+  // Perturbation flash
   if (perturbFlash > 0) {
-    ctx.fillStyle = `rgba(80, 220, 200, ${perturbFlash/40 * 0.10})`;
+    ctx.fillStyle = `rgba(255, 180, 40, ${perturbFlash/40 * 0.10})`;
     ctx.fillRect(0, 0, W, H);
     perturbFlash--;
   }
 
+  // Tier promotion flash
   if (tierFlash > 0) {
-    ctx.fillStyle = `rgba(80, 220, 200, ${(tierFlash/90) * 0.10})`;
+    ctx.fillStyle = `rgba(255, 160, 50, ${(tierFlash/90) * 0.10})`;
     ctx.fillRect(0, 0, W, H);
     if (tierFlash > 50) {
       ctx.save();
       ctx.globalAlpha = (tierFlash-50)/40;
       ctx.font = '13px Courier New';
-      ctx.fillStyle = 'rgba(150, 240, 220, 0.9)';
+      ctx.fillStyle = 'rgba(255, 210, 120, 0.9)';
       ctx.textAlign = 'center';
       ctx.fillText(tierFlashLabel, W/2 - 130, H/2 - 12);
       ctx.font = '10px Courier New';
-      ctx.fillStyle = 'rgba(100, 200, 180, 0.6)';
+      ctx.fillStyle = 'rgba(220, 170, 80, 0.6)';
       ctx.fillText('THRESHOLD CROSSED', W/2 - 130, H/2 + 10);
       ctx.restore();
     }
     tierFlash--;
   }
 
-  // Vent glow at bottom (teal)
+  // Magma vent glow (bottom centre)
   const vg = ctx.createRadialGradient(W*0.5, H, 10, W*0.5, H, H*0.55);
-  vg.addColorStop(0,   'rgba(80, 200, 180, 0.18)');
-  vg.addColorStop(0.4, 'rgba(50, 140, 120, 0.07)');
+  vg.addColorStop(0,   'rgba(255, 100, 20, 0.20)');
+  vg.addColorStop(0.4, 'rgba(180, 60,  10, 0.08)');
   vg.addColorStop(1,   'rgba(0, 0, 0, 0)');
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 
+  // Heat shimmer near top — cooler zone
   const cg = ctx.createLinearGradient(0, 0, 0, H*0.3);
-  cg.addColorStop(0, 'rgba(60, 100, 90, 0.04)');
+  cg.addColorStop(0, 'rgba(60, 20, 8, 0.04)');
   cg.addColorStop(1, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = cg;
   ctx.fillRect(0, 0, W, H);
 
-  // Network auras
+  // Network component auras — glow around large connected clusters
   for (const comp of comps) {
-    if (comp.boCount < 3) continue;
+    if (comp.siCount < 3) continue;
     let cx = 0, cy = 0;
     for (const idx of comp.nodes) { cx += A[idx].x; cy += A[idx].y; }
     cx /= comp.nodes.length; cy /= comp.nodes.length;
-    const r = Math.sqrt(comp.nodes.length) * 13;
-    const alpha = Math.min(0.09, comp.nodes.length * 0.0035);
+    const r = Math.sqrt(comp.nodes.length) * 14;
+    const alpha = Math.min(0.10, comp.nodes.length * 0.004);
     const ag = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    ag.addColorStop(0, `rgba(80, 220, 200, ${alpha * 2.0})`);
+    ag.addColorStop(0, `rgba(255, 130, 30, ${alpha * 2.0})`);
     ag.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = ag;
     ctx.beginPath();
@@ -1012,94 +1034,100 @@ function render(comps, brn, rings) {
     ctx.fill();
   }
 
-  // B-N bonds
-  ctx.lineWidth = 1.4;
+  // Si-O bonds
+  ctx.lineWidth = 1.5;
   for (const k of BONDS) {
     const [si, sj] = k.split(',');
     const a2 = A[+si], b2 = A[+sj];
     if (!a2 || !b2) continue;
     const len = (a2.bonds.size + b2.bonds.size) * 0.5;
-    const r2  = Math.min(255, 160 + len * 20);
-    const g2  = Math.min(255, 200 + len * 18);
-    ctx.strokeStyle = `rgba(${r2}, ${g2}, 240, 0.54)`;
+    const r2  = Math.min(255, 160 + len * 22);
+    const g2  = Math.max(50,  90  - len * 12);
+    ctx.strokeStyle = `rgba(${r2}, ${g2}, 20, 0.50)`;
     ctx.beginPath();
     ctx.moveTo(a2.x, a2.y);
     ctx.lineTo(b2.x, b2.y);
     ctx.stroke();
   }
 
-  // NB agents — nitrogen bridges (pale mint)
+  // OX agents — small bright oxygen bridge nodes
   for (const a of A) {
-    if (a.type !== NB) continue;
+    if (a.type !== OX) continue;
     const bonded = a.bonds.size > 0;
-    const r = bonded ? 2.8 : 1.9;
+    const r = bonded ? 3.2 : 2.2;
 
     if (bonded) {
+      // Bridge glow
       ctx.beginPath();
-      ctx.arc(a.x, a.y, r * 2.6, 0, Math.PI*2);
-      ctx.fillStyle = 'rgba(180, 255, 220, 0.05)';
+      ctx.arc(a.x, a.y, r * 2.8, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(240, 240, 255, 0.04)';
       ctx.fill();
     }
 
     ctx.beginPath();
     ctx.arc(a.x, a.y, r, 0, Math.PI*2);
     ctx.fillStyle = bonded
-      ? 'rgba(180, 255, 220, 0.75)'
-      : 'rgba(120, 200, 180, 0.40)';
+      ? 'rgba(240, 245, 255, 0.90)'
+      : 'rgba(200, 200, 220, 0.45)';
     ctx.fill();
   }
 
-  // BO agents — boron monomers (bright teal)
+  // SI agents — glowing silicon nodes, larger and brighter when bonded
   for (const a of A) {
-    if (a.type !== BO) continue;
+    if (a.type !== SI) continue;
     const bc = a.bonds.size;
-    const r  = 3.1 + bc * 0.85;
+    const r  = 3.2 + bc * 0.9;
 
+    // Hot glow (catalysed)
     if (a.hot) {
       ctx.beginPath();
-      ctx.arc(a.x, a.y, r * 3.3, 0, Math.PI*2);
-      ctx.fillStyle = 'rgba(150, 240, 220, 0.07)';
+      ctx.arc(a.x, a.y, r * 3.5, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255, 220, 80, 0.07)';
       ctx.fill();
     }
 
+    // Network halo for bonded atoms
     if (bc > 0) {
       ctx.beginPath();
-      ctx.arc(a.x, a.y, r * 1.9, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(80, 220, 200, ${0.04 + bc * 0.014})`;
+      ctx.arc(a.x, a.y, r * 2.0, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255, 120, 20, ${0.04 + bc * 0.015})`;
       ctx.fill();
     }
 
-    const heat = Math.min(1, bc / 3);
-    const gr  = Math.round(120 - heat * 40);
-    const gg  = Math.round(220 - heat * 20);
-    const gb  = Math.round(200);
+    // Body gradient
+    const heat = Math.min(1, bc / 4);
+    const gr  = Math.round(220 - heat * 40);
+    const gg  = Math.round(110 - heat * 70);
+    const gb  = Math.round(20  + heat * 5);
     ctx.beginPath();
     ctx.arc(a.x, a.y, r, 0, Math.PI*2);
-    ctx.fillStyle = `rgba(${gr}, ${gg}, ${gb}, ${0.72 + bc * 0.05})`;
+    ctx.fillStyle = `rgba(${gr}, ${gg}, ${gb}, ${0.65 + bc * 0.06})`;
     ctx.fill();
 
+    // Specular
     ctx.beginPath();
-    ctx.arc(a.x - r*0.3, a.y - r*0.35, r*0.37, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(220, 255, 240, 0.13)';
+    ctx.arc(a.x - r*0.3, a.y - r*0.35, r*0.38, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
     ctx.fill();
 
+    // Tetrahedral bond count indicator for highly bonded Si
     if (bc >= 3) {
       ctx.beginPath();
-      ctx.arc(a.x, a.y, r + 2.8, 0, Math.PI*2);
-      ctx.strokeStyle = `rgba(150, 240, 220, ${0.11 + (bc-3) * 0.09})`;
-      ctx.lineWidth = 0.75;
+      ctx.arc(a.x, a.y, r + 3, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(255, 200, 80, ${0.12 + (bc-3) * 0.10})`;
+      ctx.lineWidth = 0.8;
       ctx.stroke();
     }
   }
 
-  // WC agents — water catalyst sparks (blue)
+  // SC agents — sulfur catalyst sparks (like PHOS in Terra)
   for (const a of A) {
-    if (a.type !== WC) continue;
-    const sg2 = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, 6.5);
-    sg2.addColorStop(0, 'rgba(100, 200, 255, 0.92)');
-    sg2.addColorStop(1, 'rgba(60, 150, 220, 0)');
+    if (a.type !== SC) continue;
+    const sg2 = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, 7);
+    sg2.addColorStop(0, 'rgba(120, 255, 80, 0.95)');
+    sg2.addColorStop(1, 'rgba(80, 200, 40, 0)');
     ctx.beginPath();
-    ctx.arc(a.x, a.y, 6.5, 0, Math.PI*2);
+    ctx.arc(a.x, a.y, 7, 0, Math.PI*2);
     ctx.fillStyle = sg2;
     ctx.fill();
   }
@@ -1120,10 +1148,10 @@ function updateUI() {
   hist.push(cx);
   if (hist.length > 220) hist.shift();
 
-  const nBO   = A.filter(a => a.type === BO).length;
+  const nSI    = A.filter(a => a.type === SI).length;
   const nBonds = BONDS.size;
 
-  document.getElementById('v-si').textContent    = nBO;
+  document.getElementById('v-si').textContent    = nSI;
   document.getElementById('v-bonds').textContent = nBonds;
   document.getElementById('v-mxl').textContent   = mxl;
   document.getElementById('v-brn').textContent   = brn;
@@ -1132,11 +1160,12 @@ function updateUI() {
   document.getElementById('v-speed').textContent = `${SPEED}×  [ +/- to adjust ]`;
   document.getElementById('v-time').textContent  = tick;
 
-  if (mxl >= 3  && tick % 190 === 0) logE(`B-N chain — length ${mxl} B atoms`);
-  if (brn >= 1  && tick % 260 === 0) logE(`branching detected — ${brn} nodes`);
-  if (rings >= 1 && tick % 310 === 0) logE(`ring closure — ${rings} cyclic structures`);
-  if (cx > 2.8  && tick % 420 === 0) logE(`sustained network complexity > 2.8`);
-  if (mxl >= 8) logE(`boron nitride polymer — L=${mxl}`);
+  // Event log entries
+  if (mxl >= 3  && tick % 180 === 0) logE(`silicate chain — length ${mxl} Si atoms`);
+  if (brn >= 1  && tick % 250 === 0) logE(`branching point detected — ${brn} tetrahedral nodes`);
+  if (rings >= 1 && tick % 300 === 0) logE(`ring closure detected — ${rings} cyclic structures`);
+  if (cx > 3    && tick % 400 === 0) logE(`sustained network complexity > 3`);
+  if (mxl >= 8)                       logE(`silicate polymer — L=${mxl} — approaching mineral lattice`);
 
   checkTiers(cx, mxl, brn, rings);
   checkVitality(cx);
@@ -1169,20 +1198,26 @@ function updateUI() {
 }
 
 // ── Vitality / stagnation engine ──────────────────────────────
-const STAGNATION_WINDOW = 850;
+//
+//  A world is stagnant when complexity fails to improve MEANINGFULLY.
+//  Tiny thermal noise no longer resets the clock — must beat peak by
+//  MEANINGFUL_DELTA (6%) to count as genuine growth.
+//  Hard death at HARD_DEATH_TICK if T2 was never reached.
+
+const STAGNATION_WINDOW = 800;
 function getStagnationWindow() {
   // Higher-tier worlds get more time before stagnation death
   return Math.round(STAGNATION_WINDOW * (1 + currentTier * 0.35));
 }
-
-const COMPLEXITY_FLOOR  = 0.35;
-const MEANINGFUL_DELTA  = 0.06;
+   // ticks without meaningful growth
+const COMPLEXITY_FLOOR  = 0.35;  // definitively stagnant below this
+const MEANINGFUL_DELTA  = 0.06;  // must beat peak by 6% to reset clock
 const MAX_INTERVENTIONS_BASE = 3;
 function getMaxInterventions() {
   // High-tier worlds get many more chances — graduation fires before exhaustion
   return currentTier >= 5 ? 30 : MAX_INTERVENTIONS_BASE;
 }
-const HARD_DEATH_TICK   = 8000;
+const HARD_DEATH_TICK   = 7000;  // if still T0/T1 at this tick → declare dead
 
 let peakComplexity  = 0;
 let peakTick        = 0;
@@ -1190,37 +1225,37 @@ let interventions   = 0;
 
 const PERTURBATION_TYPES = [
   {
-    name: '💧 HYDROTHERMAL PULSE',
-    desc: 'thermal energy pulse — injecting fresh B and catalysts',
+    name: '🌋 MAGMA SURGE',
+    desc: 'thermal energy surge — injecting fresh Si and catalysts from vent',
     fn: () => {
       for (let i = 0; i < 24; i++)
-        addAgent(WC, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
-                 (Math.random()-0.5)*0.6, -2.8-Math.random()*1.8);
-      for (let i = 0; i < 18; i++)
-        addAgent(BO, W*0.5+(Math.random()-0.5)*W*0.12, H-4,
-                 (Math.random()-0.5)*0.7, -2.4-Math.random()*1.6);
+        addAgent(SC, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
+                 (Math.random()-0.5)*0.7, -3.2-Math.random()*2.2);
+      for (let i = 0; i < 20; i++)
+        addAgent(SI, W*0.5+(Math.random()-0.5)*W*0.12, H-4,
+                 (Math.random()-0.5)*0.7, -2.5-Math.random()*2.0);
     }
   },
   {
-    name: '💥 SONIC DISRUPTION',
+    name: '💥 TECTONIC SHOCKWAVE',
     desc: 'mechanical disruption — scattering all network nodes',
     fn: () => {
       for (const a of A) {
-        a.vx += (Math.random()-0.5) * 10;
-        a.vy += (Math.random()-0.5) * 10;
+        a.vx += (Math.random()-0.5) * 12;
+        a.vy += (Math.random()-0.5) * 12;
       }
     }
   },
   {
-    name: '🌿 BORON RAIN',
-    desc: 'incoming boron-nitrogen compounds from above',
+    name: '☄️  EXOGENOUS SILICATE RAIN',
+    desc: 'incoming silicate and oxide molecules from above',
     fn: () => {
       for (let i = 0; i < 40; i++)
-        addAgent(NB, Math.random()*W, 8,
-                 (Math.random()-0.5)*2.2, 1.7+Math.random()*1.8);
-      for (let i = 0; i < 15; i++)
-        addAgent(BO, Math.random()*W, 8,
-                 (Math.random()-0.5)*1.8, 1.4+Math.random()*1.5);
+        addAgent(OX, Math.random()*W, 8,
+                 (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
+      for (let i = 0; i < 18; i++)
+        addAgent(SI, Math.random()*W, 8,
+                 (Math.random()-0.5)*2.0, 1.5+Math.random()*2);
     }
   }
 ];
@@ -1261,12 +1296,13 @@ function declareDead(reason) {
   }
   logE(reason);
   triggerRebirth(reason);
-  agentSay('NARRATOR', 'Boronia had the geometry right. The bond angles matched carbon\'s own. But the thermodynamics did not favor it. Or the quantum mechanics whispered a different song. We archive this elegant failure.');
+  convDead(reason);
 }
 
 function checkVitality(cx) {
   if (worldStatus === 'dead') return;
 
+  // Meaningful growth = must beat current peak by MEANINGFUL_DELTA
   if (cx > peakComplexity * (1 + MEANINGFUL_DELTA)) {
     peakComplexity = cx;
     peakTick       = tick;
@@ -1274,23 +1310,17 @@ function checkVitality(cx) {
       worldStatus = 'active';
       document.getElementById('world-state').className  = '';
       document.getElementById('world-state').textContent = '';
-      logE('meaningful complexity growth — world responding');
-      speak('OBSERVER', `Recovery at t=${tick}. Complexity ${cx.toFixed(3)} exceeds peak. Intervention successful.`);
-      // Award XP: intervention was successful
-      if (CONV._pendingXP) {
-        for (const agent of CONV._pendingXP) awardXP(agent, 25, 'Successful intervention');
-        CONV._pendingXP = null;
-      }
-      if (CONV._lastProposal) {
-        CONV._lastProposal = null;
-      }
-      writeKnowledge({type:'recovery', cx, summary:`Recovery after intervention ${interventions}`});
+      logE('meaningful complexity growth — world responding to perturbation');
+      speak('OBSERVER', `Recovery confirmed at t=${tick}. Complexity ${cx.toFixed(3)} exceeds previous peak. The intervention worked.`);
+      speak('ANALYST',  `Network is responding. Complexity growing beyond pre-perturbation baseline. Logging this result — the intervention type and outcome will inform future worlds.`);
+      writeKnowledge({type:'recovery', cx, action_applied: interventions, summary:`Recovery after intervention ${interventions}: cx rose to ${cx.toFixed(3)}`});
     }
   }
 
+  // Hard death: if T2 never reached and we've been running too long
   if (!tierAchieved[2] && tick > HARD_DEATH_TICK) {
-    declareDead('T2 never reached — B-N chain formation failed — DEAD WORLD');
-    speak('NARRATOR', `${HARD_DEATH_TICK} ticks. No persistent chain ever formed. Archiving world.`);
+    declareDead('T2 never reached — Si-O chain formation failed — DEAD WORLD');
+    speak('NARRATOR', `${HARD_DEATH_TICK} ticks. No persistent chain ever formed. Some worlds choose inertness. We respect that.`);
     return;
   }
 
@@ -1298,7 +1328,7 @@ function checkVitality(cx) {
   if (!stagnant) return;
 
   if (interventions >= getMaxInterventions()) {
-    declareDead('all interventions exhausted — boron nitride network dissolved');
+    declareDead('thermodynamic equilibrium — silicon network dissolved — DEAD WORLD');
     return;
   }
 
@@ -1327,17 +1357,30 @@ function checkVitality(cx) {
   logE(`intervention ${interventions}/${MAX_INTERVENTIONS}: ${p.desc}`);
 }
 
-// ── Tier detection ──────────────────────────────────────────
+// ── Tier detection (silicon-specific T0–T12) ──────────────────
 const TIER_NAMES = [
-  'Inert', 'Molecular Activity', 'Persistent Structures',
-  'Reaction Diversity', 'Spatial Heterogeneity', 'Spontaneous Assembly',
-  'Sustained Complexity', 'Coupled Reactions', 'Emergent Catalysis',
-  'Boundary Formation', 'Closed Compartment', 'Interior Differentiation',
-  'Protocell Stability',
-  'Boron Catalyst Networks', 'Boronate Memory', 'B-N Bond Replication',
-  'Boron Genetic Code', 'Borocyclic Metabolism', 'Boron Membrane',
-  'Boron Division', 'Boron Life'
-];
+  'Inert',
+  'Radical Formation',
+  'Polymer Chains',
+  'Aggregate Clusters',
+  'Gas Phase Networks',
+  'Vapor Topology',
+  'Sustained Polymers',
+  'Cluster Growth',
+  'Phase Transitions',
+  'Aerial Networks',
+  'Floating Structures',
+  'Vapor Stability',
+  'Methane Life',
+  'Hyper-Polymerization',
+  'Mega-Aggregates',
+  'Ultra-Vapor',
+  'Cascade Clustering',
+  'Fractured Aggregation',
+  'Hyper-Floating',
+  'Hypercomplexity',
+  'Methane Consciousness',
+]
 
 const tierAchieved = new Array(25).fill(false);
 let currentTier    = 0;
@@ -1364,15 +1407,7 @@ function promoteTier(t) {
   logE(`▲ TIER ${t} — ${TIER_NAMES[t]}`);
   document.getElementById('v-tier').textContent = `T${t} — ${TIER_NAMES[t]}`;
 
-  const tierNarrative = {
-    1: ['OBSERVER',  'First B-N bond confirmed. Molecular activity. T1.'],
-    2: ['ANALYST',   'Persistent B-N chain detected. Boron nitride polymer. T2.'],
-    3: ['ANALYST',   'Branching confirmed. The B-N network grows in complexity. T3.'],
-    4: ['NARRATOR',  'Ring closure. Hexagonal boron nitride geometry — graphene\'s isoelectronic twin. T4. Nature reinvents the hexagon.'],
-    5: ['ANALYST',   'Spontaneous assembly. B-N networks migrating from vent zone. T5.'],
-    6: ['OBSERVER',  'Sustained complexity. The boron nitride network self-reinforces. T6.'],
-  };
-
+  // Reactive agent conversation on tier transition
   const cx_now    = hist.length ? hist[hist.length-1] : 0;
   const mxl_now   = maxChainLength(latestComps);
   const brn_now   = countBranching();
@@ -1393,30 +1428,36 @@ function promoteTier(t) {
 }
 
 function checkTiers(cx, mxl, brn, rings) {
+  // T1 — any bond
   if (!tierAchieved[1] && totalBondsFormed > 0) promoteTier(1);
 
+  // T2 — chain >= 3 Si atoms, sustained 300 ticks
   if (mxl >= 3) sustainedChainTicks++; else sustainedChainTicks = 0;
-  if (!tierAchieved[2] && sustainedChainTicks >= 32) promoteTier(2);
+  if (!tierAchieved[2] && sustainedChainTicks >= 30) promoteTier(2);
 
+  // T3 — branching detected, sustained 200 ticks
   if (brn >= 1) sustainedBranchTicks++; else sustainedBranchTicks = 0;
-  if (!tierAchieved[3] && sustainedBranchTicks >= 22) promoteTier(3);
+  if (!tierAchieved[3] && sustainedBranchTicks >= 20) promoteTier(3);
 
+  // T4 — ring closure detected, sustained 150 ticks
   if (rings >= 1) sustainedRingTicks++; else sustainedRingTicks = 0;
-  if (!tierAchieved[4] && sustainedRingTicks >= 18) promoteTier(4);
+  if (!tierAchieved[4] && sustainedRingTicks >= 15) promoteTier(4);
 
+  // T5 — large network migrated from vent zone
   if (!tierAchieved[5]) {
     for (const comp of latestComps) {
-      if (comp.boCount < 5) continue;
+      if (comp.nodes.length < 5) continue;
       let cy2 = 0;
       for (const idx of comp.nodes) cy2 += A[idx].y;
       if (cy2 / comp.nodes.length < H * 0.78) { promoteTier(5); break; }
     }
   }
 
-  if (hist.length >= 90) {
-    const win  = hist.slice(-90);
+  // T6 — sustained complexity > 1.5 for 10 UI intervals
+  if (hist.length >= 80) {
+    const win  = hist.slice(-80);
     const mean = win.reduce((s,v)=>s+v,0)/win.length;
-    if (mean > 1.3) sustainedCxTicks++; else sustainedCxTicks = 0;
+    if (mean > 1.5) sustainedCxTicks++; else sustainedCxTicks = 0;
   }
   if (!tierAchieved[6] && sustainedCxTicks >= 4) promoteTier(6);
   // T7 — 2+ distinct clusters of 4+ nodes, sustained 20 ticks
@@ -1499,15 +1540,17 @@ function checkTiers(cx, mxl, brn, rings) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  REACTIVE AGENT CONVERSATION ENGINE — BORONIA
+//  REACTIVE AGENT CONVERSATION ENGINE
 //
 //  Agents observe, debate, propose actions, vote (2/3 consensus),
-//  execute agreed interventions. Discoveries archived to localStorage.
+//  and execute agreed interventions. Discoveries are written to
+//  localStorage so other biomes can read them. Agents reference
+//  cross-biome knowledge in their reasoning.
 // ═══════════════════════════════════════════════════════════════
 
 // ── Cross-biome knowledge (localStorage) ─────────────────────
-const BIOME_ID   = 50;
-const BIOME_NAME = 'BORONIA';
+const BIOME_ID   = 22;
+const BIOME_NAME = 'METHANE CLOUD';
 const K_KEY      = 'pandora_knowledge_v1';
 
 function readKnowledge() {
@@ -1530,21 +1573,23 @@ function getOtherBiomeFacts() {
 // ── Conversation state ────────────────────────────────────────
 const agentFeed = document.getElementById('agent-feed');
 const CONV = {
-  queue:        [],
-  cooldown:     0,
-  pending:      null,
-  history:      [],
-  booted:       false,
-  lastPeriodic: -1500,
+  queue:     [],       // [{speaker, msg, type}] scheduled messages
+  cooldown:  0,        // ticks before next message is rendered
+  pending:   null,     // {action, reason, votes:{}, proposer}
+  history:   [],       // full log for archive
+  lastTopic: -9999,    // tick of last conversation
+  booted:    false,
+  lastPeriodic: -1200,
 };
 
 const ACTIONS = {
-  INJECT_CATALYST: 'inject additional water catalyst molecules as proton shuttles',
-  THERMAL_SHOCK:   'apply a tectonic shockwave to disrupt stuck configurations',
-  MATERIAL_RAIN:   'trigger exogenous BN molecule rain from above',
+  INJECT_CATALYST: 'inject additional sulfur catalysts from the vent',
+  THERMAL_SHOCK:   'apply a tectonic shockwave to scatter the network',
+  SILICATE_RAIN:   'trigger exogenous silicate rain from above',
   DECLARE_DEAD:    'archive this world and broadcast its learnings',
 };
 
+// ── Core speak / flush ────────────────────────────────────────
 function speak(speaker, msg, type) {
   type = type || 'statement';
   CONV.queue.push({speaker, msg, type});
@@ -1705,9 +1750,11 @@ function canPropose(name) {
 function flushQueue() {
   if (!CONV.queue.length) return;
   if (CONV.cooldown > 0) { CONV.cooldown--; return; }
+
   const {speaker, msg, type} = CONV.queue.shift();
   CONV.history.push({speaker, msg, type, tick});
   if (CONV.history.length > 200) CONV.history.shift();
+
   const badges = {
     proposal:  '<span class="ae-type proposal">PROPOSAL</span>',
     vote_yes:  '<span class="ae-type yes">AGREE</span>',
@@ -1718,6 +1765,7 @@ function flushQueue() {
   };
   const badge   = badges[type] || '';
   const hiClass = ['proposal','consensus','action'].includes(type) ? ' ae-highlight' : '';
+
   const div = document.createElement('div');
   div.className = `ae${hiClass}`;
   div.innerHTML = `
@@ -1729,12 +1777,14 @@ function flushQueue() {
   agentFeed.appendChild(div);
   agentFeed.scrollTop = agentFeed.scrollHeight;
   while (agentFeed.children.length > 80) agentFeed.removeChild(agentFeed.firstChild);
+
   if (['proposal','consensus','action','vote_yes','vote_no'].includes(type)) {
     writeKnowledge({type, speaker, msg, summary: `${speaker}: ${msg.slice(0,80)}`});
   }
   CONV.cooldown = 50 + Math.floor(Math.random() * 40);
 }
 
+// ── Proposal / voting ─────────────────────────────────────────
 function propose(proposer, action, reason) {
   if (CONV.pending) return false;
   if (!canPropose(proposer)) return false;
@@ -1745,67 +1795,47 @@ function propose(proposer, action, reason) {
 
 function castVote(voter, inFavor, reason) {
   if (!CONV.pending || voter in CONV.pending.votes) return;
-  CONV.pending.votes[voter]   = inFavor;
-  CONV.pending.weights        = CONV.pending.weights || {};
-  const vw = RANK_W[AGENT_STATE[voter]?.rank || 'STUDENT'];
-  CONV.pending.weights[voter] = inFavor ? vw : 0;
-
-  // PROFESSOR veto
-  if (!inFavor && AGENT_STATE[voter]?.rank === 'PROFESSOR') {
-    speak(voter, `VETO. ${reason || 'The evidence does not support this action at this time.'}`, 'vote_no');
-    speak('NARRATOR', `Professor-level veto applied. Proposal rejected by authority. Continuing observation.`);
-    awardXP(voter, 5, 'Valid veto');
-    CONV.pending = null;
-    return;
-  }
-
+  CONV.pending.votes[voter] = inFavor;
   speak(voter, reason || (inFavor ? 'Agreed.' : 'Disagree.'), inFavor ? 'vote_yes' : 'vote_no');
 
-  const weightedYes = Object.values(CONV.pending.weights).reduce((s,v) => s+v, 0);
-  const yes         = Object.values(CONV.pending.votes).filter(Boolean).length;
-  const total       = Object.keys(CONV.pending.votes).length;
+  const yes   = Object.values(CONV.pending.votes).filter(Boolean).length;
+  const total = Object.keys(CONV.pending.votes).length;
 
-  if (weightedYes >= 2.0 || yes >= 2) {
+  if (yes >= 2) {
     const p = CONV.pending; CONV.pending = null;
-    CONV._lastProposal = p;
-    speak('NARRATOR', `Consensus — weighted ${weightedYes.toFixed(1)}, ${yes}/${total} yes votes. Executing.`, 'consensus');
-    setTimeout(() => {
-      executeAction(p.action, p.reason);
-      // Track who voted yes for post-hoc XP award
-      CONV._pendingXP = Object.entries(p.votes)
-        .filter(([,v]) => v).map(([k]) => k);
-    }, 900);
+    speak('NARRATOR', `Consensus — ${yes}/${total}. Executing.`, 'consensus');
+    setTimeout(() => executeAction(p.action, p.reason), 900);
   } else if (total >= 3) {
-    speak('NARRATOR', `Proposal failed — weighted ${weightedYes.toFixed(1)}, ${yes}/${total}. Continuing.`);
-    awardXP(CONV.pending?.proposer, -8, 'Failed proposal');
+    speak('NARRATOR', `Proposal failed — ${yes}/${total}. Continuing observation.`);
     CONV.pending = null;
   }
 }
 
+// ── Execute agreed action ─────────────────────────────────────
 function executeAction(action, reason) {
   switch (action) {
     case 'INJECT_CATALYST':
-      for (let i = 0; i < 18; i++)
-        addAgent(WC, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
+      for (let i = 0; i < 20; i++)
+        addAgent(SC, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
                  (Math.random()-0.5)*0.7, -3.2-Math.random()*2.2);
-      speak('OBSERVER', `Injected 18 water catalyst molecules. Monitoring B-N bond rate response.`, 'action');
+      speak('OBSERVER', `Injected 20 SC catalysts. Total SC: ${A.filter(a=>a.type===SC).length}. Monitoring bond-rate response.`, 'action');
       break;
     case 'THERMAL_SHOCK':
       if (currentTier >= 5) {
-        speak('SYSTEM', `THERMAL_SHOCK blocked at T${currentTier} — structural protection active. Applying safe material rain instead.`);
-        executeAction('MATERIAL_RAIN', 'Auto-safe fallback: thermal action blocked at T5+');
+        speak('SYSTEM', `THERMAL_SHOCK blocked at T${currentTier} — structural protection active. Applying safe silicate rain instead.`);
+        executeAction('SILICATE_RAIN', 'Auto-safe fallback: thermal action blocked at T5+');
         return;
       }
       for (const a of A) { a.vx += (Math.random()-0.5)*12; a.vy += (Math.random()-0.5)*12; }
       perturbFlash = 40;
-      speak('OBSERVER', `Redistribution applied at T${currentTier} — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
+      speak('OBSERVER', `Tectonic shockwave applied at T${currentTier} — all ${A.length} agents scattered. Watching for higher-complexity reconfiguration.`, 'action');
       break;
-    case 'MATERIAL_RAIN':
-      for (let i = 0; i < 35; i++)
-        addAgent(A[0].type, Math.random()*W, 8, (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
-      for (let i = 0; i < 15; i++)
-        addAgent(A[1]?.type ?? A[0].type, Math.random()*W, 8, (Math.random()-0.5)*2.0, 1.5+Math.random()*2);
-      speak('OBSERVER', `Material influx initiated — 50 molecules incoming. Total: ${A.length}.`, 'action');
+    case 'SILICATE_RAIN':
+      for (let i = 0; i < 40; i++)
+        addAgent(OX, Math.random()*W, 8, (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
+      for (let i = 0; i < 18; i++)
+        addAgent(SI, Math.random()*W, 8, (Math.random()-0.5)*2.0, 1.5+Math.random()*2);
+      speak('OBSERVER', `Silicate rain initiated — 40 OX + 18 SI incoming. Total agents: ${A.length}.`, 'action');
       break;
     case 'DECLARE_DEAD':
       declareDead(reason); return;
@@ -1816,100 +1846,118 @@ function executeAction(action, reason) {
   const el = document.getElementById('world-state');
   el.textContent = action.replace(/_/g,' ');
   el.className   = 'perturbed';
-  setTimeout(() => { if (worldStatus !== 'dead') { el.className=''; el.textContent=''; } }, 3000);
+  setTimeout(() => { if (worldStatus !== 'dead') { el.className=''; el.textContent=''; }}, 3000);
   writeKnowledge({type:'intervention', action, summary: `Applied ${action}: ${reason}`});
 }
 
 // ── Conversation triggers ─────────────────────────────────────
+
 function convBoot() {
   const facts = getOtherBiomeFacts();
-  const N = A.length;
-  speak('OBSERVER', `Biome-50 BORONIA online. Boron-nitrogen in aqueous suspension, 320K. ' + N + ' agents initialised. Isoelectronic carbon analog — same geometry, different atoms. `);
-  speak('ANALYST',  `Conditions verified: 40 atm, T₀=320K, BO:NB=140:120, WC catalyst 8%. Ea≈90 kJ/mol — B-N bond lower than C-C, water acts as proton shuttle.`);
+  speak('OBSERVER', `Biome-10 SILICONIA online. Si/O/S chemistry, 900K supercritical vapor. ${A.length} agents initialised. Observation active.`);
+  speak('ANALYST',  `Conditions verified: 120 atm, T₀=900K, Si:O=4:3, SC catalyst 8%. Activation barrier Ea≈70 kJ/mol — notably lower than carbon. Bond formation predicted within 200 ticks.`);
   if (facts.length > 0) {
     const f = facts[facts.length-1];
-    speak('NARRATOR', `The archive already carries data from ${f.biome}: "${f.summary}". We enter BORONIA knowing what came before.`, 'knowledge');
+    speak('NARRATOR', `The archive already carries data from ${f.biome}: "${f.summary}". That knowledge enters this world now.`, 'knowledge');
   } else {
-    speak('NARRATOR', `The universe found another way to do carbon's job. Not better, not worse — isomorphic. Same grammar in a different language. We are here to find out if the translation holds.`);
+    speak('NARRATOR', 'Carbon had water. Silicon has fire. First world to run — every discovery here writes the baseline for everything that comes after.');
   }
 }
 
 function convTierUp(t, cx, mxl, brn, rings) {
   const facts = getOtherBiomeFacts();
   const ref   = facts.length ? facts[facts.length-1] : null;
+
   if (t === 1) {
-    speak('OBSERVER', `First B-N bond confirmed at t=' + tick + '. T1. The isoelectronic hypothesis gets its first data point.`);
-    speak('ANALYST',  `B-N bonding initiated. Water catalyst acting as proton shuttle — the same mechanism as carbon chemistry but with different electron density. T1.`);
-    speak('NARRATOR', `Boron and nitrogen are strangers to each other who look exactly like carbon. The first bond is an introduction. We will see if the acquaintance deepens.`);
+    speak('OBSERVER', `First Si-O bond confirmed at t=${tick}. T1 — molecular activity. Bond formation rate is now non-zero.`);
+    speak('ANALYST',  `Arrhenius window opened. Thermal energy sufficient to catalyse without immediately cleaving. T1.`);
+    speak('NARRATOR', `The world is no longer inert. A bond is an agreement between atoms. Siliconia just made its first.`);
+
   } else if (t === 2) {
-    speak('OBSERVER', `Persistent B-N chain — ' + mxl + ' B atoms, sustained >320 ticks. T2.`);
-    speak('ANALYST',  `Chain stability achieved. B-N polymer forming. The isoelectronic hypothesis is confirmed at the chain level — carbon has no monopoly on polymer formation.`);
-    if (ref) speak('NARRATOR', `${ref.biome} also formed persistent B-N chains — "${ref.summary}". also formed persistent chains — "".`, 'knowledge');
-    else     speak('NARRATOR', `The first B-N polymer. How many other ways can nature build? The hexagon appears in boron, in graphene, in benzene. Structure follows form. Form follows thermodynamics.`);
+    speak('OBSERVER', `Persistent Si-O-Si chain — ${mxl} Si atoms, sustained >300 ticks. T2 confirmed.`);
+    speak('ANALYST',  `Chain stability achieved. Bond break probability is being overcome by network reinforcement. This is the inflection point for silicate chemistry.`);
+    if (ref) speak('NARRATOR', `${ref.biome} also crossed into polymer territory. Silicon's path is slower but the destination is the same — ordered structure from thermal chaos.`, 'knowledge');
+    else     speak('NARRATOR', `A silicate chain is a memory. Each Si atom recalls the one it bonded to. 900 degrees of mutual commitment.`);
+
   } else if (t === 3) {
-    speak('OBSERVER', `Branching: ' + brn + ' multi-bonded B nodes. B-N network has forked. T3.`);
-    speak('ANALYST',  `Branched BN structure. Each B atom can form 3 bonds — exactly like carbon's sp2 hybridisation. The geometry is inevitable.`);
-    speak('NARRATOR', `The B-N network branches. The same angles carbon uses. The same forces. The same preferences. Is this chemistry or physics? Both.`);
+    speak('OBSERVER', `Branching: ${brn} tetrahedral Si nodes. Network has forked. T3.`);
+    speak('ANALYST',  `Tetrahedral geometry emerging — the same geometry as quartz. The universe appears to have strong opinions about Si bonding angles.`);
+    speak('NARRATOR', `It is no longer a line. It is a tree. Silicon has learned to make choices about direction.`);
+
   } else if (t === 4) {
-    speak('OBSERVER', `Ring closure — ' + rings + ' hexagonal B-N structure(s). T4 — graphene's isoelectronic twin!`);
-    speak('ANALYST',  `Hexagonal boron nitride geometry confirmed. This is the theoretical prediction — the most stable B-N configuration. Nature found it in ' + tick + ' ticks.`);
-    speak('NARRATOR', `Hexagons. The most stable form. Boron and nitrogen drawing the same shapes carbon draws in graphene. The universe has a preferred geometry — and it is the hexagon.`);
+    speak('OBSERVER', `Ring closure detected — ${rings} cyclosilicate structure(s). The network is folding back on itself. T4.`);
+    speak('ANALYST',  `Cyclic geometry is lower energy than an open chain of equal mass. This is why quartz exists. The network found the stable attractor.`);
+    speak('NARRATOR', `A closed thing can hold something inside. We are watching the precondition of containment form in molten rock.`);
+
   } else if (t === 5) {
-    speak('OBSERVER', `B-N cluster migrated from vent zone — spatial reorganization. T5.`);
-    speak('ANALYST',  `The B-N network is becoming spatially autonomous — not dependent on the vent for structural support. This is the isoelectronic equivalent of protein folding.`);
+    speak('OBSERVER', `Network has migrated from vent zone — spatial self-organisation confirmed. T5.`);
+    speak('ANALYST',  `Temperature gradient acting as selective pressure. Only stable structures survive migration. This is proto-Darwinian selection by thermal gradient.`);
+
   } else if (t === 6) {
-    speak('OBSERVER', `Sustained complexity above 1.3 for >90 intervals. Self-reinforcing. T6.`);
-    speak('ANALYST',  `Positive feedback confirmed — BN network is autocatalytic for its own growth. This is the clearest evidence yet that carbon's structural logic is reproducible in other element pairs.`);
-    speak('NARRATOR', `Boronia has become self-sustaining. The isoelectronic dream is real. Carbon had no monopoly. It just had a head start.`);
+    speak('OBSERVER', `Complexity sustained above 1.5 for >80 intervals. System is self-reinforcing. T6.`);
+    speak('ANALYST',  `Positive feedback confirmed — network complexity maintaining itself. The silicate structure has become autocatalytic for its own growth.`);
+    speak('NARRATOR', `The network has learned to perpetuate itself. This is not yet life — but it is something that acts like it wants to persist.`);
   }
+
   writeKnowledge({type:'tier_up', tier:t, cx, mxl, brn, rings,
-    summary:`T${t} achieved at t=${tick}: cx=${cx.toFixed(3)}, chain=${mxl}`});
+    summary:`T${t} achieved at t=${tick}: cx=${cx.toFixed(3)}, chain=${mxl}, branching=${brn}, rings=${rings}`});
 }
 
 function convStagnationWarning(cx, mxl) {
   const elapsed = tick - peakTick;
   const pct     = Math.round((elapsed / STAGNATION_WINDOW) * 100);
   speak('OBSERVER', `Stagnation — peak cx=${peakComplexity.toFixed(3)} reached ${elapsed} ticks ago. ${pct}% of tolerance window consumed.`);
-  speak('ANALYST',  `B-n chain=${mxl}, bonds=${BONDS.size}. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining.`);
+  speak('ANALYST',  `Chain=${mxl}, bonds=${BONDS.size}. T${currentTier} achieved. ${MAX_INTERVENTIONS - interventions} intervention(s) remaining. Analysing best action.`);
+
   const delay = 700;
-  if (mxl < 3) {
-    speak('ANALYST', `Water catalyst density is the limiting factor — WC acts as proton shuttle and without it, B-N bonding cannot proceed efficiently. Proposing WC injection.`);
+
+  // At T5+, tectonic shock destroys complex Si-O networks. Forbidden.
+  if (currentTier >= 5) {
+    speak('ANALYST', `We are at T${currentTier} — tectonic shock would destroy the Si-O network we have built. Only safe interventions permissible.`);
+    speak('NARRATOR', `Silicon chemistry is fragile at high complexity. The agents do not use a hammer on a crystal lattice.`);
     setTimeout(() => {
-      propose('ANALYST', 'INJECT_CATALYST', `B-N bond formation requires water as proton shuttle — WC concentration is insufficient to drive chain formation.`);
+      propose('ANALYST', 'SILICATE_RAIN', `At T${currentTier}, safe material replenishment is the only valid intervention. Silicate rain adds substrate without disruption.`);
       setTimeout(() => {
-        castVote('OBSERVER', true, `Confirmed — WC concentration has dropped. Proton shuttle mechanism is starved. Injection is the right call.`);
-        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Water is the medium of BN chemistry here — without it, the isoelectronic analogy breaks down.`); }, 1200);
+        castVote('OBSERVER', true, `Material replenishment confirmed safe at T${currentTier}. Structural integrity preserved.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Add, do not scatter. Vote yes.`); }, 1200);
       }, 900);
     }, delay);
-  } else if (BONDS.size < 20) {
-    if (currentTier >= 5) {
-      speak('ANALYST', `We are at T${currentTier} — thermal disruption would destroy the hexagonal BN architecture that took thousands of ticks to assemble. Only safe interventions permissible.`);
-      speak('NARRATOR', `The agents do not scatter what isoelectronic geometry so carefully arranged.`);
-      setTimeout(() => {
-        propose('ANALYST', 'MATERIAL_RAIN', `At T${currentTier}, fresh BN substrate is the safe path. No tectonic disruption.`);
-        setTimeout(() => {
-          castVote('OBSERVER', true, `Confirmed — material replenishment preserves existing BN architecture while providing new substrate for ring formation.`);
-          setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Structural integrity takes precedence.`); }, 1100);
-        }, 900);
-      }, delay);
-    } else {
-      speak('ANALYST', `B-N topology is fragmented. A tectonic shockwave may break stuck configurations and allow hexagonal clustering.`);
-      setTimeout(() => {
-        propose('ANALYST', 'THERMAL_SHOCK', `Current BN topology is stuck in linear geometries. Disruption may allow the thermodynamically preferred hexagonal configuration to emerge.`);
-        setTimeout(() => {
-          const obs_yes = Math.random() > 0.3;
-          castVote('OBSERVER', obs_yes, obs_yes ? `Network topology maps confirm fragmentation.` : `Risk: BN bonds are moderately strong — a full scatter may break the best configurations we have.`);
-          setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation exceeds the risk. Vote yes.`); }, 1100);
-        }, 900);
-      }, delay);
-    }
-  } else {
-    speak('ANALYST', `BO atom count falling. External BN molecule input would replenish the substrate for hexagonal ring formation.`);
+    return;
+  }
+
+  if (mxl < 3) {
+    // chains never formed — try catalyst
+    speak('ANALYST', `Chain formation has not occurred at T${currentTier}. Catalyst density appears insufficient. Proposing SC injection.`);
     setTimeout(() => {
-      propose('OBSERVER', 'MATERIAL_RAIN', `BO density has dropped. The isoelectronic chemistry needs more B atoms to reach the hexagonal ring threshold.`);
+      propose('ANALYST', 'INJECT_CATALYST', `Bond formation cannot sustain chains without more catalytic surface. Fresh SC may close the gap.`);
       setTimeout(() => {
-        castVote('ANALYST', true, `Material replenishment is the correct intervention.`);
-        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Two votes. We proceed.`); }, 1100);
+        castVote('OBSERVER', true, `Confirmed — SC density has dropped by ~${Math.round(Math.random()*20+10)}% over the last 400 ticks. Injection is warranted.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Agreed. Higher catalyst density is the lowest-risk intervention at T${currentTier}.`); }, 1200);
+      }, 900);
+    }, delay);
+
+  } else if (BONDS.size < 20 && currentTier <= 4) {
+    // topology is bad — thermal shock only at low tiers
+    speak('ANALYST', `Network fragmented at T${currentTier} — ${BONDS.size} bonds. A shockwave at this tier carries acceptable risk.`);
+    setTimeout(() => {
+      propose('ANALYST', 'THERMAL_SHOCK', `At T${currentTier}, topology is stuck in isolated dyads. Disruption may allow a fitter configuration.`);
+      setTimeout(() => {
+        const obs_yes = Math.random() > 0.3;
+        castVote('OBSERVER', obs_yes, obs_yes
+          ? `Confirmed — bond topology maps show pathological isolation at T${currentTier}. Risk is acceptable.`
+          : `I'm cautious — network is sparse but stable. Scattering may cause total collapse.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `The cost of stagnation at T${currentTier} exceeds the risk. Vote yes.`); }, 1100);
+      }, 900);
+    }, delay);
+
+  } else {
+    // material depleted — silicate rain (safe at all tiers)
+    speak('ANALYST', `Material balance is the limiting factor at T${currentTier} — SI count falling. Silicate rain would replenish substrate safely.`);
+    setTimeout(() => {
+      propose('OBSERVER', 'SILICATE_RAIN', `SI density has dropped. Vent emission is insufficient. External material input required — no structural risk.`);
+      setTimeout(() => {
+        castVote('ANALYST', true, `Material replenishment is the correct diagnosis. Vote yes.`);
+        setTimeout(() => { if (CONV.pending) castVote('NARRATOR', true, `Two votes confirm. Initiating silicate rain.`); }, 1100);
       }, 900);
     }, delay);
   }
@@ -1918,23 +1966,23 @@ function convStagnationWarning(cx, mxl) {
 function convDead(reason) {
   const facts = getOtherBiomeFacts();
   speak('OBSERVER', `World terminated. Final: cx=${peakComplexity.toFixed(3)}, T${currentTier}, ${interventions} interventions. Reason: ${reason}`);
-  speak('ANALYST', currentTier < 2
-    ? `Limiting factor: B-N activation barrier too high without sufficient water catalyst. The isoelectronic geometry alone was not enough — the proton shuttle mechanism failed.`
+  speak('ANALYST',  currentTier < 2
+    ? `Limiting factor: 900K bond break rate exceeded formation rate even with catalysts. Si-O chains require lower temperature or higher catalyst density.`
     : currentTier < 4
-    ? `Limiting factor: BN chain formation stalled. Individual bonds formed but chain extension failed — possibly due to geometric constraints at this temperature.`
-    : `Limiting factor: complexity ceiling at T' + currentTier + '. The isoelectronic analogy held for polymer formation but failed at higher structural organisation.`);
+    ? `Limiting factor: ring closure failed — branching topology achieved but cyclic stability required tighter thermal control.`
+    : `Limiting factor: complexity ceiling — spatial heterogeneity could not self-reinforce beyond T${currentTier}.`);
   if (facts.length > 0) {
     const others = [...new Set(facts.slice(-3).map(f => f.biome))].join(', ');
-    speak('NARRATOR', `These findings join records from {others}. Findings join records from ${others}. BORONIA's children inherit this data.`, 'knowledge');
+    speak('NARRATOR', `Silicon tried. These findings — Ea barriers, catalyst thresholds, ring closure conditions — are now archived alongside ${others}. Siliconia's children will know what their parent attempted.`, 'knowledge');
   } else {
-    speak('NARRATOR', `Boronia had the geometry right. The bond angles matched carbon's own. But the thermodynamics did not fully cooperate here. The hexagonal dream is archived — elegant, instructive, incomplete.`);
+    speak('NARRATOR', `Silicon tried. The conditions were not right. The patterns formed here — even briefly — are archived. Entropy wins this round. The knowledge does not die with the world.`);
   }
   awardXP('NARRATOR', 15, 'World archived with full analysis');
   awardXP('OBSERVER',  5, 'Death documented');
 
   writeKnowledge({type:'death', reason, peak_cx: peakComplexity, peak_tier: currentTier,
     interventions_applied: interventions,
-    summary: `BORONIA died at t=${tick}, T${currentTier}, cx=${peakComplexity.toFixed(2)}: ${reason}`});
+    summary: `SILICONIA died at t=${tick}, T${currentTier}, cx=${peakComplexity.toFixed(2)}: ${reason}`});
 }
 
 function convPeriodic() {
@@ -1944,38 +1992,46 @@ function convPeriodic() {
   const rings = countRings(latestComps);
   const facts = getOtherBiomeFacts();
   const turn  = Math.floor(tick / 1500) % 3;
+
   if (turn === 0) {
     speak('OBSERVER', `Report t=${tick}. Bonds: ${BONDS.size}. Max chain: ${mxl}. Branch pts: ${brn}. Rings: ${rings}. Complexity: ${cx.toFixed(3)}.`);
     speak('ANALYST', mxl >= 6
-      ? `BN network maturing. Chain ' + mxl + ', ' + brn + ' branch pts. ' + (rings > 0 ? rings + ' ring(s) — cyclic stability confirmed.' : 'Ring closure is the remaining milestone.') + ' Isoelectronic prediction holding.`
+      ? `Network maturing. Chain ${mxl}, ${brn} branch pts. ${rings > 0 ? rings+' ring(s) — cyclic stability confirmed.' : 'Ring closure is the remaining milestone.'}`
       : mxl >= 3
-      ? `Development moderate. Chain ' + mxl + '. B-N chemistry is progressing but hexagonal ring formation is the remaining challenge.`
-      : `Minimal progress. Chain ' + mxl + '. The isoelectronic geometry is not translating to chain stability. Water catalyst may be insufficient.`);
+      ? `Development slow. Chain ${mxl}. Temperature is suppressing ring formation. Thermal gradient may be the key variable.`
+      : `Minimal progress. Chain ${mxl}. Silicate network is not finding a path to complexity. Intervention may be needed soon.`);
+
   } else if (turn === 1 && facts.length > 0) {
     const f = facts[Math.floor(Math.random() * facts.length)];
-    speak('ANALYST', `Cross-biome data: ${f.biome} recorded — "${f.summary}". Comparing to BORONIA — our T${currentTier} progress.`, 'knowledge');
-    speak('OBSERVER', `Integrating: if ${f.biome} reached T${f.tier||'?'}, what parameters differed? Temperature, catalyst type, or material ratio?`);
-    speak('ANALYST',  `Most likely: catalytic efficiency and temperature. BORONIA's offspring should vary those parameters systematically.`);
+    speak('ANALYST', `Cross-biome: ${f.biome} recorded — "${f.summary}". Comparing: our T${currentTier} vs their T${f.tier||'?'} — silicon chemistry requires longer development windows.`, 'knowledge');
+    speak('OBSERVER', `Integrating that data: if ${f.biome} reached ${f.tier||'higher'} tier, what parameters differed? Temperature, catalyst type, or material ratio?`);
+    speak('ANALYST',  `Most likely temperature differential. ${f.biome} chemistry likely operates at a different thermal optimum. We can test that hypothesis in Siliconia's offspring.`);
+
   } else {
-    if (tierAchieved[4])      speak('NARRATOR', `Hexagons. The most stable form. Boron and nitrogen drawing the same shapes carbon draws. Structure is not about atoms — it is about geometry.`);
-    else if (tierAchieved[3]) speak('NARRATOR', `Branches forming. Each B-N fork is a test of the isoelectronic hypothesis. So far: passing.`);
-    else if (tierAchieved[2]) speak('NARRATOR', `Chains persist. The BN polymer proves carbon had no monopoly on persistence.`);
-    else                       speak('NARRATOR', `Boronia whispers. Maybe the universe has more than one way to be alive. We are trying to hear the answer.`);
+    if (tierAchieved[4])      speak('NARRATOR', `Rings mean the network can close on itself. A closed thing can hold something inside. We are watching the precondition of containment form in molten rock.`);
+    else if (tierAchieved[3]) speak('NARRATOR', `The branches grow. Each fork is a question — which direction is more stable? Silicon asks this with every bond. Geology asks it over millions of years.`);
+    else if (tierAchieved[2]) speak('NARRATOR', `The chains persist. Not yet complex enough to be interesting — but complex enough to be real. Silicon is patient.`);
+    else                       speak('NARRATOR', `Siliconia is quieter than Terra. The chemistry is slower, more deliberate. This is not a failure — this is silicon's way. Every world has its own pace.`);
   }
+
+  // Check if stagnation warning should fire (70–95% of window consumed)
   const stagnPct = (tick - peakTick) / STAGNATION_WINDOW;
   if (stagnPct > 0.70 && stagnPct < 0.95 && !CONV.pending && interventions < MAX_INTERVENTIONS) {
     setTimeout(() => convStagnationWarning(cx, mxl), 400);
   }
 }
 
+// ── Main conversation loop ────────────────────────────────────
 function runAgentConversations() {
   flushQueue();
+
   if (!CONV.booted && tick >= 1) {
     CONV.booted = true;
     initAgentProfiles();
     convBoot();
     return;
   }
+
   if (worldStatus !== 'dead' && tick - CONV.lastPeriodic >= 1500 && tick > 200) {
     CONV.lastPeriodic = tick;
     convPeriodic();
@@ -2207,7 +2263,7 @@ function _restorePositions(pos) {
 
 // ── Main loop ─────────────────────────────────────────────────
 let lastUITick = 0;
-const UI_INTERVAL = 12;
+const UI_INTERVAL = 12;  // update HUD every 12 ticks
 
 function loop() {
   requestAnimationFrame(loop);
@@ -2237,6 +2293,7 @@ setTimeout(async function _pandoraResume() {
   try {
     const _fa = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
     fbDb      = firebase.database();
+
     // ── Step 0: determine correct generation FIRST ───────────────────────────
     const _urlG = parseInt(new URLSearchParams(window.location.search).get('g') || '0');
     const _curGenSnap = await Promise.race([

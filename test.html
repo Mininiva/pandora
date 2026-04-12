@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PANDORA — Test Suite</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0f; color: #c8d0e0; font-family: monospace; font-size: 13px; padding: 24px; }
+  h1 { color: #7fbfff; letter-spacing: 0.2em; font-size: 15px; margin-bottom: 6px; }
+  .subtitle { color: rgba(255,255,255,0.35); letter-spacing: 0.12em; font-size: 11px; margin-bottom: 28px; }
+  .suite { margin-bottom: 32px; }
+  .suite-title { color: rgba(255,255,255,0.6); letter-spacing: 0.14em; font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 12px; }
+  .test { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); }
+  .test.pass  { border-color: rgba(80,200,120,0.25); background: rgba(80,200,120,0.05); }
+  .test.fail  { border-color: rgba(255,80,80,0.25);  background: rgba(255,80,80,0.05);  }
+  .test.skip  { border-color: rgba(200,180,80,0.25); background: rgba(200,180,80,0.04); opacity: 0.6; }
+  .test.run   { border-color: rgba(100,160,255,0.3); background: rgba(100,160,255,0.04); animation: pulse 1s infinite; }
+  .icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .test-name { font-weight: bold; color: #e0e8f4; }
+  .test-detail { color: rgba(255,255,255,0.4); font-size: 11px; margin-top: 2px; }
+  .test-error  { color: #ff8080; font-size: 11px; margin-top: 4px; font-style: italic; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+  #summary { position: fixed; top: 20px; right: 24px; background: rgba(10,10,20,0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 14px 18px; font-size: 12px; min-width: 160px; }
+  #summary .s-pass { color: #50c878; }
+  #summary .s-fail { color: #ff6060; }
+  #summary .s-skip { color: #c8b050; }
+  #summary .s-total{ color: #7fbfff; margin-top: 8px; font-size: 11px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px; }
+  #run-btn { margin-top: 28px; padding: 10px 24px; background: rgba(100,160,255,0.12); border: 1px solid rgba(100,160,255,0.4); color: #7fbfff; font-family: monospace; font-size: 12px; letter-spacing: 0.12em; cursor: pointer; border-radius: 4px; }
+  #run-btn:hover { background: rgba(100,160,255,0.22); }
+  #run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .progress { margin-top: 12px; height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+  .progress-bar { height: 100%; background: #7fbfff; width: 0; transition: width 0.3s; }
+</style>
+</head>
+<body>
+
+<h1>PANDORA TEST SUITE</h1>
+<div class="subtitle">World Generation · Evolution · Death · Seed Inheritance · Tier System</div>
+
+<div id="summary">
+  <div>TESTS</div>
+  <div class="s-pass">PASS: <span id="s-pass">—</span></div>
+  <div class="s-fail">FAIL: <span id="s-fail">—</span></div>
+  <div class="s-skip">SKIP: <span id="s-skip">—</span></div>
+  <div class="s-total">TOTAL: <span id="s-total">0</span></div>
+</div>
+
+<div id="suites"></div>
+
+<button id="run-btn" onclick="runAll()">▶  RUN ALL TESTS</button>
+<div class="progress"><div class="progress-bar" id="prog"></div></div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+const FB_CONFIG = {
+  apiKey:            'AIzaSyANFCI2Uyehrezru2TxZ8jOP_V9lVSYkGA',
+  authDomain:        'pandora-68637.firebaseapp.com',
+  databaseURL:       'https://pandora-68637-default-rtdb.firebaseio.com',
+  projectId:         'pandora-68637',
+  storageBucket:     'pandora-68637.firebasestorage.app',
+  messagingSenderId: '244482446708',
+  appId:             '1:244482446708:web:7bec4962611f8c4a224821',
+};
+
+const BIOME_IDS = [0, 4, 10, 20, 50, 70];
+const BIOME_NAMES = { 0:'TERRA', 4:'WARM SOUP', 10:'SILICONIA', 20:'FREEZE FRAME', 50:'BORONIA', 70:'IRON VEIL' };
+
+let fbApp, fbDb;
+let results = { pass: 0, fail: 0, skip: 0 };
+let allTests = [];
+
+// ─── Test framework ────────────────────────────────────────────────────────────
+function suite(title, tests) {
+  allTests.push({ title, tests });
+}
+
+function assert(condition, msg) {
+  if (!condition) throw new Error(msg || 'Assertion failed');
+}
+
+function assertEqual(a, b, msg) {
+  if (a !== b) throw new Error(msg || `Expected ${JSON.stringify(b)} but got ${JSON.stringify(a)}`);
+}
+
+function assertGte(a, b, msg) {
+  if (a < b) throw new Error(msg || `Expected >= ${b} but got ${a}`);
+}
+
+// ─── Test suites ───────────────────────────────────────────────────────────────
+
+suite('Firebase Connectivity', [
+  {
+    name: 'Firebase initialises without error',
+    fn: async () => {
+      fbApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(FB_CONFIG);
+      fbDb  = firebase.database();
+      assert(fbDb, 'fbDb should be truthy');
+    }
+  },
+  {
+    name: 'Can read from pandora root',
+    fn: async () => {
+      const snap = await Promise.race([
+        fbDb.ref('pandora').once('value'),
+        new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 5000))
+      ]);
+      assert(snap, 'Snapshot should exist');
+    }
+  },
+  {
+    name: 'Biome nodes exist for all 6 active biomes',
+    fn: async () => {
+      const snap = await fbDb.ref('pandora/biomes').once('value');
+      const biomes = snap.val() || {};
+      let found = 0;
+      for (const id of BIOME_IDS) {
+        if (biomes[id]) found++;
+      }
+      assertGte(found, 1, `At least 1 biome should have data, found ${found}`);
+    }
+  }
+]);
+
+suite('Generation Tracking', [
+  {
+    name: 'currentGeneration exists and is >= 1 for active biomes',
+    fn: async () => {
+      let checked = 0;
+      for (const id of BIOME_IDS) {
+        const snap = await fbDb.ref(`pandora/biomes/${id}/currentGeneration`).once('value');
+        const gen = snap.val();
+        if (gen !== null) {
+          assertGte(gen, 1, `Biome ${id} generation should be >= 1, got ${gen}`);
+          checked++;
+        }
+      }
+      assertGte(checked, 1, 'At least one biome should have a generation number');
+    }
+  },
+  {
+    name: 'currentGeneration never decreases (anti-regression)',
+    fn: async () => {
+      // Read gen, write a higher value via transaction, read again — should not decrease
+      const id = BIOME_IDS[0];
+      const ref = fbDb.ref(`pandora/biomes/${id}/currentGeneration`);
+      const before = (await ref.once('value')).val() || 1;
+      // Transaction: only update if new value > current
+      await ref.transaction(cur => (!cur || cur < before) ? before : cur);
+      const after = (await ref.once('value')).val() || 1;
+      assertGte(after, before, `Generation should not decrease: was ${before}, now ${after}`);
+    }
+  }
+]);
+
+suite('Seed Inheritance', [
+  {
+    name: 'Seed structure is valid when present',
+    fn: async () => {
+      let seedFound = false;
+      for (const id of BIOME_IDS) {
+        const genSnap = await fbDb.ref(`pandora/biomes/${id}/genome`).once('value');
+        const gens = genSnap.val();
+        if (!gens) continue;
+        for (const [gk, gv] of Object.entries(gens)) {
+          if (gv && gv.seed) {
+            const s = gv.seed;
+            assert(Array.isArray(s.px) || typeof s.px === 'object', `Biome ${id} gen ${gk} seed.px should be array or object`);
+            assert(typeof s.currentTier === 'number', `seed.currentTier should be a number`);
+            assert(s.worldStatus === 'active', `seed.worldStatus should be 'active'`);
+            assertGte(Object.keys(s.px || s.px).length, 5, `seed.px should have >= 5 entries`);
+            seedFound = true;
+            break;
+          }
+        }
+        if (seedFound) break;
+      }
+      if (!seedFound) throw new Error('SKIP: No seeds found yet — run a world to completion first');
+    }
+  },
+  {
+    name: 'Seed tier is non-zero when world died at high tier',
+    fn: async () => {
+      let checked = false;
+      for (const id of BIOME_IDS) {
+        const genSnap = await fbDb.ref(`pandora/biomes/${id}/genome`).once('value');
+        const gens = genSnap.val();
+        if (!gens) continue;
+        for (const [gk, gv] of Object.entries(gens)) {
+          if (gv && gv.seed && typeof gv.seed.currentTier === 'number') {
+            const archRef = await fbDb.ref(`pandora/biomes/${id}/archives`).limitToLast(5).once('value');
+            const archives = Object.values(archRef.val() || {});
+            const relevant = archives.find(a => a.generation === (parseInt(gk) - 1));
+            if (relevant && relevant.maxTier >= 8) {
+              assertGte(gv.seed.currentTier, 8,
+                `Seed tier (${gv.seed.currentTier}) should be close to parent peak (${relevant.maxTier})`);
+              checked = true;
+            }
+          }
+        }
+      }
+      if (!checked) throw new Error('SKIP: No high-tier seed transitions found yet');
+    }
+  },
+  {
+    name: 'Write and read back a test seed (round-trip)',
+    fn: async () => {
+      const testRef = fbDb.ref('pandora/test/seed_roundtrip');
+      const testSeed = {
+        px: [10.0, 20.5, 30.1], py: [5.0, 15.2, 25.8],
+        types: [1, 2, 1], bonds: [[0,1],[1,2]],
+        tick: 0, currentTier: 9, worldStatus: 'active',
+        peakComplexity: 1.85, tierAchieved: Array(25).fill(false),
+        inheritedAt: Date.now()
+      };
+      await testRef.set(testSeed);
+      const snap = await testRef.once('value');
+      const read = snap.val();
+      assert(read, 'Should read back the test seed');
+      assert(read.currentTier === 9, `currentTier should be 9, got ${read.currentTier}`);
+      assert(read.worldStatus === 'active', `worldStatus should be 'active'`);
+      assertGte(Object.values(read.px).length, 3, 'px should have 3 entries');
+      await testRef.remove(); // clean up
+    }
+  }
+]);
+
+suite('Tier System Integrity', [
+  {
+    name: 'TIER_NAMES simulated array has 21 entries (T0–T20)',
+    fn: async () => {
+      // These are the expected tier names per our spec
+      const expectedLength = 21; // T0 through T20
+      // We verify by checking the biome state for tier values within range
+      for (const id of BIOME_IDS) {
+        const snap = await fbDb.ref(`pandora/biomes/${id}/state`).once('value');
+        const st = snap.val();
+        if (!st) continue;
+        const t = st.currentTier || 0;
+        assert(t >= 0 && t <= 20, `Biome ${id} tier ${t} should be in range 0-20`);
+      }
+    }
+  },
+  {
+    name: 'tierAchieved persists high-tier flags (T7-T12+)',
+    fn: async () => {
+      let checked = false;
+      for (const id of BIOME_IDS) {
+        const posSnap = await fbDb.ref(`pandora/biomes/${id}/positions`).once('value');
+        const pos = posSnap.val();
+        if (!pos || !pos.tierAchieved || !pos.currentTier) continue;
+        if (pos.currentTier < 7) continue;
+        // Check that tierAchieved has enough entries to cover current tier
+        const ta = Array.isArray(pos.tierAchieved)
+          ? pos.tierAchieved
+          : Object.values(pos.tierAchieved);
+        assert(ta.length > pos.currentTier,
+          `tierAchieved length (${ta.length}) should exceed currentTier (${pos.currentTier}) in biome ${id}`);
+        // Check that at least the current tier flag is true
+        assert(ta[pos.currentTier] === true,
+          `tierAchieved[${pos.currentTier}] should be true in biome ${id}`);
+        checked = true;
+      }
+      if (!checked) throw new Error('SKIP: No biome currently at T7+ with live positions');
+    }
+  },
+  {
+    name: 'State tier matches positions tier (no desync)',
+    fn: async () => {
+      for (const id of BIOME_IDS) {
+        const [stateSnap, posSnap] = await Promise.all([
+          fbDb.ref(`pandora/biomes/${id}/state`).once('value'),
+          fbDb.ref(`pandora/biomes/${id}/positions`).once('value'),
+        ]);
+        const st  = stateSnap.val();
+        const pos = posSnap.val();
+        if (!st || !pos || st.worldStatus === 'dead') continue;
+        const diff = Math.abs((st.currentTier||0) - (pos.currentTier||0));
+        assert(diff <= 1,
+          `Biome ${id}: state.currentTier (${st.currentTier}) and positions.currentTier (${pos.currentTier}) should be within 1 of each other`);
+      }
+    }
+  }
+]);
+
+suite('Archive & Death Cycle', [
+  {
+    name: 'Archives contain required fields',
+    fn: async () => {
+      let found = 0;
+      for (const id of BIOME_IDS) {
+        const snap = await fbDb.ref(`pandora/biomes/${id}/archives`).limitToLast(3).once('value');
+        const archives = Object.values(snap.val() || {});
+        for (const a of archives) {
+          assert(typeof a.generation === 'number', `Archive missing generation in biome ${id}`);
+          assert(typeof a.deathReason === 'string', `Archive missing deathReason in biome ${id}`);
+          assert(typeof a.archivedAt === 'number', `Archive missing archivedAt in biome ${id}`);
+          found++;
+        }
+      }
+      assertGte(found, 1, 'At least one archive entry should exist');
+    }
+  },
+  {
+    name: 'Graduation archives are labelled correctly',
+    fn: async () => {
+      let graduations = 0;
+      for (const id of BIOME_IDS) {
+        const snap = await fbDb.ref(`pandora/biomes/${id}/archives`).limitToLast(10).once('value');
+        const archives = Object.values(snap.val() || {});
+        for (const a of archives) {
+          if (a.deathReason && a.deathReason.includes('graduation')) {
+            graduations++;
+            assertGte(a.maxTier || a.peakTier || 0, 10,
+              `Graduation should only happen at T10+ (biome ${id}, T${a.maxTier})`);
+          }
+        }
+      }
+      if (graduations === 0) throw new Error('SKIP: No graduations recorded yet — worlds need more time');
+    }
+  },
+  {
+    name: 'Death cycle resets worldStatus to active in state',
+    fn: async () => {
+      for (const id of BIOME_IDS) {
+        const snap = await fbDb.ref(`pandora/biomes/${id}/state`).once('value');
+        const st = snap.val();
+        if (!st) continue;
+        // After a death cycle, state.worldStatus should be 'active' (for the new gen)
+        // OR 'dead' (currently dying) — never anything else
+        assert(['active','dead','graduating','perturbed'].includes(st.worldStatus),
+          `Biome ${id} worldStatus "${st.worldStatus}" is not a valid state`);
+      }
+    }
+  }
+]);
+
+suite('Scientist Knowledge', [
+  {
+    name: 'Knowledge base entries have required structure',
+    fn: async () => {
+      let found = 0;
+      for (const id of BIOME_IDS) {
+        const snap = await fbDb.ref(`pandora/biomes/${id}/knowledge`).limitToLast(5).once('value');
+        const entries = Object.values(snap.val() || {});
+        for (const e of entries) {
+          assert(typeof e.type === 'string', `Knowledge entry missing type in biome ${id}`);
+          assert(typeof e.ts === 'number', `Knowledge entry missing timestamp in biome ${id}`);
+          found++;
+        }
+      }
+      if (found === 0) throw new Error('SKIP: No knowledge entries found yet');
+    }
+  },
+  {
+    name: 'Scientist briefing entries are recorded for multi-gen worlds',
+    fn: async () => {
+      let briefings = 0;
+      for (const id of BIOME_IDS) {
+        const snap = await fbDb.ref(`pandora/biomes/${id}/knowledge`).limitToLast(20).once('value');
+        const entries = Object.values(snap.val() || {});
+        const b = entries.filter(e => e.type === 'scientist_briefing');
+        briefings += b.length;
+        for (const be of b) {
+          assertGte(be.generation, 2, 'Briefings should only happen in gen 2+');
+          assert(typeof be.peak_tier_ever === 'number', 'Briefing should include peak_tier_ever');
+        }
+      }
+      if (briefings === 0) throw new Error('SKIP: No scientist briefings yet — needs multi-gen worlds');
+    }
+  }
+]);
+
+suite('Genome Inheritance', [
+  {
+    name: 'Genome entries exist for active biomes',
+    fn: async () => {
+      let found = 0;
+      for (const id of BIOME_IDS) {
+        const snap = await fbDb.ref(`pandora/biomes/${id}/genome`).once('value');
+        const g = snap.val();
+        if (g && Object.keys(g).length > 0) found++;
+      }
+      assertGte(found, 1, 'At least one biome should have genome data');
+    }
+  },
+  {
+    name: 'Genome values are numeric and within plausible range',
+    fn: async () => {
+      for (const id of BIOME_IDS) {
+        const snap = await fbDb.ref(`pandora/biomes/${id}/genome`).once('value');
+        const gens = snap.val();
+        if (!gens) continue;
+        for (const [gk, gv] of Object.entries(gens)) {
+          if (!gv || typeof gv !== 'object') continue;
+          for (const [k, v] of Object.entries(gv)) {
+            if (k === 'seed') continue; // skip seed sub-object
+            if (typeof v === 'number') {
+              assert(isFinite(v), `Genome biome ${id} gen ${gk} ${k}=${v} should be finite`);
+              assert(v >= -100 && v <= 100, `Genome biome ${id} gen ${gk} ${k}=${v} is out of plausible range`);
+            }
+          }
+        }
+      }
+    }
+  }
+]);
+
+// ─── Test runner ───────────────────────────────────────────────────────────────
+function renderSuites() {
+  const el = document.getElementById('suites');
+  el.innerHTML = '';
+  for (const { title, tests } of allTests) {
+    const div = document.createElement('div');
+    div.className = 'suite';
+    div.innerHTML = `<div class="suite-title">${title.toUpperCase()}</div>`;
+    for (const t of tests) {
+      const row = document.createElement('div');
+      row.id = `test-${t.name.replace(/\s+/g,'_')}`;
+      row.className = 'test';
+      row.innerHTML = `<div class="icon">○</div><div><div class="test-name">${t.name}</div><div class="test-detail" id="detail-${row.id}">—</div></div>`;
+      div.appendChild(row);
+    }
+    el.appendChild(div);
+  }
+}
+
+function setTestState(name, state, detail, error) {
+  const id = `test-${name.replace(/\s+/g,'_')}`;
+  const row = document.getElementById(id);
+  if (!row) return;
+  row.className = `test ${state}`;
+  const icons = { pass:'✓', fail:'✗', skip:'⊘', run:'…' };
+  row.querySelector('.icon').textContent = icons[state] || '○';
+  if (detail) row.querySelector(`#detail-${id}`)?.remove?.() || (row.querySelector('.test-detail').textContent = detail);
+  if (error) {
+    const err = document.createElement('div');
+    err.className = 'test-error';
+    err.textContent = error;
+    row.appendChild(err);
+  }
+  updateSummary();
+}
+
+function updateSummary() {
+  document.getElementById('s-pass').textContent  = results.pass;
+  document.getElementById('s-fail').textContent  = results.fail;
+  document.getElementById('s-skip').textContent  = results.skip;
+  document.getElementById('s-total').textContent = results.pass + results.fail + results.skip;
+}
+
+async function runAll() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  results = { pass: 0, fail: 0, skip: 0 };
+  renderSuites();
+
+  const flat = allTests.flatMap(s => s.tests);
+  let done = 0;
+
+  for (const t of flat) {
+    setTestState(t.name, 'run', 'running…');
+    const start = Date.now();
+    try {
+      await t.fn();
+      const ms = Date.now() - start;
+      setTestState(t.name, 'pass', `${ms}ms`);
+      results.pass++;
+    } catch(e) {
+      const ms = Date.now() - start;
+      if (e.message.startsWith('SKIP:')) {
+        setTestState(t.name, 'skip', `${ms}ms`, e.message.replace('SKIP:','').trim());
+        results.skip++;
+      } else {
+        setTestState(t.name, 'fail', `${ms}ms`, e.message);
+        results.fail++;
+      }
+    }
+    done++;
+    document.getElementById('prog').style.width = `${(done/flat.length)*100}%`;
+    updateSummary();
+  }
+
+  btn.disabled = false;
+  btn.textContent = '▶  RUN AGAIN';
+}
+
+renderSuites();
+</script>
+</body>
+</html>

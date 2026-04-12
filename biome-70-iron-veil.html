@@ -1175,7 +1175,11 @@ function getStagnationWindow() {
 
 const COMPLEXITY_FLOOR  = 0.35;
 const MEANINGFUL_DELTA  = 0.06;
-const MAX_INTERVENTIONS = 3;
+const MAX_INTERVENTIONS_BASE = 3;
+function getMaxInterventions() {
+  // High-tier worlds get many more chances — graduation fires before exhaustion
+  return currentTier >= 5 ? 30 : MAX_INTERVENTIONS_BASE;
+}
 const HARD_DEATH_TICK   = 7000;
 
 let peakComplexity  = 0;
@@ -1291,13 +1295,19 @@ function checkVitality(cx) {
   const stagnant = tick - peakTick > getStagnationWindow();
   if (!stagnant) return;
 
-  if (interventions >= MAX_INTERVENTIONS) {
+  if (interventions >= getMaxInterventions()) {
     declareDead('thermodynamic equilibrium — iron sulfide network dissolved — DEAD WORLD');
     return;
   }
 
-  const p = PERTURBATION_TYPES[interventions % PERTURBATION_TYPES.length];
-  p.fn();
+  if (currentTier >= 5) {
+    // High-tier worlds: preserve molecular structure — no destructive auto-perturbation
+    // Just extend the stagnation window and let the agent conversation handle it
+    peakTick = tick + Math.floor(getStagnationWindow() * 0.5); // grace extension
+  } else {
+    const p = PERTURBATION_TYPES[interventions % PERTURBATION_TYPES.length];
+    p.fn();
+  }
   interventions++;
   peakTick    = tick;
   perturbFlash = 40;
@@ -1321,10 +1331,13 @@ const TIER_NAMES = [
   'Reaction Diversity', 'Spatial Heterogeneity', 'Spontaneous Assembly',
   'Sustained Complexity', 'Coupled Reactions', 'Emergent Catalysis',
   'Boundary Formation', 'Closed Compartment', 'Interior Differentiation',
-  'Protocell Stability'
+  'Protocell Stability',
+  'Iron-Sulfur Catalysis', 'Magnetite Memory', 'Ferrous Templating',
+  'Metalloprotein Code', 'Redox Metabolism', 'Iron Membrane',
+  'Metal Division', 'Iron Life'
 ];
 
-const tierAchieved = new Array(7).fill(false);
+const tierAchieved = new Array(25).fill(false);
 let currentTier    = 0;
 
 let sustainedChainTicks = 0;
@@ -1335,6 +1348,10 @@ let sustainedT7Ticks  = 0;  // multi-cluster
 let sustainedT9Ticks  = 0;  // high complexity
 let sustainedT10Ticks = 0;  // dense compound cluster
 let sustainedT12Ticks = 0;  // long-term stability
+let sustainedT13Ticks = 0;  // hyper-branching
+let sustainedT15Ticks = 0;  // ultra-complexity
+let sustainedT19Ticks = 0;  // hypercomplexity
+let sustainedGradTicks = 0;  // evolutionary graduation counter
 
 function promoteTier(t) {
   if (tierAchieved[t]) return;
@@ -1427,6 +1444,55 @@ function checkTiers(cx, mxl, brn, rings) {
   // T12 — sustained T10-quality state for 50 ticks → compartment stability
   if (tierAchieved[10]) sustainedT12Ticks++; else sustainedT12Ticks = 0;
   if (!tierAchieved[12] && sustainedT12Ticks >= 50) promoteTier(12);
+
+  // ── T13-T20: Ascending complexity beyond protocell stability ─────────────
+  // T13 — hyper-branching network (brn ≥ 10, sustained 30 ticks)
+  if (brn >= 10) sustainedT13Ticks++; else sustainedT13Ticks = 0;
+  if (!tierAchieved[13] && tierAchieved[12] && sustainedT13Ticks >= 30) promoteTier(13);
+
+  // T14 — mega-cluster emergent: single component 12+ nodes, 4+ rings
+  if (!tierAchieved[14] && tierAchieved[13]) {
+    if (latestComps.some(c => c.nodes.length >= 12) && rings >= 4) promoteTier(14);
+  }
+
+  // T15 — ultra-complexity: mean cx > 2.2 over 80 ticks, sustained
+  if (hist.length >= 80) {
+    const m15 = hist.slice(-80).reduce((s,v)=>s+v,0)/80;
+    if (m15 > 2.2) sustainedT15Ticks++; else sustainedT15Ticks = 0;
+  }
+  if (!tierAchieved[15] && tierAchieved[14] && sustainedT15Ticks >= 25) promoteTier(15);
+
+  // T16 — polyring cascade: 8+ simultaneous rings
+  if (!tierAchieved[16] && tierAchieved[15] && rings >= 8) promoteTier(16);
+
+  // T17 — fractal clustering: 4+ large clusters (≥5 nodes) simultaneously
+  if (!tierAchieved[17] && tierAchieved[16]) {
+    if (latestComps.filter(c => c.nodes.length >= 5).length >= 4) promoteTier(17);
+  }
+
+  // T18 — mega-network: single cluster 15+ nodes
+  if (!tierAchieved[18] && tierAchieved[17]) {
+    if (latestComps.some(c => c.nodes.length >= 15)) promoteTier(18);
+  }
+
+  // T19 — hypercomplexity: mean cx > 2.8 over 60 ticks, sustained
+  if (hist.length >= 60) {
+    const m19 = hist.slice(-60).reduce((s,v)=>s+v,0)/60;
+    if (m19 > 2.8) sustainedT19Ticks++; else sustainedT19Ticks = 0;
+  }
+  if (!tierAchieved[19] && tierAchieved[18] && sustainedT19Ticks >= 20) promoteTier(19);
+
+  // T20 — apex synthesis: all upper tiers + extreme topology
+  if (!tierAchieved[20] && tierAchieved[19] && brn >= 15 && rings >= 10) promoteTier(20);
+
+  // ── Graduation mechanic: sustained T10+ for 3000 ticks → evolutionary ascension
+  if (currentTier >= 10) sustainedGradTicks++; else sustainedGradTicks = 0;
+  if (sustainedGradTicks >= 3000 && worldStatus === 'active') {
+    worldStatus = 'graduating';
+    speak('NARRATOR', `After ${sustainedGradTicks} ticks at T${currentTier}, this world has reached evolutionary completion. Graduation initiating.`);
+    speak('ANALYST', `Graduation conditions met. Archiving molecular state as seed for next generation. This world's achievement will persist.`);
+    setTimeout(() => _runDeathCycle(`evolutionary graduation — T${currentTier} sustained — ascending to generation ${_generation + 1}`), 3000);
+  }
 
 }
 
@@ -2122,7 +2188,7 @@ function _restorePositions(pos) {
   if (typeof interventions  !== 'undefined') interventions  = pos.interventions  || 0;
   worldStatus = pos.worldStatus || 'active';
   if (pos.tierAchieved) pos.tierAchieved.forEach((v, i) => {
-    if (i < tierAchieved.length) tierAchieved[i] = v;
+    tierAchieved[i] = v;  // no length cap — allow T0-T20+
   });
   if (currentTier > 0) {
     const el = document.getElementById('v-tier');
@@ -2296,6 +2362,81 @@ setTimeout(async function _pandoraResume() {
     if (typeof initFirebase === 'function') initFirebase();
   } catch(e) { console.warn('[Pandora] resume error:', e); }
 }, 100);
+
+// ── Scientist Knowledge Evolution: scientists learn from all prior generations ─
+// Fires 5s after load so the world is running before the briefing begins.
+setTimeout(async function _loadScientistMemory() {
+  if (typeof fbDb === 'undefined' || !fbDb) return;
+  if (typeof _generation === 'undefined' || _generation <= 1) return;
+  try {
+    const archSnap = await Promise.race([
+      fbDb.ref(`pandora/biomes/${BIOME_ID}/archives`).limitToLast(10).once('value'),
+      new Promise(r => setTimeout(() => r(null), 4000))
+    ]);
+    if (!archSnap || !archSnap.val()) return;
+    const archives = Object.values(archSnap.val());
+    if (!archives.length) return;
+
+    const maxPeakTier = Math.max(...archives.map(a => a.maxTier || a.peakTier || 0));
+    const lastArc     = archives[archives.length - 1];
+    const avgTier     = (archives.reduce((s,a) => s + (a.maxTier || a.peakTier || 0), 0) / archives.length).toFixed(1);
+    const isGraduation = lastArc.deathReason && lastArc.deathReason.includes('graduation');
+
+    // Brief the scientists — staggered for natural dialogue feel
+    await new Promise(r => setTimeout(r, 1500));
+    if (typeof speak === 'function') {
+      speak('OBSERVER',
+        `Generation ${_generation}. Archive sync complete: ${archives.length} prior generation${archives.length!==1?'s':''} on record. Peak tier across history: T${maxPeakTier}.`);
+      await new Promise(r => setTimeout(r, 900));
+
+      speak('ANALYST',
+        `Last generation: T${lastArc.maxTier||lastArc.peakTier||0} — "${lastArc.deathReason||'unknown'}". ` +
+        `Average peak: T${avgTier}. ` +
+        (isGraduation
+          ? `Graduated by choice. Molecular state inherited. We continue from where they left off.`
+          : `Died before graduation. Genome evolved to compensate. We carry their learnings.`));
+      await new Promise(r => setTimeout(r, 1200));
+
+      if (isGraduation && maxPeakTier >= 10) {
+        speak('NARRATOR',
+          `${archives.length} generation${archives.length!==1?'s':''} of complexity-building brought us here. ` +
+          `The molecular structure we inherited is not a starting point — it is a compressed history. ` +
+          `T${maxPeakTier} is the floor, not the ceiling.`);
+      } else if (maxPeakTier >= 8) {
+        speak('NARRATOR',
+          `${archives.length} generation${archives.length!==1?'s':''} explored this chemistry before us. ` +
+          `Their highest achievement: T${maxPeakTier}. We build on that inheritance. ` +
+          `Every generation is a memory the chemistry keeps.`);
+      } else {
+        speak('NARRATOR',
+          `Generation ${_generation}. The genome has evolved ${archives.length} time${archives.length!==1?'s':''}. ` +
+          `Prior generations reached T${maxPeakTier}. ` +
+          `This chemistry has not yet found its ceiling.`);
+      }
+    }
+
+    // Award accumulated institutional knowledge as XP
+    if (typeof awardXP === 'function') {
+      awardXP('OBSERVER', archives.length * 6, `${archives.length}-generation institutional memory`);
+      awardXP('ANALYST',  archives.length * 9, 'Cross-generation data synthesis');
+    }
+
+    // Log the briefing to knowledge system
+    if (typeof writeKnowledge === 'function') {
+      writeKnowledge({
+        type:              'scientist_briefing',
+        generation:        _generation,
+        prior_generations: archives.length,
+        peak_tier_ever:    maxPeakTier,
+        avg_tier:          parseFloat(avgTier),
+        last_death_reason: lastArc.deathReason || 'unknown',
+        inherited:         isGraduation,
+        summary: `GEN ${_generation} scientists briefed on ${archives.length} prior gen(s). ` +
+                 `Historical peak: T${maxPeakTier}. ${isGraduation?'Molecular state inherited.':'Genome evolved from death.'}`
+      });
+    }
+  } catch(e) { console.warn('[Pandora] scientist memory error:', e); }
+}, 5000);
 </script>
   <div id='ws-status' style='position:fixed;bottom:20px;right:20px;z-index:9999;font-family:monospace;font-size:10px;letter-spacing:0.12em;color:rgba(255,255,255,0.50);pointer-events:none;transition:opacity 1.0s;'>
     <div id='ws-lbl' style='margin-bottom:5px;'>LOADING ENGINE</div>
