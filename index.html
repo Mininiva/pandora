@@ -291,6 +291,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .log-msg{font-size:10px;line-height:1.7;color:rgba(155,195,230,0.72);}
 .log-msg.narrator-msg{color:rgba(220,185,90,0.7);font-style:italic;}
 .log-msg.system-msg{color:rgba(100,100,120,0.6);letter-spacing:0.5px;}
+
+/* ── Mini-simulation canvas ─────────────────────────────── */
+.card-canvas-wrap{width:100%;height:88px;overflow:hidden;position:relative;}
+.card-canvas-wrap canvas{display:block;width:100%;height:88px;}
+.card-canvas-wrap .cx-bar{
+  position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:rgba(255,255,255,0.04);
+}
+.card-canvas-wrap .cx-fill{
+  height:100%;width:0%;transition:width 0.5s;
+}
+.sdot.forming{background:#6080a0;animation:pulse 3s infinite;}
 </style>
 </head>
 <body>
@@ -435,7 +447,7 @@ const BIOMES = [
   {id:1,  name:"Hadean",               chem:"C · H₂O · SO₄",            tier:1,status:"active", parent:0,      desc:"Hot early-carbon with volcanic sulfate. Aggressive thermal gradient. Running."},
   {id:2,  name:"Primordius",           chem:"C · NH₃ · H₂O",            tier:0,status:"dead",   parent:0,      desc:"Carbon in mixed ammonia-water. Thermal collapse at t=8400. The ammonia won."},
   {id:3,  name:"Old Stone",            chem:"C · silicate · H₂O",       tier:2,status:"active", parent:0,      desc:"Carbon chemistry on mineral surfaces. Slower than Terra, but persistent."},
-  {id:4,  name:"Warm Soup",            chem:"C · H₂O · clay",            tier:3,status:"active", parent:0,      desc:"Clay-catalysed carbon world. Montmorillonite surfaces doing real work. Best carbon-family result."},
+  {id:4,  name:"Warm Soup",            chem:"C · H₂O · clay",            tier:3,status:"active", parent:0,      desc:"Clay-catalysed carbon world. Montmorillonite surfaces doing real work. Best carbon-family result.",file:"biome-04-warm-soup.html"},
   {id:5,  name:"Carbon Copy",          chem:"C · H₂O · FeS₂",            tier:1,status:"active", parent:2,      desc:"Born from Primordius's failure — iron sulfide catalysis added. The irony of carbon needing iron."},
   {id:6,  name:"Origin Story",         chem:"C · H₂O · P",               tier:1,status:"forming",parent:4,      desc:"Daughter of Warm Soup. Phosphate-enriched. Inherits clay knowledge."},
   {id:7,  name:"The Prebiotic",        chem:"C · HCN · H₂O",             tier:0,status:"dead",   parent:0,      desc:"HCN-based carbon. Too reactive — no structure survived above t=2100."},
@@ -451,7 +463,7 @@ const BIOMES = [
   {id:17, name:"The Smeltery",         chem:"Si · Fe · Ni",              tier:0,status:"dead",   parent:null,   desc:"Metal silicate experiment. Everything fused into one inert mass at t=1200."},
   {id:18, name:"Lava Lamp",            chem:"Si · O · Fe",               tier:1,status:"active", parent:12,     desc:"Iron-silicate in convective melt. The most visually spectacular silicon world."},
   {id:19, name:"Vitreous Rex",         chem:"Si · O · Ca",               tier:1,status:"forming",parent:12,     desc:"Calcium silicate glass chemistry. What if structure evolved before metabolism?"},
-  {id:20, name:"Freeze Frame",         chem:"N · H / NH₃",               tier:1,status:"active", parent:null,   desc:"First cold-chemistry world. Low-temperature ammonia solvent."},
+  {id:20, name:"Freeze Frame",         chem:"N · H / NH₃",               tier:1,status:"active", parent:null,   desc:"First cold-chemistry world. Low-temperature ammonia solvent.",file:"biome-20-freeze-frame.html"},
   {id:21, name:"Brain Freeze",         chem:"C · N · H / NH₃",           tier:0,status:"dead",   parent:20,     desc:"Carbon in ammonia at 200K. Bonding rates too slow. Very literally froze."},
   {id:22, name:"Ammonia Dreams",       chem:"N · S / NH₃",               tier:2,status:"active", parent:20,     desc:"Nitrogen-sulfur in ammonia solvent. Unexpected persistence. Best cold result."},
   {id:23, name:"Ice Ice Maybe",        chem:"N · H · O / NH₃",           tier:1,status:"active", parent:22,     desc:"Oxygen added to Ammonia Dreams lineage. Cautiously optimistic."},
@@ -481,7 +493,7 @@ const BIOMES = [
   {id:47, name:"Smoggy Bottom",        chem:"HC₃N / CH₄",                tier:1,status:"forming",parent:46,     desc:"Cyanoacetylene chemistry inspired by Titan's atmospheric haze layer."},
   {id:48, name:"Methane Morning",      chem:"C₂H₂N · P / CH₄",           tier:1,status:"forming",parent:46,     desc:"Phosphorus added to the Azotosome lineage. First phosphorus in the cold family."},
   {id:49, name:"The Deep Cold",        chem:"C · N / C₂H₆",              tier:1,status:"active", parent:42,     desc:"Ultra-cold pure ethane solvent. Record low temperature in the archive."},
-  {id:50, name:"Boronia",              chem:"B · N / H₂O",               tier:2,status:"active", parent:null,   desc:"Boron-nitrogen as carbon analog. The structural similarities are philosophically unsettling."},
+  {id:50, name:"Boronia",              chem:"B · N / H₂O",               tier:2,status:"active", parent:null,   desc:"Boron-nitrogen as carbon analog. The structural similarities are philosophically unsettling.",file:"biome-50-boronia.html"},
   {id:51, name:"Triangle World",       chem:"B · N · F",                 tier:0,status:"dead",   parent:50,     desc:"Boron trifluoride experiment. Extraordinarily reactive. Gone by t=400."},
   {id:52, name:"Electron Deficient",   chem:"B · N · O",                 tier:1,status:"active", parent:50,     desc:"Named for boron's well-known electron personality."},
   {id:53, name:"Boron to Be Wild",     chem:"B · N · S",                 tier:1,status:"active", parent:50,     desc:"Sulfur-boron chemistry. The name was inevitable."},
@@ -501,7 +513,7 @@ const BIOMES = [
   {id:67, name:"Ignition Sequence",    chem:"P · O · C / H₂O",           tier:2,status:"forming",parent:64,     desc:"Carbon added to The Alchemist's lineage. Highest-expectation forming biome."},
   {id:68, name:"Red Planet Redux",     chem:"P · Fe · O / H₂O",          tier:1,status:"forming",parent:64,     desc:"Iron phosphate chemistry. Mars-inspired. Not actually Mars."},
   {id:69, name:"Phosphate Dreams",     chem:"P · O · N · C",             tier:1,status:"forming",parent:67,     desc:"Full phosphate system approaching nucleotide-analog territory."},
-  {id:70, name:"Iron Veil",            chem:"Fe · S / H₂O",              tier:3,status:"active", parent:null,   desc:"Iron sulfide chemistry. Inspired by Wächtershäuser's iron-sulfur world hypothesis."},
+  {id:70, name:"Iron Veil",            chem:"Fe · S / H₂O",              tier:3,status:"active", parent:null,   desc:"Iron sulfide chemistry. Inspired by Wächtershäuser's iron-sulfur world hypothesis.",file:"biome-70-iron-veil.html"},
   {id:71, name:"Rusty World",          chem:"Fe · O / H₂O",              tier:1,status:"active", parent:70,     desc:"Iron oxide in water. Slow chemistry, high tenacity."},
   {id:72, name:"Chrome Dreams",        chem:"Cr · O / H₂O",              tier:0,status:"dead",   parent:70,     desc:"Chromium chemistry. Very stable. Too stable. The most polished dead world in the archive."},
   {id:73, name:"The Ferrous Wheel",    chem:"Fe · S · C / H₂O",          tier:2,status:"active", parent:70,     desc:"Carbon added to iron sulfide. The wheel turns, slowly."},
@@ -614,13 +626,18 @@ function makeCard(b) {
   const s    = ts(b.tier);
   const isLive = !!b.file;
 
-  div.className = `biome-card ${b.status}${isLive?' live-sim':''}`;
+  div.className = `biome-card ${b.status}`;
+  div.setAttribute('data-id', b.id);
   div.style.borderColor = s[3];
 
   const pct = Math.round((b.tier / 12) * 100);
 
   div.innerHTML = `
     <div class="card-strip" style="background:${b.status!=='dead'?s[0]:'#2a0808'}"></div>
+    <div class="card-canvas-wrap" id="wrap-${b.id}">
+      <canvas id="mini-${b.id}" width="210" height="88"></canvas>
+      <div class="cx-bar"><div class="cx-fill" id="cxfill-${b.id}"></div></div>
+    </div>
     <div class="card-inner">
       <div class="card-header">
         <div class="card-id">${padId(b.id)}</div>
@@ -631,7 +648,7 @@ function makeCard(b) {
       <div class="card-name">${b.name}</div>
       <div class="card-chem">${b.chem}</div>
       <div class="card-tier" style="border:1px solid ${s[3]};background:${s[1]};color:${s[2]}">
-        <span>T${b.tier}</span><span style="color:${s[3]};margin:0 3px">·</span><span>${TIER_NAMES[b.tier]}</span>
+        <span class="t-num">T${b.tier}</span><span style="color:${s[3]};margin:0 3px">·</span><span class="t-name">${TIER_NAMES[b.tier]}</span>
       </div>
       <div class="tier-progress">
         <div class="tier-progress-fill" style="width:${pct}%;background:${s[0]};opacity:0.6"></div>
@@ -774,6 +791,21 @@ function openModal(id) {
 
   // Agent log
   renderAgentLog(b);
+  // Overlay live simulation memory if available
+  const liveLog = getLiveAgentLog(id);
+  if(liveLog && liveLog.length > 0) {
+    const container = document.getElementById('m-log-entries');
+    const liveEntries = liveLog.slice(-12).map(e => {
+      const isNarrator = e.agent==='NARRATOR';
+      const isSystem   = e.agent==='SYSTEM';
+      return `<div class="log-entry">
+        <span class="log-time">t=${e.tick}</span>
+        <span class="log-agent ${e.agent}">${e.agent}</span>
+        <span class="log-msg${isNarrator?' narrator-msg':isSystem?' system-msg':''}">${e.msg}</span>
+      </div>`;
+    }).join('');
+    container.innerHTML = liveEntries + (container.innerHTML ? '<div style="border-top:1px solid var(--border);margin:8px 0;opacity:0.3"></div>' + container.innerHTML : '');
+  }
 
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -1059,9 +1091,382 @@ function renderLineage() {
   });
 }
 
+// ══════════════════════════════════════════════════════════════
+//  PANDORA MINI-SIMULATION ENGINE
+//  Runs a lightweight ABM in every biome card canvas.
+//  15 agents per biome × 100 biomes = 1500 total agents.
+//  Staggered update: each biome updates every 3 frames.
+// ══════════════════════════════════════════════════════════════
+
+// Chemistry family configs: colors + physics params
+const CHEM = {
+  carbon:    {p:'rgba(120,210,255,0.9)', s:'rgba(255,160,40,0.7)',  c:'rgba(255,245,100,0.9)', T:350, ea:160, pb:2.0e-4, bg:'#010d17'},
+  silicon:   {p:'rgba(220,128,40,0.9)',  s:'rgba(240,245,255,0.7)', c:'rgba(120,255,80,0.9)',  T:900, ea:70,  pb:6.0e-5, bg:'#090402'},
+  ammonia:   {p:'rgba(140,180,255,0.9)', s:'rgba(220,235,255,0.7)', c:'rgba(180,140,255,0.9)', T:200, ea:50,  pb:3.0e-5, bg:'#020408'},
+  sulfur:    {p:'rgba(240,208,32,0.9)',  s:'rgba(255,128,64,0.7)',  c:'rgba(96,255,64,0.9)',   T:450, ea:100, pb:1.0e-4, bg:'#080600'},
+  titan:     {p:'rgba(192,160,96,0.9)',  s:'rgba(224,200,128,0.7)', c:'rgba(128,96,255,0.9)',  T:95,  ea:80,  pb:4.0e-5, bg:'#040300'},
+  boron:     {p:'rgba(64,220,192,0.9)',  s:'rgba(176,255,216,0.7)', c:'rgba(96,208,255,0.9)',  T:320, ea:75,  pb:7.0e-5, bg:'#010a08'},
+  phosphorus:{p:'rgba(160,96,255,0.9)',  s:'rgba(208,168,255,0.7)', c:'rgba(96,255,255,0.9)',  T:310, ea:90,  pb:8.0e-5, bg:'#040008'},
+  iron:      {p:'rgba(200,112,48,0.9)',  s:'rgba(255,220,64,0.7)',  c:'rgba(96,180,255,0.9)',  T:400, ea:90,  pb:5.0e-5, bg:'#050302'},
+  hf:        {p:'rgba(192,216,255,0.9)', s:'rgba(160,184,255,0.7)', c:'rgba(96,255,136,0.9)',  T:200, ea:120, pb:1.5e-4, bg:'#020408'},
+  hybrid:    {p:'rgba(255,96,160,0.9)',  s:'rgba(96,255,255,0.7)',  c:'rgba(255,255,96,0.9)',  T:380, ea:85,  pb:9.0e-5, bg:'#040204'},
+};
+
+function getBiomeChem(id) {
+  if(id<=9)  return CHEM.carbon;
+  if(id<=19) return CHEM.silicon;
+  if(id<=29) return CHEM.ammonia;
+  if(id<=39) return CHEM.sulfur;
+  if(id<=49) return CHEM.titan;
+  if(id<=59) return CHEM.boron;
+  if(id<=69) return CHEM.phosphorus;
+  if(id<=79) return CHEM.iron;
+  if(id<=84) return CHEM.hf;
+  return CHEM.hybrid;
+}
+
+// Cross-biome knowledge base (lives in memory this session)
+const BioKnowledge = {
+  entries: [],
+  record(biomeId, family, event, data) {
+    this.entries.push({biomeId, family, event, data, tick: Date.now()});
+    if(this.entries.length > 200) this.entries.shift();
+  },
+  getFor(family, exclude) {
+    return this.entries.filter(e => e.family === family && e.biomeId !== exclude).slice(-3);
+  }
+};
+
+class BioMini {
+  constructor(biome, canvas) {
+    this.id      = biome.id;
+    this.biome   = biome;
+    this.canvas  = canvas;
+    this.ctx     = canvas.getContext('2d');
+    this.W       = canvas.width  || 210;
+    this.H       = canvas.height || 88;
+    this.cfg     = getBiomeChem(biome.id);
+    this.family  = Object.keys(CHEM)[Object.values(CHEM).indexOf(this.cfg)] || 'carbon';
+
+    // Simulation state
+    this.A       = [];
+    this.bonds   = new Set();
+    this.tick    = 0;
+    this.cx      = 0;
+    this.tier    = 0;
+    this.status  = biome.status; // 'active' | 'forming' | 'dead'
+
+    // Vitality
+    this.peakCx      = 0;
+    this.peakTick    = 0;
+    this.interventions = 0;
+    this.STAG_WIN    = 700;
+    this.MAX_INT     = 3;
+    this.DELTA       = 0.06;
+    this.HARD_DEATH  = 8000;
+
+    // Agent conversation state
+    this.agentMemory = [];
+    this.lastSpeakTick = 0;
+    this.proposals = [];
+
+    if(this.status !== 'dead') this.init();
+    else this.drawDead();
+  }
+
+  init() {
+    this.A = []; this.bonds = new Set();
+    // 8 chain-formers (type A), 6 linkers (type B), 1 catalyst (type C)
+    for(let i=0;i<8;i++) this.spawn(0);
+    for(let i=0;i<6;i++) this.spawn(1);
+    this.spawn(2);
+  }
+
+  spawn(type, x, y) {
+    this.A.push({
+      type,
+      x: x ?? Math.random()*this.W,
+      y: y ?? (Math.random()*this.H*0.82+this.H*0.06),
+      vx:(Math.random()-0.5)*1.0,
+      vy:(Math.random()-0.5)*1.0,
+      bonds: new Set(),
+    });
+  }
+
+  bkey(i,j){ return i<j?`${i},${j}`:`${j},${i}`; }
+
+  bond(i,j) {
+    const k=this.bkey(i,j);
+    if(this.bonds.has(k)) return;
+    this.bonds.add(k);
+    this.A[i].bonds.add(j);
+    this.A[j].bonds.add(i);
+  }
+
+  unBond(i,j) {
+    const k=this.bkey(i,j);
+    if(!this.bonds.has(k)) return;
+    this.bonds.delete(k);
+    this.A[i].bonds.delete(j);
+    this.A[j].bonds.delete(i);
+  }
+
+  step() {
+    if(this.status==='dead') return;
+    this.tick++;
+    const A=this.A, T=this.cfg.T, noise=0.22*Math.sqrt(T/350);
+    const toBreak=[];
+
+    // Brownian + drag
+    for(const a of A) {
+      const drag = a.bonds.size>0 ? 0.89 : 0.93;
+      a.vx += (Math.random()-0.5)*noise*2.8;
+      a.vy += (Math.random()-0.5)*noise*2.8;
+      a.vx *= drag; a.vy *= drag;
+      a.x  += a.vx; a.y  += a.vy;
+      if(a.x<0) a.x+=this.W; else if(a.x>this.W) a.x-=this.W;
+      if(a.y<0) a.y+=this.H; else if(a.y>this.H) a.y-=this.H;
+    }
+
+    // Pairwise (n=15, O(n²) fine)
+    for(let i=0;i<A.length;i++) {
+      for(let j=i+1;j<A.length;j++) {
+        const a=A[i],b=A[j];
+        const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy;
+        if(d2>900) continue;
+        const d=Math.sqrt(d2)+0.001;
+
+        // Bond: A(0)+B(1)
+        if((a.type===0&&b.type===1)||(a.type===1&&b.type===0)) {
+          const ai=a.type===0?i:j, bi=a.type===1?j:i;
+          if(!A[ai].bonds.has(bi) && A[ai].bonds.size<2 && A[bi].bonds.size<2) {
+            const catNear = A.some(c=>c.type===2&&Math.hypot(c.x-a.x,c.y-a.y)<22);
+            const p = 0.006*(catNear?3.5:1)*Math.exp(-this.cfg.ea/T);
+            if(Math.random()<p) this.bond(ai,bi);
+          }
+        }
+
+        // Break + spring
+        if(this.bonds.has(this.bkey(i,j))) {
+          if(Math.random()<this.cfg.pb) {
+            toBreak.push([i,j]);
+          } else {
+            const f=0.045*(d-16)/d;
+            a.vx+=dx*f; a.vy+=dy*f;
+            b.vx-=dx*f; b.vy-=dy*f;
+          }
+        }
+
+        // Repulsion
+        if(d<7) {
+          const f=0.28*(1-d/7)/d;
+          a.vx-=dx*f; a.vy-=dy*f;
+          b.vx+=dx*f; b.vy+=dy*f;
+        }
+      }
+    }
+    for(const [i,j] of toBreak) this.unBond(i,j);
+
+    // Complexity + vitality every 8 ticks
+    if(this.tick%8===0) {
+      this.cx = this.computeCx();
+      this.checkTier();
+      this.checkVitality();
+      this.updateCardDisplay();
+    }
+  }
+
+  computeCx() {
+    const vis=new Uint8Array(this.A.length); let s=0;
+    const nA=this.A.filter(a=>a.type===0).length;
+    for(let i=0;i<this.A.length;i++) {
+      if(this.A[i].type!==0||vis[i]) continue;
+      const q=[i], comp=[];
+      while(q.length){const c=q.pop();if(vis[c])continue;vis[c]=1;comp.push(c);for(const nb of this.A[c].bonds)if(!vis[nb]&&this.A[nb].type===0)q.push(nb);}
+      if(comp.length>1) s+=comp.length*comp.length;
+    }
+    return nA>0?s/nA:0;
+  }
+
+  checkTier() {
+    const thresholds=[0,0,0.4,1.0,1.8,2.8,4.0];
+    for(let t=1;t<=6;t++) {
+      if(this.tier<t && this.cx>=thresholds[t]) {
+        this.tier=t;
+        this.onTierUp(t);
+        break;
+      }
+    }
+  }
+
+  onTierUp(t) {
+    // Update the biome data and card tier display
+    const b = BIOMES.find(x=>x.id===this.id);
+    if(b && b.tier < t) {
+      b.tier = t;
+      // Update tier chip in this card
+      const strip = document.querySelector(`[data-id="${this.id}"] .card-tier`);
+      if(strip) {
+        const s = ts(t);
+        strip.style.background = s[1];
+        strip.style.borderColor = s[3];
+        strip.style.color = s[2];
+        strip.querySelector('.t-num').textContent = `T${t}`;
+        strip.querySelector('.t-name').textContent = TIER_NAMES[t];
+      }
+      BioKnowledge.record(this.id, this.family, 'tier_up', {tier:t, cx:this.cx});
+      // Agent speaks about tier promotion
+      this.agentSpeak('ANALYST', `T${t} reached at tick ${this.tick}. Cx=${this.cx.toFixed(2)}.`);
+    }
+  }
+
+  checkVitality() {
+    if(this.status==='dead') return;
+    if(this.cx > this.peakCx*(1+this.DELTA)) {
+      this.peakCx = this.cx;
+      this.peakTick = this.tick;
+    }
+    // Hard death: no T2 by HARD_DEATH ticks
+    if(!this.tier>=2 && this.tick>this.HARD_DEATH) { this.die('hard timeout — T2 never reached'); return; }
+    // Stagnation
+    if(this.tick>200 && this.tick-this.peakTick>this.STAG_WIN) {
+      if(this.interventions>=this.MAX_INT) {
+        this.die(`stagnation after ${this.interventions} interventions`);
+      } else {
+        this.perturb();
+      }
+    }
+  }
+
+  perturb() {
+    this.interventions++;
+    this.peakTick = this.tick;
+    // Inject fresh agents
+    this.spawn(0, Math.random()*this.W, 4);
+    this.spawn(1, Math.random()*this.W, 4);
+    if(Math.random()<0.4) this.spawn(2, Math.random()*this.W, 4);
+    this.agentSpeak('SYSTEM', `Perturbation ${this.interventions}/${this.MAX_INT} applied.`);
+    this.agentSpeak('ANALYST', `Stagnation at cx=${this.cx.toFixed(2)}. New agents injected. Monitoring response.`);
+  }
+
+  die(reason) {
+    this.status = 'dead';
+    const b = BIOMES.find(x=>x.id===this.id);
+    if(b) b.status = 'dead';
+    BioKnowledge.record(this.id, this.family, 'death', {reason, finalTier:this.tier, finalCx:this.cx});
+    this.agentSpeak('NARRATOR', `World ${this.id} archived. Final tier: T${this.tier}. Learnings passed to descendants.`);
+    this.drawDead();
+    // Update card status dot
+    const dot = document.querySelector(`[data-id="${this.id}"] .sdot`);
+    if(dot) { dot.className='sdot dead'; dot.nextElementSibling && (dot.nextElementSibling.textContent='DEAD'); }
+  }
+
+  // Agent conversation — stored and shown in modal log
+  agentSpeak(agent, msg) {
+    this.agentMemory.push({agent, msg, tick:this.tick});
+    if(this.agentMemory.length>40) this.agentMemory.shift();
+    this.lastSpeakTick = this.tick;
+  }
+
+  updateCardDisplay() {
+    const fill = document.getElementById(`cxfill-${this.id}`);
+    if(fill) {
+      const pct = Math.min(100, (this.cx/3)*100);
+      fill.style.width = pct+'%';
+      const c = this.cfg;
+      fill.style.background = c.p.replace('0.9','0.6');
+    }
+  }
+
+  draw() {
+    if(this.status==='dead') { this.drawDead(); return; }
+    const ctx=this.ctx, c=this.cfg;
+    ctx.fillStyle = c.bg || '#020408';
+    ctx.fillRect(0,0,this.W,this.H);
+
+    // Subtle vent glow at bottom
+    const vg=ctx.createRadialGradient(this.W/2,this.H,2,this.W/2,this.H,this.H*0.8);
+    const pRgb = c.p.match(/[\d.]+/g);
+    vg.addColorStop(0, `rgba(${pRgb[0]},${pRgb[1]},${pRgb[2]},0.08)`);
+    vg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,this.W,this.H);
+
+    // Bonds
+    ctx.lineWidth=0.8;
+    for(const k of this.bonds) {
+      const [si,sj]=k.split(',');
+      const a2=this.A[+si],b2=this.A[+sj];
+      if(!a2||!b2) continue;
+      ctx.strokeStyle = c.p.replace('0.9','0.35');
+      ctx.beginPath(); ctx.moveTo(a2.x,a2.y); ctx.lineTo(b2.x,b2.y); ctx.stroke();
+    }
+
+    // Agents
+    for(const a of this.A) {
+      let col, r;
+      if(a.type===0)      { col=c.p; r=2.2+a.bonds.size*0.4; }
+      else if(a.type===1) { col=c.s; r=1.6; }
+      else                { col=c.c; r=2.0; }
+      ctx.beginPath(); ctx.arc(a.x,a.y,r,0,Math.PI*2);
+      ctx.fillStyle=col; ctx.fill();
+    }
+  }
+
+  drawDead() {
+    const ctx=this.ctx;
+    ctx.fillStyle='#080404'; ctx.fillRect(0,0,this.W,this.H);
+    ctx.fillStyle='rgba(160,50,40,0.06)'; ctx.fillRect(0,0,this.W,this.H);
+    ctx.font='7px Courier New'; ctx.fillStyle='rgba(160,60,50,0.35)';
+    ctx.textAlign='center'; ctx.fillText('ARCHIVED',this.W/2,this.H/2+2);
+  }
+}
+
+// Global mini-sim registry
+const MINI = {};
+
+function initMiniSims() {
+  BIOMES.forEach(b => {
+    const canvas = document.getElementById(`mini-${b.id}`);
+    if(!canvas) return;
+    canvas.width  = canvas.parentElement.offsetWidth || 210;
+    canvas.height = 88;
+    MINI[b.id] = new BioMini(b, canvas);
+    // Start initial agent conversation
+    MINI[b.id].agentSpeak('OBSERVER', `${b.name} initialized. Chemistry: ${b.chem}.`);
+    const prev = BioKnowledge.getFor(MINI[b.id].family, b.id);
+    if(prev.length>0) MINI[b.id].agentSpeak('ANALYST', `Cross-biome data available from ${prev.length} related world(s). Applying learnings.`);
+  });
+}
+
+let mFrame = 0;
+function runMiniSims() {
+  requestAnimationFrame(runMiniSims);
+  mFrame++;
+  BIOMES.forEach(b => {
+    const sim = MINI[b.id];
+    if(!sim) return;
+    // Stagger: update every 3 frames, offset by id
+    if((mFrame + b.id) % 3 !== 0) return;
+    sim.step();
+    sim.draw();
+  });
+}
+
+// Update modal agent log with live conversation from the mini-sim
+function getLiveAgentLog(biomeId) {
+  const sim = MINI[biomeId];
+  if(!sim || !sim.agentMemory.length) return null;
+  return sim.agentMemory;
+}
+
 // ── Init ──────────────────────────────────────────────────
 buildHero();
 renderGrid();
+// Start all mini-simulations after grid is rendered
+setTimeout(() => {
+  initMiniSims();
+  runMiniSims();
+}, 100);
 </script>
 </body>
 </html>

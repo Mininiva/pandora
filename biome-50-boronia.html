@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pandora — Biome 50: Boronia</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+canvas { display: block; position: absolute; inset: 0; z-index: 0; }
+
+/* ── HUD (left) ───────────────────────────────────────────── */
+#hud {
+  position: absolute; top: 24px; left: 24px; z-index: 10;
+  font-size: 11px; line-height: 2.1;
+  color: rgba(80, 220, 200, 0.7);
+  text-shadow: 0 0 8px rgba(60, 180, 160, 0.3);
+}
+.hk { color: rgba(50, 160, 140, 0.55); display: inline-block; width: 108px; }
+.hv { color: rgba(150, 245, 220, 0.92); }
+
+#title {
+  position: absolute; top: 24px; right: 290px; z-index: 10;
+  font-size: 13px; letter-spacing: 5px;
+  color: rgba(80, 220, 200, 0.28);
+  text-shadow: 0 0 20px rgba(60, 180, 160, 0.12);
+}
+#subtitle {
+  position: absolute; top: 46px; right: 290px; z-index: 10;
+  font-size: 9px; letter-spacing: 3px;
+  color: rgba(60, 180, 160, 0.22);
+}
+
+#graph-box {
+  position: absolute; bottom: 24px; right: 290px; z-index: 10;
+}
+#gl { font-size: 9px; letter-spacing: 3px; color: rgba(80,200,180,0.35); margin-bottom: 5px; }
+#gc { display: block; border: 1px solid rgba(80,200,180,0.12); }
+
+#elog {
+  position: absolute; bottom: 24px; left: 24px; z-index: 10;
+  font-size: 10px; line-height: 1.8;
+  color: rgba(80, 220, 200, 0.55);
+  width: 340px;
+}
+
+#legend {
+  position: absolute; top: 280px; left: 24px; z-index: 10;
+  font-size: 10px; line-height: 2.2;
+  color: rgba(50, 160, 140, 0.45);
+  border-top: 1px solid rgba(80, 200, 180, 0.12);
+  padding-top: 12px;
+}
+.ld {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  margin-right: 7px; vertical-align: middle;
+}
+
+#world-state {
+  position: absolute; top: 50%; left: calc(50% - 130px);
+  transform: translate(-50%, -50%);
+  font-size: 22px; letter-spacing: 8px;
+  pointer-events: none; z-index: 20;
+  opacity: 0; transition: opacity 1.5s;
+}
+#world-state.dead {
+  color: rgba(80, 200, 180, 0.75);
+  text-shadow: 0 0 40px rgba(60, 160, 140, 0.4);
+  opacity: 1;
+}
+#world-state.perturbed {
+  color: rgba(150, 240, 220, 0.8);
+  text-shadow: 0 0 30px rgba(100, 200, 180, 0.5);
+  opacity: 1;
+}
+
+/* ── Agent panel (right, collapsible) ────────────────────── */
+#agent-panel {
+  position: fixed; top: 0; right: 0;
+  width: 268px; height: 100vh;
+  background: rgba(5, 8, 14, 0.90);
+  backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(80, 220, 200, 0.10);
+  display: flex; flex-direction: column;
+  z-index: 50;
+  transition: transform 0.3s ease;
+}
+#agent-panel.collapsed { transform: translateX(256px); }
+
+#panel-toggle {
+  position: absolute; left: -28px; top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 54px;
+  background: rgba(5, 8, 14, 0.90);
+  border: 1px solid rgba(80, 220, 200, 0.10);
+  border-right: none;
+  cursor: pointer;
+  color: rgba(60, 180, 160, 0.55);
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  display: flex; align-items: center; justify-content: center;
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+}
+#panel-toggle:hover { color: rgba(150, 240, 220, 0.8); }
+
+#panel-header {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(80, 220, 200, 0.07);
+  flex-shrink: 0;
+}
+#panel-title {
+  font-size: 7px; letter-spacing: 4px;
+  color: rgba(60, 180, 160, 0.55);
+  margin-bottom: 3px;
+}
+#panel-agents {
+  font-size: 8px;
+  display: flex; gap: 8px;
+}
+.pagent { font-size: 7px; letter-spacing: 1px; }
+.pagent.OBSERVER { color: rgba(100, 180, 255, 0.6); }
+.pagent.ANALYST  { color: rgba(60, 210, 170, 0.6); }
+.pagent.NARRATOR { color: rgba(255, 200, 80, 0.6); }
+
+#agent-feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+#agent-feed::-webkit-scrollbar { width: 2px; }
+#agent-feed::-webkit-scrollbar-thumb { background: rgba(80, 200, 180, 0.2); }
+
+.ae { display: flex; flex-direction: column; gap: 3px; animation: fadein 0.4s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+.ae-meta { display: flex; gap: 8px; align-items: baseline; }
+.ae-name { font-size: 7px; letter-spacing: 2px; }
+.ae-time { font-size: 7px; color: rgba(80, 150, 140, 0.45); }
+.ae-msg  { font-size: 9.5px; line-height: 1.65; padding-left: 2px; }
+
+.ae-name.OBSERVER { color: rgba(100, 180, 255, 0.85); }
+.ae-name.ANALYST  { color: rgba(60, 210, 170, 0.85); }
+.ae-name.NARRATOR { color: rgba(255, 200, 80, 0.92); }
+.ae-name.SYSTEM   { color: rgba(80, 200, 180, 0.65); }
+
+.ae-msg.OBSERVER  { color: rgba(140, 200, 240, 0.60); }
+.ae-msg.ANALYST   { color: rgba(100, 220, 185, 0.60); }
+.ae-msg.NARRATOR  { color: rgba(225, 185, 80, 0.68); font-style: italic; }
+.ae-msg.SYSTEM    { color: rgba(100, 180, 160, 0.50); font-size: 9px; letter-spacing: 0.3px; }
+</style>
+</head>
+<body>
+
+<canvas id="main"></canvas>
+
+<div id="title">BIOME 50 — BORONIA</div>
+<div id="subtitle">BORON · NITROGEN · WATER · CARBON ANALOG</div>
+
+<div id="hud">
+  <div><span class="hk">CHEMISTRY</span><span class="hv">B / N / H₂O</span></div>
+  <div><span class="hk">SOLVENT</span><span class="hv">Aqueous suspension</span></div>
+  <div><span class="hk">TEMP</span>    <span class="hv" id="v-t">320 K</span></div>
+  <div><span class="hk">PRESSURE</span><span class="hv" id="v-p">8 atm</span></div>
+  <div><span class="hk">B ATOMS</span> <span class="hv" id="v-si">—</span></div>
+  <div><span class="hk">B-N BONDS</span><span class="hv" id="v-bonds">—</span></div>
+  <div><span class="hk">MAX CHAIN</span><span class="hv" id="v-mxl">—</span></div>
+  <div><span class="hk">BRANCH PTS</span><span class="hv" id="v-brn">—</span></div>
+  <div><span class="hk">RINGS</span>   <span class="hv" id="v-rings">—</span></div>
+  <div><span class="hk">COMPLEXITY</span><span class="hv" id="v-cx">—</span></div>
+  <div><span class="hk">TIER</span>    <span class="hv" id="v-tier">T0 — Inert</span></div>
+  <div><span class="hk">SPEED</span>   <span class="hv" id="v-speed">4×</span></div>
+  <div><span class="hk">TIME</span>    <span class="hv" id="v-time">—</span></div>
+</div>
+
+<div id="legend">
+  <div><span class="ld" style="background:rgba(80,220,200,0.9)"></span>boron monomer (B)</div>
+  <div><span class="ld" style="background:rgba(180,255,220,0.75)"></span>nitrogen bridge (N)</div>
+  <div><span class="ld" style="background:rgba(100,200,255,0.7)"></span>water catalyst (H₂O)</div>
+</div>
+
+<div id="graph-box">
+  <div id="gl">NETWORK COMPLEXITY</div>
+  <canvas id="gc" width="220" height="90"></canvas>
+</div>
+
+<div id="world-state"></div>
+<div id="elog"></div>
+
+<!-- ── Agent panel ───────────────────────────────────────────── -->
+<div id="agent-panel">
+  <button id="panel-toggle" onclick="togglePanel()">AGENTS</button>
+  <div id="panel-header">
+    <div id="panel-title">FIELD AGENTS — BORONIA</div>
+    <div id="panel-agents">
+      <span class="pagent OBSERVER">OBSERVER</span>
+      <span class="pagent ANALYST">ANALYST</span>
+      <span class="pagent NARRATOR">NARRATOR</span>
+    </div>
+  </div>
+  <div id="agent-feed"></div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+//  PANDORA — BIOME 50: BORONIA
+//
+//  Boron-nitrogen chemistry in aqueous suspension.
+//  320K, moderate conditions. A carbon analog world.
+//
+//  Chemistry palette:
+//    BO  — boron monomer (up to 3 bonds, C-analog node)
+//    NB  — nitrogen bridge (up to 2 bonds, links BO atoms)
+//    WC  — water catalyst (enhances B-N bond formation)
+//
+//  Key insight: B-N is isoelectronic to C-C
+//  B-N bond: 1.44 Ångstrom
+//  C-C bond: 1.54 Ångstrom
+//  Nearly identical geometry. Same grammar, different language.
+// ═══════════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('main');
+const ctx    = canvas.getContext('2d');
+const gcv    = document.getElementById('gc');
+const gctx   = gcv.getContext('2d');
+
+let W, H;
+const resize = () => {
+  W = canvas.width  = innerWidth;
+  H = canvas.height = innerHeight;
+};
+resize();
+addEventListener('resize', resize);
+
+// ── Biome constants ───────────────────────────────────────────
+const T0     = 320;
+const NOISE  = 0.18;
+const VENT_H = 0.40;
+
+const lTemp = (x, y) =>
+  T0 * (1 + VENT_H * Math.max(0, 1 - Math.hypot(x - W * 0.5, y - H) / (H * 0.6)));
+
+// ── Agent type constants ──────────────────────────────────────
+const BO = 0;   // boron monomer — network node
+const NB = 1;   // nitrogen bridge — linker
+const WC = 2;   // water catalyst
+
+const MAX_BO_BONDS = 3;  // boron trigonal
+const MAX_NB_BONDS = 2;  // nitrogen bridges two BO atoms
+
+// ── Simulation state ──────────────────────────────────────────
+let A      = [];
+let BONDS  = new Set();
+let tick   = 0;
+let uid    = 0;
+
+const bkey = (i, j) => i < j ? `${i},${j}` : `${j},${i}`;
+
+function newAgent(type, x, y) {
+  return {
+    id:    uid++,
+    type,
+    x:     x  ?? Math.random() * W,
+    y:     y  ?? (Math.random() * H * 0.85 + H * 0.05),
+    vx:    (Math.random() - 0.5) * 1.1,
+    vy:    (Math.random() - 0.5) * 1.1,
+    bonds: new Set(),
+    hot:   false,
+    hotT:  0,
+    idx:   -1,
+  };
+}
+
+function addAgent(type, x, y, vx, vy) {
+  const a = newAgent(type, x, y);
+  if (vx !== undefined) { a.vx = vx; a.vy = vy; }
+  a.idx = A.length;
+  A.push(a);
+}
+
+function init() {
+  A = []; BONDS.clear(); tick = 0; uid = 0;
+  for (let i = 0; i < 150; i++) addAgent(BO);
+  for (let i = 0; i < 130; i++) addAgent(NB);
+  for (let i = 0; i <  25; i++) addAgent(WC);
+}
+
+// ── Spatial hash ──────────────────────────────────────────────
+const CELL = 32;
+let gh = {};
+
+function buildGrid() {
+  gh = {};
+  for (let i = 0; i < A.length; i++) {
+    const a = A[i];
+    const k = `${(a.x / CELL) | 0},${(a.y / CELL) | 0}`;
+    (gh[k] = gh[k] || []).push(i);
+  }
+}
+
+function nearby(x, y, cells = 1) {
+  const cx = (x / CELL) | 0, cy = (y / CELL) | 0, out = [];
+  for (let dx = -cells; dx <= cells; dx++)
+    for (let dy = -cells; dy <= cells; dy++) {
+      const nb = gh[`${cx + dx},${cy + dy}`];
+      if (nb) for (const i of nb) out.push(i);
+    }
+  return out;
+}
+
+// ── Bond management ───────────────────────────────────────────
+let totalBondsFormed = 0;
+
+function addBond(i, j) {
+  const k = bkey(i, j);
+  if (BONDS.has(k)) return;
+  BONDS.add(k);
+  A[i].bonds.add(j);
+  A[j].bonds.add(i);
+  totalBondsFormed++;
+}
+
+function rmBond(i, j) {
+  const k = bkey(i, j);
+  if (!BONDS.has(k)) return;
+  BONDS.delete(k);
+  A[i].bonds.delete(j);
+  A[j].bonds.delete(i);
+}
+
+// ── Network analysis ──────────────────────────────────────────
+function findComponents() {
+  const vis = new Uint8Array(A.length);
+  const comps = [];
+  for (let i = 0; i < A.length; i++) {
+    if (vis[i] || A[i].type === WC) continue;
+    const comp = { nodes: [], boCount: 0, bonds: 0 };
+    const q = [i];
+    while (q.length) {
+      const c = q.pop();
+      if (vis[c]) continue;
+      vis[c] = 1;
+      comp.nodes.push(c);
+      if (A[c].type === BO) comp.boCount++;
+      for (const nb of A[c].bonds) {
+        comp.bonds++;
+        if (!vis[nb]) q.push(nb);
+      }
+    }
+    comp.bonds = Math.floor(comp.bonds / 2);
+    if (comp.nodes.length >= 2) comps.push(comp);
+  }
+  return comps;
+}
+
+function maxChainLength(comps) {
+  return comps.reduce((m, c) => Math.max(m, c.boCount), 0);
+}
+
+function countBranching() {
+  return A.filter(a => a.type === BO && a.bonds.size >= 3).length;
+}
+
+function countRings(comps) {
+  return comps.filter(c => c.bonds > c.nodes.length - 1).length;
+}
+
+function complexity(comps) {
+  const nBO = A.filter(a => a.type === BO).length;
+  if (!nBO) return 0;
+  return comps.reduce((s, c) => s + c.boCount * c.boCount, 0) / nBO;
+}
+
+// ── Event log ──────────────────────────────────────────────────
+const elog = [];
+let lastLogT = -300;
+
+function logE(msg) {
+  if (tick - lastLogT < 80) return;
+  lastLogT = tick;
+  elog.unshift(`[t=${tick}]  ${msg}`);
+  if (elog.length > 7) elog.pop();
+}
+
+// ── Physics update ────────────────────────────────────────────
+const toBreak = [];
+let SPEED = 4;
+
+function update() {
+  tick++;
+
+  if (tick % 150 === 0 && A.filter(a => a.type === BO).length < 180) {
+    addAgent(BO, W*0.5 + (Math.random()-0.5)*W*0.12, H-4,
+             (Math.random()-0.5)*0.8, -2.4 - Math.random()*1.6);
+  }
+  if (tick % 200 === 0 && A.filter(a => a.type === NB).length < 160) {
+    addAgent(NB, W*0.5 + (Math.random()-0.5)*W*0.16, H-4,
+             (Math.random()-0.5)*0.7, -2.0 - Math.random()*1.3);
+  }
+  if (tick % 450 === 0 && A.filter(a => a.type === WC).length < 35) {
+    addAgent(WC, W*0.5 + (Math.random()-0.5)*W*0.14, H-4,
+             (Math.random()-0.5)*0.5, -2.8 - Math.random()*1.8);
+  }
+
+  buildGrid();
+
+  // ── Brownian motion + drag ────────────────────────────────
+  for (let i = 0; i < A.length; i++) {
+    const a  = A[i];
+    const Tl = lTemp(a.x, a.y);
+    const br = Math.sqrt(Tl / T0) * NOISE;
+
+    const drag = (a.bonds.size > 0)
+      ? (a.type === BO ? 0.91 : 0.92)
+      : (a.type === WC ? 0.97 : 0.95);
+
+    a.vx += (Math.random() - 0.5) * br * 3.0;
+    a.vy += (Math.random() - 0.5) * br * 3.0;
+    a.vx *= drag;
+    a.vy *= drag;
+    a.x  += a.vx;
+    a.y  += a.vy;
+
+    if (a.x < 0) a.x += W; else if (a.x > W) a.x -= W;
+    if (a.y < 0) a.y += H; else if (a.y > H) a.y -= H;
+
+    if (a.hot && --a.hotT <= 0) a.hot = false;
+  }
+
+  // ── Pairwise interactions ─────────────────────────────────
+  for (let i = 0; i < A.length; i++) {
+    const a = A[i];
+    for (const j of nearby(a.x, a.y)) {
+      if (j <= i) continue;
+      const b  = A[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 > CELL*CELL) continue;
+      const d  = Math.sqrt(d2) + 0.001;
+      const Tl = lTemp((a.x+b.x)*0.5, (a.y+b.y)*0.5);
+
+      // ── BO + NB → B-N bond ────────────────────────────────
+      const isBoNb = (a.type===BO && b.type===NB) || (a.type===NB && b.type===BO);
+      if (isBoNb) {
+        const bo = a.type===BO ? a : b;
+        const bo_i = a.type===BO ? i : j;
+        const nb = a.type===NB ? a : b;
+        const nb_j = a.type===NB ? j : i;
+        const bonded = bo.bonds.has(nb_j);
+
+        if (!bonded && bo.bonds.size < MAX_BO_BONDS && nb.bonds.size < MAX_NB_BONDS) {
+          let hasCat = false;
+          for (const k of nearby(bo.x, bo.y)) {
+            if (A[k].type === WC && Math.hypot(A[k].x-bo.x, A[k].y-bo.y) < CELL*1.5) {
+              hasCat = true; break;
+            }
+          }
+          const p = 0.005
+            * (hasCat ? 4.0 : 1)
+            * Math.exp(-75 / Tl);
+
+          if (Math.random() < p) {
+            addBond(bo_i, nb_j);
+            const f = 0.17 / d;
+            bo.vx += dx * f * (a.type===BO ? 1 : -1);
+            bo.vy += dy * f * (a.type===BO ? 1 : -1);
+            nb.vx -= dx * f * (b.type===NB ? 1 : -1);
+            nb.vy -= dy * f * (b.type===NB ? 1 : -1);
+            if (hasCat) {
+              bo.hot = true; bo.hotT = 50;
+              logE('water-catalysed B-N bond formed');
+            }
+          }
+        }
+
+        if (bonded) {
+          const Pb = 7e-5 * Math.exp(Tl / 550);
+          if (Math.random() < Pb) {
+            toBreak.push([bo_i, nb_j]);
+          } else {
+            const rest = 18;
+            const stretch = d - rest;
+            const f = 0.055 * stretch / d;
+            bo.vx += dx * f; bo.vy += dy * f;
+            nb.vx -= dx * f; nb.vy -= dy * f;
+          }
+        }
+      }
+
+      // ── NB–NB: mild repulsion ──────────────────────────────
+      if (a.type===NB && b.type===NB) {
+        if (d < 13) {
+          const f = 0.21 * (1 - d/13) / d;
+          a.vx -= dx*f; a.vy -= dy*f;
+          b.vx += dx*f; b.vy += dy*f;
+        }
+      }
+
+      // ── BO–BO: steric repulsion ────────────────────────────
+      if (a.type===BO && b.type===BO) {
+        if (d < 15) {
+          const f = 0.27 * (1 - d/15) / d;
+          a.vx -= dx*f; a.vy -= dy*f;
+          b.vx += dx*f; b.vy += dy*f;
+        }
+      }
+    }
+  }
+
+  while (toBreak.length) {
+    const [i, j] = toBreak.pop();
+    rmBond(i, j);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────
+let tierFlash = 0, tierFlashLabel = '';
+let perturbFlash = 0;
+let worldStatus = 'active';
+
+function render(comps, brn, rings) {
+
+  // Background — teal/aqua
+  ctx.fillStyle = '#010a08';
+  ctx.fillRect(0, 0, W, H);
+
+  if (worldStatus === 'dead') {
+    ctx.fillStyle = 'rgba(8, 18, 16, 0.55)';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  if (perturbFlash > 0) {
+    ctx.fillStyle = `rgba(80, 220, 200, ${perturbFlash/40 * 0.10})`;
+    ctx.fillRect(0, 0, W, H);
+    perturbFlash--;
+  }
+
+  if (tierFlash > 0) {
+    ctx.fillStyle = `rgba(80, 220, 200, ${(tierFlash/90) * 0.10})`;
+    ctx.fillRect(0, 0, W, H);
+    if (tierFlash > 50) {
+      ctx.save();
+      ctx.globalAlpha = (tierFlash-50)/40;
+      ctx.font = '13px Courier New';
+      ctx.fillStyle = 'rgba(150, 240, 220, 0.9)';
+      ctx.textAlign = 'center';
+      ctx.fillText(tierFlashLabel, W/2 - 130, H/2 - 12);
+      ctx.font = '10px Courier New';
+      ctx.fillStyle = 'rgba(100, 200, 180, 0.6)';
+      ctx.fillText('THRESHOLD CROSSED', W/2 - 130, H/2 + 10);
+      ctx.restore();
+    }
+    tierFlash--;
+  }
+
+  // Vent glow at bottom (teal)
+  const vg = ctx.createRadialGradient(W*0.5, H, 10, W*0.5, H, H*0.55);
+  vg.addColorStop(0,   'rgba(80, 200, 180, 0.18)');
+  vg.addColorStop(0.4, 'rgba(50, 140, 120, 0.07)');
+  vg.addColorStop(1,   'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  const cg = ctx.createLinearGradient(0, 0, 0, H*0.3);
+  cg.addColorStop(0, 'rgba(60, 100, 90, 0.04)');
+  cg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = cg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Network auras
+  for (const comp of comps) {
+    if (comp.boCount < 3) continue;
+    let cx = 0, cy = 0;
+    for (const idx of comp.nodes) { cx += A[idx].x; cy += A[idx].y; }
+    cx /= comp.nodes.length; cy /= comp.nodes.length;
+    const r = Math.sqrt(comp.nodes.length) * 13;
+    const alpha = Math.min(0.09, comp.nodes.length * 0.0035);
+    const ag = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    ag.addColorStop(0, `rgba(80, 220, 200, ${alpha * 2.0})`);
+    ag.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = ag;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // B-N bonds
+  ctx.lineWidth = 1.4;
+  for (const k of BONDS) {
+    const [si, sj] = k.split(',');
+    const a2 = A[+si], b2 = A[+sj];
+    if (!a2 || !b2) continue;
+    const len = (a2.bonds.size + b2.bonds.size) * 0.5;
+    const r2  = Math.min(255, 160 + len * 20);
+    const g2  = Math.min(255, 200 + len * 18);
+    ctx.strokeStyle = `rgba(${r2}, ${g2}, 240, 0.54)`;
+    ctx.beginPath();
+    ctx.moveTo(a2.x, a2.y);
+    ctx.lineTo(b2.x, b2.y);
+    ctx.stroke();
+  }
+
+  // NB agents — nitrogen bridges (pale mint)
+  for (const a of A) {
+    if (a.type !== NB) continue;
+    const bonded = a.bonds.size > 0;
+    const r = bonded ? 2.8 : 1.9;
+
+    if (bonded) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 2.6, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(180, 255, 220, 0.05)';
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, r, 0, Math.PI*2);
+    ctx.fillStyle = bonded
+      ? 'rgba(180, 255, 220, 0.75)'
+      : 'rgba(120, 200, 180, 0.40)';
+    ctx.fill();
+  }
+
+  // BO agents — boron monomers (bright teal)
+  for (const a of A) {
+    if (a.type !== BO) continue;
+    const bc = a.bonds.size;
+    const r  = 3.1 + bc * 0.85;
+
+    if (a.hot) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 3.3, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(150, 240, 220, 0.07)';
+      ctx.fill();
+    }
+
+    if (bc > 0) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 1.9, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(80, 220, 200, ${0.04 + bc * 0.014})`;
+      ctx.fill();
+    }
+
+    const heat = Math.min(1, bc / 3);
+    const gr  = Math.round(120 - heat * 40);
+    const gg  = Math.round(220 - heat * 20);
+    const gb  = Math.round(200);
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${gr}, ${gg}, ${gb}, ${0.72 + bc * 0.05})`;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(a.x - r*0.3, a.y - r*0.35, r*0.37, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(220, 255, 240, 0.13)';
+    ctx.fill();
+
+    if (bc >= 3) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r + 2.8, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(150, 240, 220, ${0.11 + (bc-3) * 0.09})`;
+      ctx.lineWidth = 0.75;
+      ctx.stroke();
+    }
+  }
+
+  // WC agents — water catalyst sparks (blue)
+  for (const a of A) {
+    if (a.type !== WC) continue;
+    const sg2 = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, 6.5);
+    sg2.addColorStop(0, 'rgba(100, 200, 255, 0.92)');
+    sg2.addColorStop(1, 'rgba(60, 150, 220, 0)');
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, 6.5, 0, Math.PI*2);
+    ctx.fillStyle = sg2;
+    ctx.fill();
+  }
+}
+
+// ── HUD + complexity graph ─────────────────────────────────────
+const hist = [];
+let latestComps = [];
+let lastUI = 0;
+
+function updateUI() {
+  latestComps = findComponents();
+  const cx   = complexity(latestComps);
+  const mxl  = maxChainLength(latestComps);
+  const brn  = countBranching();
+  const rings = countRings(latestComps);
+
+  hist.push(cx);
+  if (hist.length > 220) hist.shift();
+
+  const nBO   = A.filter(a => a.type === BO).length;
+  const nBonds = BONDS.size;
+
+  document.getElementById('v-si').textContent    = nBO;
+  document.getElementById('v-bonds').textContent = nBonds;
+  document.getElementById('v-mxl').textContent   = mxl;
+  document.getElementById('v-brn').textContent   = brn;
+  document.getElementById('v-rings').textContent = rings;
+  document.getElementById('v-cx').textContent    = cx.toFixed(3);
+  document.getElementById('v-speed').textContent = `${SPEED}×  [ +/- to adjust ]`;
+  document.getElementById('v-time').textContent  = tick;
+
+  if (mxl >= 3  && tick % 190 === 0) logE(`B-N chain — length ${mxl} B atoms`);
+  if (brn >= 1  && tick % 260 === 0) logE(`branching detected — ${brn} nodes`);
+  if (rings >= 1 && tick % 310 === 0) logE(`ring closure — ${rings} cyclic structures`);
+  if (cx > 2.8  && tick % 420 === 0) logE(`sustained network complexity > 2.8`);
+  if (mxl >= 8) logE(`boron nitride polymer — L=${mxl}`);
+
+  checkTiers(cx, mxl, brn, rings);
+  checkVitality(cx);
+
+  document.getElementById('elog').innerHTML =
+    elog.map(l => `<div>${l}</div>`).join('');
+
+  // Complexity graph
+  gctx.fillStyle = '#010a08';
+  gctx.fillRect(0, 0, 220, 90);
+  if (hist.length > 1) {
+    const mx = Math.max(...hist, 0.5);
+    gctx.strokeStyle = 'rgba(80, 220, 200, 0.72)';
+    gctx.lineWidth   = 1;
+    gctx.beginPath();
+    hist.forEach((v, i) => {
+      const x = (i / hist.length) * 220;
+      const y = 90 - (v / mx) * 85;
+      i === 0 ? gctx.moveTo(x, y) : gctx.lineTo(x, y);
+    });
+    gctx.stroke();
+    gctx.strokeStyle = 'rgba(60, 160, 140, 0.15)';
+    gctx.lineWidth   = 0.5;
+    gctx.beginPath();
+    gctx.moveTo(0, 89); gctx.lineTo(220, 89);
+    gctx.stroke();
+  }
+
+  return { cx, mxl, brn, rings };
+}
+
+// ── Vitality / stagnation engine ──────────────────────────────
+const STAGNATION_WINDOW = 850;
+const COMPLEXITY_FLOOR  = 0.35;
+const MEANINGFUL_DELTA  = 0.06;
+const MAX_INTERVENTIONS = 3;
+const HARD_DEATH_TICK   = 8000;
+
+let peakComplexity  = 0;
+let peakTick        = 0;
+let interventions   = 0;
+
+const PERTURBATION_TYPES = [
+  {
+    name: '💧 HYDROTHERMAL PULSE',
+    desc: 'thermal energy pulse — injecting fresh B and catalysts',
+    fn: () => {
+      for (let i = 0; i < 24; i++)
+        addAgent(WC, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
+                 (Math.random()-0.5)*0.6, -2.8-Math.random()*1.8);
+      for (let i = 0; i < 18; i++)
+        addAgent(BO, W*0.5+(Math.random()-0.5)*W*0.12, H-4,
+                 (Math.random()-0.5)*0.7, -2.4-Math.random()*1.6);
+    }
+  },
+  {
+    name: '💥 SONIC DISRUPTION',
+    desc: 'mechanical disruption — scattering all network nodes',
+    fn: () => {
+      for (const a of A) {
+        a.vx += (Math.random()-0.5) * 10;
+        a.vy += (Math.random()-0.5) * 10;
+      }
+    }
+  },
+  {
+    name: '🌿 BORON RAIN',
+    desc: 'incoming boron-nitrogen compounds from above',
+    fn: () => {
+      for (let i = 0; i < 40; i++)
+        addAgent(NB, Math.random()*W, 8,
+                 (Math.random()-0.5)*2.2, 1.7+Math.random()*1.8);
+      for (let i = 0; i < 15; i++)
+        addAgent(BO, Math.random()*W, 8,
+                 (Math.random()-0.5)*1.8, 1.4+Math.random()*1.5);
+    }
+  }
+];
+
+function declareDead(reason) {
+  worldStatus = 'dead';
+  const el = document.getElementById('world-state');
+  el.textContent = 'DEAD WORLD';
+  el.className   = 'dead';
+  logE(reason);
+  agentSay('ANALYST',  'No meaningful recovery. All interventions exhausted.');
+  agentSay('NARRATOR', 'Boronia had the geometry right. The bond angles matched carbon\'s own. But the thermodynamics did not favor it. Or the quantum mechanics whispered a different song. We archive this elegant failure.');
+}
+
+function checkVitality(cx) {
+  if (worldStatus === 'dead') return;
+
+  if (cx > peakComplexity * (1 + MEANINGFUL_DELTA)) {
+    peakComplexity = cx;
+    peakTick       = tick;
+    if (worldStatus === 'perturbed') {
+      worldStatus = 'active';
+      document.getElementById('world-state').className  = '';
+      document.getElementById('world-state').textContent = '';
+      logE('meaningful complexity growth — world responding');
+      agentSay('ANALYST', 'Recovery confirmed. Growth resumed.');
+    }
+  }
+
+  if (!tierAchieved[2] && tick > HARD_DEATH_TICK) {
+    declareDead('T2 never reached — B-N chain formation failed — DEAD WORLD');
+    agentSay('NARRATOR', `${HARD_DEATH_TICK} ticks. The isomorphic dream died. Carbon remains unchallenged in Pandora.`);
+    return;
+  }
+
+  const stagnant = tick - peakTick > STAGNATION_WINDOW;
+  if (!stagnant) return;
+
+  if (interventions >= MAX_INTERVENTIONS) {
+    declareDead('all interventions exhausted — boron nitride network dissolved');
+    return;
+  }
+
+  const p = PERTURBATION_TYPES[interventions % PERTURBATION_TYPES.length];
+  p.fn();
+  interventions++;
+  peakTick    = tick;
+  perturbFlash = 40;
+  worldStatus = 'perturbed';
+
+  const el = document.getElementById('world-state');
+  el.textContent = p.name;
+  el.className   = 'perturbed';
+  setTimeout(() => {
+    if (worldStatus !== 'dead') {
+      el.className = ''; el.textContent = '';
+    }
+  }, 3000);
+
+  logE(`intervention ${interventions}/${MAX_INTERVENTIONS}: ${p.desc}`);
+  agentSay('SYSTEM',   `PERTURBATION ${interventions}/${MAX_INTERVENTIONS}: ${p.name}`);
+  agentSay('ANALYST',  `Stagnation detected. Issuing ${p.desc}. Monitoring response.`);
+}
+
+// ── Tier detection ──────────────────────────────────────────
+const TIER_NAMES = [
+  'Inert', 'Molecular Activity', 'Persistent Structures',
+  'Branching Networks', 'Ring Closure', 'Spatial Reorganization',
+  'Sustained Complexity'
+];
+
+const tierAchieved = new Array(7).fill(false);
+let currentTier    = 0;
+
+let sustainedChainTicks = 0;
+let sustainedBranchTicks = 0;
+let sustainedRingTicks   = 0;
+let sustainedCxTicks     = 0;
+
+function promoteTier(t) {
+  if (tierAchieved[t]) return;
+  tierAchieved[t]  = true;
+  currentTier      = t;
+  tierFlash        = 90;
+  tierFlashLabel   = `T${t} — ${TIER_NAMES[t].toUpperCase()}`;
+  logE(`▲ TIER ${t} — ${TIER_NAMES[t]}`);
+  document.getElementById('v-tier').textContent = `T${t} — ${TIER_NAMES[t]}`;
+
+  const tierNarrative = {
+    1: ['OBSERVER',  'First B-N bond confirmed. Molecular activity. T1.'],
+    2: ['ANALYST',   'Persistent B-N chain detected. Boron nitride polymer. T2.'],
+    3: ['ANALYST',   'Branching confirmed. The B-N network grows in complexity. T3.'],
+    4: ['NARRATOR',  'Ring closure. Hexagonal boron nitride geometry — graphene\'s isoelectronic twin. T4. Nature reinvents the hexagon.'],
+    5: ['ANALYST',   'Spontaneous assembly. B-N networks migrating from vent zone. T5.'],
+    6: ['OBSERVER',  'Sustained complexity. The boron nitride network self-reinforces. T6.'],
+  };
+
+  if (tierNarrative[t]) {
+    const [ag, msg] = tierNarrative[t];
+    agentSay(ag, msg);
+  }
+}
+
+function checkTiers(cx, mxl, brn, rings) {
+  if (!tierAchieved[1] && totalBondsFormed > 0) promoteTier(1);
+
+  if (mxl >= 3) sustainedChainTicks++; else sustainedChainTicks = 0;
+  if (!tierAchieved[2] && sustainedChainTicks >= 320) promoteTier(2);
+
+  if (brn >= 1) sustainedBranchTicks++; else sustainedBranchTicks = 0;
+  if (!tierAchieved[3] && sustainedBranchTicks >= 220) promoteTier(3);
+
+  if (rings >= 1) sustainedRingTicks++; else sustainedRingTicks = 0;
+  if (!tierAchieved[4] && sustainedRingTicks >= 180) promoteTier(4);
+
+  if (!tierAchieved[5]) {
+    for (const comp of latestComps) {
+      if (comp.boCount < 5) continue;
+      let cy2 = 0;
+      for (const idx of comp.nodes) cy2 += A[idx].y;
+      if (cy2 / comp.nodes.length < H * 0.64) { promoteTier(5); break; }
+    }
+  }
+
+  if (hist.length >= 90) {
+    const win  = hist.slice(-90);
+    const mean = win.reduce((s,v)=>s+v,0)/win.length;
+    if (mean > 1.3) sustainedCxTicks++; else sustainedCxTicks = 0;
+  }
+  if (!tierAchieved[6] && sustainedCxTicks >= 11) promoteTier(6);
+}
+
+// ── Agent conversation system ─────────────────────────────────
+const agentFeed   = document.getElementById('agent-feed');
+let lastAgentTick = -600;
+
+function agentSay(agent, msg) {
+  const entry = document.createElement('div');
+  entry.className = 'ae';
+  entry.innerHTML = `
+    <div class="ae-meta">
+      <span class="ae-name ${agent}">${agent}</span>
+      <span class="ae-time">t=${tick}</span>
+    </div>
+    <div class="ae-msg ${agent}">${msg}</div>
+  `;
+  agentFeed.appendChild(entry);
+  agentFeed.scrollTop = agentFeed.scrollHeight;
+
+  while (agentFeed.children.length > 60) {
+    agentFeed.removeChild(agentFeed.firstChild);
+  }
+}
+
+const CHECKPOINTS = [
+  {
+    t: 1,
+    messages: [
+      ['OBSERVER',  'Biome-50 BORONIA initialized. Boron-nitrogen in aqueous suspension at 320K. Isoelectronic carbon analog.'],
+      ['ANALYST',   'B-N bond: 1.44 Å. C-C bond: 1.54 Å. Geometry nearly identical. Is the universe redundant, or just efficient?'],
+      ['NARRATOR',  'The universe found another way to do carbon\'s job. Not better, not worse — isomorphic. Same grammar in a different language.'],
+    ]
+  },
+  {
+    t: 400,
+    messages: [
+      ['OBSERVER',  `${() => A.filter(a=>a.type===BO).length} boron atoms in field. Collision energy nominal. Watching for first B-N events.`],
+    ]
+  },
+  {
+    t: 1000,
+    condition: () => !tierAchieved[1],
+    messages: [
+      ['ANALYST',   'Still no bonding. The B-N activation energy is substantial. Waiting for catalyst amplification.'],
+    ]
+  },
+  {
+    t: 1400,
+    condition: () => tierAchieved[1] && !tierAchieved[2],
+    messages: [
+      ['OBSERVER',  'B-N bonds forming. Short-lived monomers. No sustained chain yet.'],
+    ]
+  },
+  {
+    t: 2200,
+    condition: () => tierAchieved[2],
+    messages: [
+      ['ANALYST',   'Persistent B-N chain! The geometry is working. Carbon had no monopoly after all.'],
+      ['NARRATOR',  'The first B-N polymer. How many other ways can nature build? The hexagon appears in boron, in graphene, in benzene rings. Structure follows form. Form follows thermodynamics.'],
+    ]
+  },
+  {
+    t: 3500,
+    messages: [
+      ['ANALYST',   `Status: ${() => BONDS.size} bonds. Max chain: ${() => maxChainLength(latestComps)} B. Branches: ${() => countBranching()}.`],
+    ]
+  },
+];
+
+let checkpointIdx = 0;
+
+function runAgentCheckpoints() {
+  while (checkpointIdx < CHECKPOINTS.length) {
+    const cp = CHECKPOINTS[checkpointIdx];
+    if (tick < cp.t) break;
+    if (!cp.condition || cp.condition()) {
+      for (const [agent, msgOrFn] of cp.messages) {
+        const msg = typeof msgOrFn === 'function' ? msgOrFn() : msgOrFn;
+        agentSay(agent, msg);
+      }
+    }
+    checkpointIdx++;
+  }
+
+  if (checkpointIdx >= CHECKPOINTS.length && tick - lastAgentTick >= 1300) {
+    lastAgentTick = tick;
+    const cx    = hist.length ? hist[hist.length-1] : 0;
+    const mxl   = maxChainLength(latestComps);
+    const brn   = countBranching();
+    const rings = countRings(latestComps);
+
+    const PERIODIC = [
+      () => agentSay('OBSERVER',
+        `t=${tick}: ${BONDS.size} bonds. Chain=${mxl} B. Branch=${brn}. Rings=${rings}. Cx=${cx.toFixed(3)}.`),
+      () => agentSay('ANALYST',
+        mxl >= 5
+          ? `Network growing. Chain ${mxl} — ${brn > 0 ? 'branching confirmed' : 'linear'}. ${rings > 0 ? `${rings} cycle(s)` : ''}`
+          : `Network struggling. Max chain ${mxl}. ${interventions > 0 ? `${interventions} perturbation(s).` : 'Waiting.'}`),
+      () => agentSay('NARRATOR',
+        tierAchieved[4]
+          ? 'Hexagons. The most stable form. Boron and nitrogen drawing the same shapes carbon draws.'
+          : tierAchieved[3]
+            ? 'Branches. Geometry doing chemistry. B-N bonds at the angles life needs.'
+            : tierAchieved[2]
+              ? 'Chains persist. The isoelectronic hypothesis holds.'
+              : 'Boronia whispers. Maybe the universe has more than one way to be alive.'),
+    ];
+
+    PERIODIC[Math.floor(Math.random() * PERIODIC.length)]();
+  }
+}
+
+// ── Panel toggle ──────────────────────────────────────────────
+function togglePanel() {
+  document.getElementById('agent-panel').classList.toggle('collapsed');
+}
+
+// ── Speed control ─────────────────────────────────────────────
+let SPEED_VAL = 4;
+document.addEventListener('keydown', e => {
+  if (e.key === '+' || e.key === '=') SPEED_VAL = Math.min(30, SPEED_VAL + 1);
+  if (e.key === '-')                   SPEED_VAL = Math.max(1,  SPEED_VAL - 1);
+  if (e.key === '0')                   SPEED_VAL = 4;
+  SPEED = SPEED_VAL;
+});
+
+// ── Main loop ─────────────────────────────────────────────────
+let lastUITick = 0;
+const UI_INTERVAL = 12;
+
+function loop() {
+  requestAnimationFrame(loop);
+
+  for (let s = 0; s < SPEED_VAL; s++) update();
+
+  if (tick - lastUITick >= UI_INTERVAL) {
+    lastUITick = tick;
+    const { cx, mxl, brn, rings } = updateUI();
+    render(latestComps, brn, rings);
+    runAgentCheckpoints();
+  } else {
+    render(latestComps, countBranching(), countRings(latestComps));
+  }
+}
+
+init();
+loop();
+</script>
+</body>
+</html>

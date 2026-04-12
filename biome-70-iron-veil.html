@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pandora — Biome 70: Iron Veil</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+canvas { display: block; position: absolute; inset: 0; z-index: 0; }
+
+/* ── HUD (left) ───────────────────────────────────────────── */
+#hud {
+  position: absolute; top: 24px; left: 24px; z-index: 10;
+  font-size: 11px; line-height: 2.1;
+  color: rgba(200, 120, 40, 0.7);
+  text-shadow: 0 0 8px rgba(160, 100, 40, 0.3);
+}
+.hk { color: rgba(140, 80, 30, 0.55); display: inline-block; width: 108px; }
+.hv { color: rgba(220, 160, 80, 0.92); }
+
+#title {
+  position: absolute; top: 24px; right: 290px; z-index: 10;
+  font-size: 13px; letter-spacing: 5px;
+  color: rgba(200, 120, 40, 0.28);
+  text-shadow: 0 0 20px rgba(160, 100, 40, 0.12);
+}
+#subtitle {
+  position: absolute; top: 46px; right: 290px; z-index: 10;
+  font-size: 9px; letter-spacing: 3px;
+  color: rgba(160, 100, 40, 0.22);
+}
+
+#graph-box {
+  position: absolute; bottom: 24px; right: 290px; z-index: 10;
+}
+#gl { font-size: 9px; letter-spacing: 3px; color: rgba(160,100,40,0.35); margin-bottom: 5px; }
+#gc { display: block; border: 1px solid rgba(160,100,40,0.12); }
+
+#elog {
+  position: absolute; bottom: 24px; left: 24px; z-index: 10;
+  font-size: 10px; line-height: 1.8;
+  color: rgba(200, 120, 40, 0.55);
+  width: 340px;
+}
+
+#legend {
+  position: absolute; top: 280px; left: 24px; z-index: 10;
+  font-size: 10px; line-height: 2.2;
+  color: rgba(140, 80, 30, 0.45);
+  border-top: 1px solid rgba(160, 100, 40, 0.12);
+  padding-top: 12px;
+}
+.ld {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  margin-right: 7px; vertical-align: middle;
+}
+
+#world-state {
+  position: absolute; top: 50%; left: calc(50% - 130px);
+  transform: translate(-50%, -50%);
+  font-size: 22px; letter-spacing: 8px;
+  pointer-events: none; z-index: 20;
+  opacity: 0; transition: opacity 1.5s;
+}
+#world-state.dead {
+  color: rgba(200, 100, 50, 0.75);
+  text-shadow: 0 0 40px rgba(160, 80, 40, 0.4);
+  opacity: 1;
+}
+#world-state.perturbed {
+  color: rgba(255, 180, 80, 0.8);
+  text-shadow: 0 0 30px rgba(220, 140, 60, 0.5);
+  opacity: 1;
+}
+
+/* ── Agent panel (right, collapsible) ────────────────────── */
+#agent-panel {
+  position: fixed; top: 0; right: 0;
+  width: 268px; height: 100vh;
+  background: rgba(5, 8, 14, 0.90);
+  backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(200, 120, 40, 0.10);
+  display: flex; flex-direction: column;
+  z-index: 50;
+  transition: transform 0.3s ease;
+}
+#agent-panel.collapsed { transform: translateX(256px); }
+
+#panel-toggle {
+  position: absolute; left: -28px; top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 54px;
+  background: rgba(5, 8, 14, 0.90);
+  border: 1px solid rgba(200, 120, 40, 0.10);
+  border-right: none;
+  cursor: pointer;
+  color: rgba(160, 100, 40, 0.55);
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  display: flex; align-items: center; justify-content: center;
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+}
+#panel-toggle:hover { color: rgba(220, 160, 80, 0.8); }
+
+#panel-header {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(200, 120, 40, 0.07);
+  flex-shrink: 0;
+}
+#panel-title {
+  font-size: 7px; letter-spacing: 4px;
+  color: rgba(160, 100, 40, 0.55);
+  margin-bottom: 3px;
+}
+#panel-agents {
+  font-size: 8px;
+  display: flex; gap: 8px;
+}
+.pagent { font-size: 7px; letter-spacing: 1px; }
+.pagent.OBSERVER { color: rgba(100, 180, 255, 0.6); }
+.pagent.ANALYST  { color: rgba(60, 210, 170, 0.6); }
+.pagent.NARRATOR { color: rgba(255, 200, 80, 0.6); }
+
+#agent-feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+#agent-feed::-webkit-scrollbar { width: 2px; }
+#agent-feed::-webkit-scrollbar-thumb { background: rgba(200, 120, 40, 0.2); }
+
+.ae { display: flex; flex-direction: column; gap: 3px; animation: fadein 0.4s ease; }
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+.ae-meta { display: flex; gap: 8px; align-items: baseline; }
+.ae-name { font-size: 7px; letter-spacing: 2px; }
+.ae-time { font-size: 7px; color: rgba(150, 90, 40, 0.45); }
+.ae-msg  { font-size: 9.5px; line-height: 1.65; padding-left: 2px; }
+
+.ae-name.OBSERVER { color: rgba(100, 180, 255, 0.85); }
+.ae-name.ANALYST  { color: rgba(60, 210, 170, 0.85); }
+.ae-name.NARRATOR { color: rgba(255, 200, 80, 0.92); }
+.ae-name.SYSTEM   { color: rgba(200, 100, 50, 0.65); }
+
+.ae-msg.OBSERVER  { color: rgba(140, 200, 240, 0.60); }
+.ae-msg.ANALYST   { color: rgba(100, 220, 185, 0.60); }
+.ae-msg.NARRATOR  { color: rgba(225, 185, 80, 0.68); font-style: italic; }
+.ae-msg.SYSTEM    { color: rgba(190, 100, 50, 0.50); font-size: 9px; letter-spacing: 0.3px; }
+</style>
+</head>
+<body>
+
+<canvas id="main"></canvas>
+
+<div id="title">BIOME 70 — IRON VEIL</div>
+<div id="subtitle">IRON · SULFUR · HYDROTHERMAL · WÄCHTERSHÄUSER</div>
+
+<div id="hud">
+  <div><span class="hk">CHEMISTRY</span><span class="hv">Fe / S / H₂O</span></div>
+  <div><span class="hk">SOLVENT</span><span class="hv">Hydrothermal fluid</span></div>
+  <div><span class="hk">TEMP</span>    <span class="hv" id="v-t">400 K</span></div>
+  <div><span class="hk">PRESSURE</span><span class="hv" id="v-p">50 atm</span></div>
+  <div><span class="hk">Fe ATOMS</span> <span class="hv" id="v-si">—</span></div>
+  <div><span class="hk">Fe-S BONDS</span><span class="hv" id="v-bonds">—</span></div>
+  <div><span class="hk">MAX CHAIN</span><span class="hv" id="v-mxl">—</span></div>
+  <div><span class="hk">BRANCH PTS</span><span class="hv" id="v-brn">—</span></div>
+  <div><span class="hk">RINGS</span>   <span class="hv" id="v-rings">—</span></div>
+  <div><span class="hk">COMPLEXITY</span><span class="hv" id="v-cx">—</span></div>
+  <div><span class="hk">TIER</span>    <span class="hv" id="v-tier">T0 — Inert</span></div>
+  <div><span class="hk">SPEED</span>   <span class="hv" id="v-speed">4×</span></div>
+  <div><span class="hk">TIME</span>    <span class="hv" id="v-time">—</span></div>
+</div>
+
+<div id="legend">
+  <div><span class="ld" style="background:rgba(200,120,40,0.9)"></span>iron atom (Fe)</div>
+  <div><span class="ld" style="background:rgba(255,220,60,0.9)"></span>sulfur bridge (S)</div>
+  <div><span class="ld" style="background:rgba(100,180,255,0.7)"></span>water/oxygen catalyst (O)</div>
+</div>
+
+<div id="graph-box">
+  <div id="gl">NETWORK COMPLEXITY</div>
+  <canvas id="gc" width="220" height="90"></canvas>
+</div>
+
+<div id="world-state"></div>
+<div id="elog"></div>
+
+<!-- ── Agent panel ───────────────────────────────────────────── -->
+<div id="agent-panel">
+  <button id="panel-toggle" onclick="togglePanel()">AGENTS</button>
+  <div id="panel-header">
+    <div id="panel-title">FIELD AGENTS — IRON VEIL</div>
+    <div id="panel-agents">
+      <span class="pagent OBSERVER">OBSERVER</span>
+      <span class="pagent ANALYST">ANALYST</span>
+      <span class="pagent NARRATOR">NARRATOR</span>
+    </div>
+  </div>
+  <div id="agent-feed"></div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+//  PANDORA — BIOME 70: IRON VEIL
+//
+//  Iron-sulfur chemistry in hydrothermal vent conditions.
+//  400K, 50 atm, deep ocean thermal energy.
+//  Inspired by Wächtershäuser's iron-sulfur world hypothesis.
+//
+//  Chemistry palette:
+//    FE  — iron atom (up to 4 bonds, redox active node)
+//    SU  — sulfur bridge (up to 2 bonds, links Fe atoms)
+//    OW  — water/oxygen catalyst (enhances Fe-S bond formation)
+//
+//  Emergent targets: Fe-S networks at hydrothermal vents
+// ═══════════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('main');
+const ctx    = canvas.getContext('2d');
+const gcv    = document.getElementById('gc');
+const gctx   = gcv.getContext('2d');
+
+let W, H;
+const resize = () => {
+  W = canvas.width  = innerWidth;
+  H = canvas.height = innerHeight;
+};
+resize();
+addEventListener('resize', resize);
+
+// ── Biome constants ───────────────────────────────────────────
+const T0     = 400;
+const NOISE  = 0.20;
+const VENT_H = 0.45;
+
+const lTemp = (x, y) =>
+  T0 * (1 + VENT_H * Math.max(0, 1 - Math.hypot(x - W * 0.5, y - H) / (H * 0.6)));
+
+// ── Agent type constants ──────────────────────────────────────
+const FE = 0;   // iron atom — network node
+const SU = 1;   // sulfur bridge — linker
+const OW = 2;   // water/oxygen catalyst
+
+const MAX_FE_BONDS = 4;
+const MAX_SU_BONDS = 2;
+
+// ── Simulation state ──────────────────────────────────────────
+let A      = [];
+let BONDS  = new Set();
+let tick   = 0;
+let uid    = 0;
+
+const bkey = (i, j) => i < j ? `${i},${j}` : `${j},${i}`;
+
+function newAgent(type, x, y) {
+  return {
+    id:    uid++,
+    type,
+    x:     x  ?? Math.random() * W,
+    y:     y  ?? (Math.random() * H * 0.85 + H * 0.05),
+    vx:    (Math.random() - 0.5) * 1.2,
+    vy:    (Math.random() - 0.5) * 1.2,
+    bonds: new Set(),
+    hot:   false,
+    hotT:  0,
+    idx:   -1,
+  };
+}
+
+function addAgent(type, x, y, vx, vy) {
+  const a = newAgent(type, x, y);
+  if (vx !== undefined) { a.vx = vx; a.vy = vy; }
+  a.idx = A.length;
+  A.push(a);
+}
+
+function init() {
+  A = []; BONDS.clear(); tick = 0; uid = 0;
+  for (let i = 0; i < 140; i++) addAgent(FE);
+  for (let i = 0; i < 120; i++) addAgent(SU);
+  for (let i = 0; i <  25; i++) addAgent(OW);
+}
+
+// ── Spatial hash ──────────────────────────────────────────────
+const CELL = 32;
+let gh = {};
+
+function buildGrid() {
+  gh = {};
+  for (let i = 0; i < A.length; i++) {
+    const a = A[i];
+    const k = `${(a.x / CELL) | 0},${(a.y / CELL) | 0}`;
+    (gh[k] = gh[k] || []).push(i);
+  }
+}
+
+function nearby(x, y, cells = 1) {
+  const cx = (x / CELL) | 0, cy = (y / CELL) | 0, out = [];
+  for (let dx = -cells; dx <= cells; dx++)
+    for (let dy = -cells; dy <= cells; dy++) {
+      const nb = gh[`${cx + dx},${cy + dy}`];
+      if (nb) for (const i of nb) out.push(i);
+    }
+  return out;
+}
+
+// ── Bond management ───────────────────────────────────────────
+let totalBondsFormed = 0;
+
+function addBond(i, j) {
+  const k = bkey(i, j);
+  if (BONDS.has(k)) return;
+  BONDS.add(k);
+  A[i].bonds.add(j);
+  A[j].bonds.add(i);
+  totalBondsFormed++;
+}
+
+function rmBond(i, j) {
+  const k = bkey(i, j);
+  if (!BONDS.has(k)) return;
+  BONDS.delete(k);
+  A[i].bonds.delete(j);
+  A[j].bonds.delete(i);
+}
+
+// ── Network analysis ──────────────────────────────────────────
+function findComponents() {
+  const vis = new Uint8Array(A.length);
+  const comps = [];
+  for (let i = 0; i < A.length; i++) {
+    if (vis[i] || A[i].type === OW) continue;
+    const comp = { nodes: [], feCount: 0, bonds: 0 };
+    const q = [i];
+    while (q.length) {
+      const c = q.pop();
+      if (vis[c]) continue;
+      vis[c] = 1;
+      comp.nodes.push(c);
+      if (A[c].type === FE) comp.feCount++;
+      for (const nb of A[c].bonds) {
+        comp.bonds++;
+        if (!vis[nb]) q.push(nb);
+      }
+    }
+    comp.bonds = Math.floor(comp.bonds / 2);
+    if (comp.nodes.length >= 2) comps.push(comp);
+  }
+  return comps;
+}
+
+function maxChainLength(comps) {
+  return comps.reduce((m, c) => Math.max(m, c.feCount), 0);
+}
+
+function countBranching() {
+  return A.filter(a => a.type === FE && a.bonds.size >= 3).length;
+}
+
+function countRings(comps) {
+  return comps.filter(c => c.bonds > c.nodes.length - 1).length;
+}
+
+function complexity(comps) {
+  const nFE = A.filter(a => a.type === FE).length;
+  if (!nFE) return 0;
+  return comps.reduce((s, c) => s + c.feCount * c.feCount, 0) / nFE;
+}
+
+// ── Event log ──────────────────────────────────────────────────
+const elog = [];
+let lastLogT = -300;
+
+function logE(msg) {
+  if (tick - lastLogT < 80) return;
+  lastLogT = tick;
+  elog.unshift(`[t=${tick}]  ${msg}`);
+  if (elog.length > 7) elog.pop();
+}
+
+// ── Physics update ────────────────────────────────────────────
+const toBreak = [];
+let SPEED = 4;
+
+function update() {
+  tick++;
+
+  if (tick % 130 === 0 && A.filter(a => a.type === FE).length < 170) {
+    addAgent(FE, W*0.5 + (Math.random()-0.5)*W*0.12, H-4,
+             (Math.random()-0.5)*0.9, -2.6 - Math.random()*1.8);
+  }
+  if (tick % 180 === 0 && A.filter(a => a.type === SU).length < 150) {
+    addAgent(SU, W*0.5 + (Math.random()-0.5)*W*0.16, H-4,
+             (Math.random()-0.5)*0.8, -2.2 - Math.random()*1.4);
+  }
+  if (tick % 420 === 0 && A.filter(a => a.type === OW).length < 35) {
+    addAgent(OW, W*0.5 + (Math.random()-0.5)*W*0.14, H-4,
+             (Math.random()-0.5)*0.6, -3.0 - Math.random()*2.0);
+  }
+
+  buildGrid();
+
+  // ── Brownian motion + drag ────────────────────────────────
+  for (let i = 0; i < A.length; i++) {
+    const a  = A[i];
+    const Tl = lTemp(a.x, a.y);
+    const br = Math.sqrt(Tl / T0) * NOISE;
+
+    const drag = (a.bonds.size > 0)
+      ? (a.type === FE ? 0.90 : 0.91)
+      : (a.type === OW ? 0.97 : 0.95);
+
+    a.vx += (Math.random() - 0.5) * br * 3.2;
+    a.vy += (Math.random() - 0.5) * br * 3.2;
+    a.vx *= drag;
+    a.vy *= drag;
+    a.x  += a.vx;
+    a.y  += a.vy;
+
+    if (a.x < 0) a.x += W; else if (a.x > W) a.x -= W;
+    if (a.y < 0) a.y += H; else if (a.y > H) a.y -= H;
+
+    if (a.hot && --a.hotT <= 0) a.hot = false;
+  }
+
+  // ── Pairwise interactions ─────────────────────────────────
+  for (let i = 0; i < A.length; i++) {
+    const a = A[i];
+    for (const j of nearby(a.x, a.y)) {
+      if (j <= i) continue;
+      const b  = A[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 > CELL*CELL) continue;
+      const d  = Math.sqrt(d2) + 0.001;
+      const Tl = lTemp((a.x+b.x)*0.5, (a.y+b.y)*0.5);
+
+      // ── FE + SU → Fe-S bond ────────────────────────────────
+      const isFeSu = (a.type===FE && b.type===SU) || (a.type===SU && b.type===FE);
+      if (isFeSu) {
+        const fe = a.type===FE ? a : b;
+        const fe_i = a.type===FE ? i : j;
+        const su = a.type===SU ? a : b;
+        const su_j = a.type===SU ? j : i;
+        const bonded = fe.bonds.has(su_j);
+
+        if (!bonded && fe.bonds.size < MAX_FE_BONDS && su.bonds.size < MAX_SU_BONDS) {
+          let hasCat = false;
+          for (const k of nearby(fe.x, fe.y)) {
+            if (A[k].type === OW && Math.hypot(A[k].x-fe.x, A[k].y-fe.y) < CELL*1.5) {
+              hasCat = true; break;
+            }
+          }
+          const p = 0.006
+            * (hasCat ? 3.5 : 1)
+            * Math.exp(-90 / Tl);
+
+          if (Math.random() < p) {
+            addBond(fe_i, su_j);
+            const f = 0.18 / d;
+            fe.vx += dx * f * (a.type===FE ? 1 : -1);
+            fe.vy += dy * f * (a.type===FE ? 1 : -1);
+            su.vx -= dx * f * (b.type===SU ? 1 : -1);
+            su.vy -= dy * f * (b.type===SU ? 1 : -1);
+            if (hasCat) {
+              fe.hot = true; fe.hotT = 50;
+              logE('water-catalysed Fe-S bond formed');
+            }
+          }
+        }
+
+        if (bonded) {
+          const Pb = 5e-5 * Math.exp(Tl / 600);
+          if (Math.random() < Pb) {
+            toBreak.push([fe_i, su_j]);
+          } else {
+            const rest = 20;
+            const stretch = d - rest;
+            const f = 0.06 * stretch / d;
+            fe.vx += dx * f; fe.vy += dy * f;
+            su.vx -= dx * f; su.vy -= dy * f;
+          }
+        }
+      }
+
+      // ── SU–SU: mild repulsion ──────────────────────────────
+      if (a.type===SU && b.type===SU) {
+        if (d < 14) {
+          const f = 0.22 * (1 - d/14) / d;
+          a.vx -= dx*f; a.vy -= dy*f;
+          b.vx += dx*f; b.vy += dy*f;
+        }
+      }
+
+      // ── FE–FE: steric repulsion ────────────────────────────
+      if (a.type===FE && b.type===FE) {
+        if (d < 16) {
+          const f = 0.28 * (1 - d/16) / d;
+          a.vx -= dx*f; a.vy -= dy*f;
+          b.vx += dx*f; b.vy += dy*f;
+        }
+      }
+    }
+  }
+
+  while (toBreak.length) {
+    const [i, j] = toBreak.pop();
+    rmBond(i, j);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────
+let tierFlash = 0, tierFlashLabel = '';
+let perturbFlash = 0;
+let worldStatus = 'active';
+
+function render(comps, brn, rings) {
+
+  // Background — dark rust
+  ctx.fillStyle = '#050302';
+  ctx.fillRect(0, 0, W, H);
+
+  if (worldStatus === 'dead') {
+    ctx.fillStyle = 'rgba(18, 12, 8, 0.55)';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  if (perturbFlash > 0) {
+    ctx.fillStyle = `rgba(220, 140, 60, ${perturbFlash/40 * 0.10})`;
+    ctx.fillRect(0, 0, W, H);
+    perturbFlash--;
+  }
+
+  if (tierFlash > 0) {
+    ctx.fillStyle = `rgba(220, 140, 60, ${(tierFlash/90) * 0.10})`;
+    ctx.fillRect(0, 0, W, H);
+    if (tierFlash > 50) {
+      ctx.save();
+      ctx.globalAlpha = (tierFlash-50)/40;
+      ctx.font = '13px Courier New';
+      ctx.fillStyle = 'rgba(220, 160, 80, 0.9)';
+      ctx.textAlign = 'center';
+      ctx.fillText(tierFlashLabel, W/2 - 130, H/2 - 12);
+      ctx.font = '10px Courier New';
+      ctx.fillStyle = 'rgba(200, 120, 40, 0.6)';
+      ctx.fillText('THRESHOLD CROSSED', W/2 - 130, H/2 + 10);
+      ctx.restore();
+    }
+    tierFlash--;
+  }
+
+  // Vent glow at bottom
+  const vg = ctx.createRadialGradient(W*0.5, H, 10, W*0.5, H, H*0.55);
+  vg.addColorStop(0,   'rgba(220, 120, 40, 0.22)');
+  vg.addColorStop(0.4, 'rgba(180, 80, 20, 0.08)');
+  vg.addColorStop(1,   'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+
+  const cg = ctx.createLinearGradient(0, 0, 0, H*0.3);
+  cg.addColorStop(0, 'rgba(80, 40, 20, 0.05)');
+  cg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = cg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Network auras
+  for (const comp of comps) {
+    if (comp.feCount < 3) continue;
+    let cx = 0, cy = 0;
+    for (const idx of comp.nodes) { cx += A[idx].x; cy += A[idx].y; }
+    cx /= comp.nodes.length; cy /= comp.nodes.length;
+    const r = Math.sqrt(comp.nodes.length) * 14;
+    const alpha = Math.min(0.10, comp.nodes.length * 0.004);
+    const ag = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    ag.addColorStop(0, `rgba(220, 120, 40, ${alpha * 2.0})`);
+    ag.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = ag;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Fe-S bonds
+  ctx.lineWidth = 1.5;
+  for (const k of BONDS) {
+    const [si, sj] = k.split(',');
+    const a2 = A[+si], b2 = A[+sj];
+    if (!a2 || !b2) continue;
+    const len = (a2.bonds.size + b2.bonds.size) * 0.5;
+    const r2  = Math.min(255, 180 + len * 22);
+    const g2  = Math.min(220, 100 + len * 20);
+    ctx.strokeStyle = `rgba(${r2}, ${g2}, 40, 0.52)`;
+    ctx.beginPath();
+    ctx.moveTo(a2.x, a2.y);
+    ctx.lineTo(b2.x, b2.y);
+    ctx.stroke();
+  }
+
+  // SU agents — sulfur bridges (yellow)
+  for (const a of A) {
+    if (a.type !== SU) continue;
+    const bonded = a.bonds.size > 0;
+    const r = bonded ? 3.0 : 2.0;
+
+    if (bonded) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 2.8, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255, 240, 120, 0.05)';
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, r, 0, Math.PI*2);
+    ctx.fillStyle = bonded
+      ? 'rgba(255, 220, 60, 0.90)'
+      : 'rgba(220, 180, 40, 0.45)';
+    ctx.fill();
+  }
+
+  // FE agents — iron nodes (rust-orange)
+  for (const a of A) {
+    if (a.type !== FE) continue;
+    const bc = a.bonds.size;
+    const r  = 3.2 + bc * 0.9;
+
+    if (a.hot) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 3.5, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255, 200, 60, 0.08)';
+      ctx.fill();
+    }
+
+    if (bc > 0) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r * 2.0, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(220, 120, 40, ${0.04 + bc * 0.015})`;
+      ctx.fill();
+    }
+
+    const heat = Math.min(1, bc / 4);
+    const gr  = Math.round(220 - heat * 40);
+    const gg  = Math.round(110 - heat * 50);
+    const gb  = Math.round(30);
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${gr}, ${gg}, ${gb}, ${0.68 + bc * 0.06})`;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(a.x - r*0.3, a.y - r*0.35, r*0.38, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255, 255, 200, 0.15)';
+    ctx.fill();
+
+    if (bc >= 3) {
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, r + 3, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(255, 200, 80, ${0.12 + (bc-3) * 0.10})`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+  }
+
+  // OW agents — water catalyst sparks (blue)
+  for (const a of A) {
+    if (a.type !== OW) continue;
+    const sg2 = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, 7);
+    sg2.addColorStop(0, 'rgba(100, 180, 255, 0.95)');
+    sg2.addColorStop(1, 'rgba(60, 140, 220, 0)');
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, 7, 0, Math.PI*2);
+    ctx.fillStyle = sg2;
+    ctx.fill();
+  }
+}
+
+// ── HUD + complexity graph ─────────────────────────────────────
+const hist = [];
+let latestComps = [];
+let lastUI = 0;
+
+function updateUI() {
+  latestComps = findComponents();
+  const cx   = complexity(latestComps);
+  const mxl  = maxChainLength(latestComps);
+  const brn  = countBranching();
+  const rings = countRings(latestComps);
+
+  hist.push(cx);
+  if (hist.length > 220) hist.shift();
+
+  const nFE   = A.filter(a => a.type === FE).length;
+  const nBonds = BONDS.size;
+
+  document.getElementById('v-si').textContent    = nFE;
+  document.getElementById('v-bonds').textContent = nBonds;
+  document.getElementById('v-mxl').textContent   = mxl;
+  document.getElementById('v-brn').textContent   = brn;
+  document.getElementById('v-rings').textContent = rings;
+  document.getElementById('v-cx').textContent    = cx.toFixed(3);
+  document.getElementById('v-speed').textContent = `${SPEED}×  [ +/- to adjust ]`;
+  document.getElementById('v-time').textContent  = tick;
+
+  if (mxl >= 3  && tick % 180 === 0) logE(`Fe-S chain — length ${mxl} Fe atoms`);
+  if (brn >= 1  && tick % 250 === 0) logE(`branching point detected — ${brn} nodes`);
+  if (rings >= 1 && tick % 300 === 0) logE(`ring closure — ${rings} cyclic structures`);
+  if (cx > 3    && tick % 400 === 0) logE(`sustained network complexity > 3`);
+  if (mxl >= 8) logE(`iron sulfide polymer — L=${mxl}`);
+
+  checkTiers(cx, mxl, brn, rings);
+  checkVitality(cx);
+
+  document.getElementById('elog').innerHTML =
+    elog.map(l => `<div>${l}</div>`).join('');
+
+  // Complexity graph
+  gctx.fillStyle = '#050302';
+  gctx.fillRect(0, 0, 220, 90);
+  if (hist.length > 1) {
+    const mx = Math.max(...hist, 0.5);
+    gctx.strokeStyle = 'rgba(220, 140, 60, 0.72)';
+    gctx.lineWidth   = 1;
+    gctx.beginPath();
+    hist.forEach((v, i) => {
+      const x = (i / hist.length) * 220;
+      const y = 90 - (v / mx) * 85;
+      i === 0 ? gctx.moveTo(x, y) : gctx.lineTo(x, y);
+    });
+    gctx.stroke();
+    gctx.strokeStyle = 'rgba(180, 100, 40, 0.15)';
+    gctx.lineWidth   = 0.5;
+    gctx.beginPath();
+    gctx.moveTo(0, 89); gctx.lineTo(220, 89);
+    gctx.stroke();
+  }
+
+  return { cx, mxl, brn, rings };
+}
+
+// ── Vitality / stagnation engine ──────────────────────────────
+const STAGNATION_WINDOW = 800;
+const COMPLEXITY_FLOOR  = 0.35;
+const MEANINGFUL_DELTA  = 0.06;
+const MAX_INTERVENTIONS = 3;
+const HARD_DEATH_TICK   = 7000;
+
+let peakComplexity  = 0;
+let peakTick        = 0;
+let interventions   = 0;
+
+const PERTURBATION_TYPES = [
+  {
+    name: '🌋 VENT SURGE',
+    desc: 'thermal energy surge — injecting fresh Fe and catalysts',
+    fn: () => {
+      for (let i = 0; i < 24; i++)
+        addAgent(OW, W*0.5+(Math.random()-0.5)*W*0.14, H-4,
+                 (Math.random()-0.5)*0.7, -3.0-Math.random()*2.0);
+      for (let i = 0; i < 20; i++)
+        addAgent(FE, W*0.5+(Math.random()-0.5)*W*0.12, H-4,
+                 (Math.random()-0.5)*0.7, -2.5-Math.random()*2.0);
+    }
+  },
+  {
+    name: '💥 SEISMIC SHOCKWAVE',
+    desc: 'mechanical disruption — scattering all network nodes',
+    fn: () => {
+      for (const a of A) {
+        a.vx += (Math.random()-0.5) * 12;
+        a.vy += (Math.random()-0.5) * 12;
+      }
+    }
+  },
+  {
+    name: '🧪 SULFIDE INFLUX',
+    desc: 'incoming sulfide and iron minerals from above',
+    fn: () => {
+      for (let i = 0; i < 40; i++)
+        addAgent(SU, Math.random()*W, 8,
+                 (Math.random()-0.5)*2.5, 1.8+Math.random()*2);
+      for (let i = 0; i < 15; i++)
+        addAgent(FE, Math.random()*W, 8,
+                 (Math.random()-0.5)*2.0, 1.5+Math.random()*2);
+    }
+  }
+];
+
+function declareDead(reason) {
+  worldStatus = 'dead';
+  const el = document.getElementById('world-state');
+  el.textContent = 'DEAD WORLD';
+  el.className   = 'dead';
+  logE(reason);
+  agentSay('ANALYST',  'No recovery achieved. All interventions exhausted.');
+  agentSay('NARRATOR', 'The iron sulfide world wanted to live. The vent was not hot enough, or not long enough. We preserve the Iron Veil in our archives and hypothesize the next biome.');
+}
+
+function checkVitality(cx) {
+  if (worldStatus === 'dead') return;
+
+  if (cx > peakComplexity * (1 + MEANINGFUL_DELTA)) {
+    peakComplexity = cx;
+    peakTick       = tick;
+    if (worldStatus === 'perturbed') {
+      worldStatus = 'active';
+      document.getElementById('world-state').className  = '';
+      document.getElementById('world-state').textContent = '';
+      logE('meaningful complexity growth — world responding to perturbation');
+      agentSay('ANALYST', 'Recovery confirmed. Complexity growing beyond previous peak.');
+    }
+  }
+
+  if (!tierAchieved[2] && tick > HARD_DEATH_TICK) {
+    declareDead('T2 never reached — Fe-S chain formation failed — DEAD WORLD');
+    agentSay('NARRATOR', `${HARD_DEATH_TICK} ticks. No persistent chain ever formed. Wächtershäuser's hypothesis was elegant but the thermodynamics did not cooperate.`);
+    return;
+  }
+
+  const stagnant = tick - peakTick > STAGNATION_WINDOW;
+  if (!stagnant) return;
+
+  if (interventions >= MAX_INTERVENTIONS) {
+    declareDead('thermodynamic equilibrium — iron sulfide network dissolved — DEAD WORLD');
+    return;
+  }
+
+  const p = PERTURBATION_TYPES[interventions % PERTURBATION_TYPES.length];
+  p.fn();
+  interventions++;
+  peakTick    = tick;
+  perturbFlash = 40;
+  worldStatus = 'perturbed';
+
+  const el = document.getElementById('world-state');
+  el.textContent = p.name;
+  el.className   = 'perturbed';
+  setTimeout(() => {
+    if (worldStatus !== 'dead') {
+      el.className = ''; el.textContent = '';
+    }
+  }, 3000);
+
+  logE(`intervention ${interventions}/${MAX_INTERVENTIONS}: ${p.desc}`);
+  agentSay('SYSTEM',   `PERTURBATION ${interventions}/${MAX_INTERVENTIONS}: ${p.name}`);
+  agentSay('ANALYST',  `Stagnation window exceeded. Issuing ${p.desc}. Monitoring for network response.`);
+}
+
+// ── Tier detection ──────────────────────────────────────────
+const TIER_NAMES = [
+  'Inert', 'Molecular Activity', 'Persistent Structures',
+  'Reaction Diversity', 'Spatial Heterogeneity', 'Spontaneous Assembly',
+  'Sustained Complexity'
+];
+
+const tierAchieved = new Array(7).fill(false);
+let currentTier    = 0;
+
+let sustainedChainTicks = 0;
+let sustainedBranchTicks = 0;
+let sustainedRingTicks   = 0;
+let sustainedCxTicks     = 0;
+
+function promoteTier(t) {
+  if (tierAchieved[t]) return;
+  tierAchieved[t]  = true;
+  currentTier      = t;
+  tierFlash        = 90;
+  tierFlashLabel   = `T${t} — ${TIER_NAMES[t].toUpperCase()}`;
+  logE(`▲ TIER ${t} — ${TIER_NAMES[t]}`);
+  document.getElementById('v-tier').textContent = `T${t} — ${TIER_NAMES[t]}`;
+
+  const tierNarrative = {
+    1: ['OBSERVER',  'First Fe-S bond confirmed. Molecular activity initiated. T1 achieved.'],
+    2: ['ANALYST',   'Persistent Fe-S chain detected. Iron sulfide polymer forming. T2 confirmed.'],
+    3: ['ANALYST',   'Branching detected. The Fe network grows with increasing complexity. T3 confirmed.'],
+    4: ['NARRATOR',  'Ring closure. An iron sulfide cycle. The network folds back on itself. T4. Wächtershäuser was right. There is structure here.'],
+    5: ['ANALYST',   'Spontaneous assembly confirmed. Fe-S networks migrating from vent zone. T5.'],
+    6: ['OBSERVER',  'Sustained complexity plateau. The iron sulfide network is self-reinforcing. T6.'],
+  };
+
+  if (tierNarrative[t]) {
+    const [ag, msg] = tierNarrative[t];
+    agentSay(ag, msg);
+  }
+}
+
+function checkTiers(cx, mxl, brn, rings) {
+  if (!tierAchieved[1] && totalBondsFormed > 0) promoteTier(1);
+
+  if (mxl >= 3) sustainedChainTicks++; else sustainedChainTicks = 0;
+  if (!tierAchieved[2] && sustainedChainTicks >= 300) promoteTier(2);
+
+  if (brn >= 1) sustainedBranchTicks++; else sustainedBranchTicks = 0;
+  if (!tierAchieved[3] && sustainedBranchTicks >= 200) promoteTier(3);
+
+  if (rings >= 1) sustainedRingTicks++; else sustainedRingTicks = 0;
+  if (!tierAchieved[4] && sustainedRingTicks >= 150) promoteTier(4);
+
+  if (!tierAchieved[5]) {
+    for (const comp of latestComps) {
+      if (comp.feCount < 6) continue;
+      let cy2 = 0;
+      for (const idx of comp.nodes) cy2 += A[idx].y;
+      if (cy2 / comp.nodes.length < H * 0.62) { promoteTier(5); break; }
+    }
+  }
+
+  if (hist.length >= 80) {
+    const win  = hist.slice(-80);
+    const mean = win.reduce((s,v)=>s+v,0)/win.length;
+    if (mean > 1.5) sustainedCxTicks++; else sustainedCxTicks = 0;
+  }
+  if (!tierAchieved[6] && sustainedCxTicks >= 10) promoteTier(6);
+}
+
+// ── Agent conversation system ─────────────────────────────────
+const agentFeed   = document.getElementById('agent-feed');
+let lastAgentTick = -600;
+
+function agentSay(agent, msg) {
+  const entry = document.createElement('div');
+  entry.className = 'ae';
+  entry.innerHTML = `
+    <div class="ae-meta">
+      <span class="ae-name ${agent}">${agent}</span>
+      <span class="ae-time">t=${tick}</span>
+    </div>
+    <div class="ae-msg ${agent}">${msg}</div>
+  `;
+  agentFeed.appendChild(entry);
+  agentFeed.scrollTop = agentFeed.scrollHeight;
+
+  while (agentFeed.children.length > 60) {
+    agentFeed.removeChild(agentFeed.firstChild);
+  }
+}
+
+const CHECKPOINTS = [
+  {
+    t: 1,
+    messages: [
+      ['OBSERVER',  'Biome-70 IRON VEIL initialized. Iron sulfide chemistry at 400K hydrothermal conditions. Inspired by Wächtershäuser 1988.'],
+      ['ANALYST',   'Conditions logged: 50 atm, T₀ = 400K. Fe:S ratio 7:6. Water catalyst density 9%. Within expected parameters.'],
+      ['NARRATOR',  'Before proteins, before RNA, before lipids — there was iron and sulfur and hot water. Everything we call life may have started here.'],
+    ]
+  },
+  {
+    t: 400,
+    messages: [
+      ['OBSERVER',  `${() => A.filter(a=>a.type===FE).length} iron atoms in field. Brownian collision rate nominal for 400K. Watching for first bonding events.`],
+    ]
+  },
+  {
+    t: 800,
+    condition: () => !tierAchieved[1],
+    messages: [
+      ['ANALYST',   'No bond formation yet. The Fe-S activation energy is substantial at 400K. Watching for catalyst effect.'],
+    ]
+  },
+  {
+    t: 1200,
+    condition: () => tierAchieved[1] && !tierAchieved[2],
+    messages: [
+      ['OBSERVER',  'Fe-S bonds forming and breaking. Short-lived iron sulfide monomers. No sustained chain yet.'],
+      ['ANALYST',   'Bond formation rate: increasing. Bond persistence: marginal. Need Fe-S-Fe chain to exceed thermal break rate.'],
+    ]
+  },
+  {
+    t: 2000,
+    condition: () => tierAchieved[2],
+    messages: [
+      ['NARRATOR',  'An iron sulfide chain. Wächtershäuser predicted this. He said the first metabolism was a mineral surface. We are watching the prediction become a measurement.'],
+    ]
+  },
+  {
+    t: 3000,
+    messages: [
+      ['ANALYST',   `Current peak chain: ${() => maxChainLength(latestComps)} Fe atoms. Branching: ${countBranching()}. Network: ${tierAchieved[3] ? 'branching' : 'still linear'}.`],
+    ]
+  },
+];
+
+let checkpointIdx = 0;
+
+function runAgentCheckpoints() {
+  while (checkpointIdx < CHECKPOINTS.length) {
+    const cp = CHECKPOINTS[checkpointIdx];
+    if (tick < cp.t) break;
+    if (!cp.condition || cp.condition()) {
+      for (const [agent, msgOrFn] of cp.messages) {
+        const msg = typeof msgOrFn === 'function' ? msgOrFn() : msgOrFn;
+        agentSay(agent, msg);
+      }
+    }
+    checkpointIdx++;
+  }
+
+  if (checkpointIdx >= CHECKPOINTS.length && tick - lastAgentTick >= 1200) {
+    lastAgentTick = tick;
+    const cx    = hist.length ? hist[hist.length-1] : 0;
+    const mxl   = maxChainLength(latestComps);
+    const brn   = countBranching();
+    const rings = countRings(latestComps);
+
+    const PERIODIC = [
+      () => agentSay('OBSERVER',
+        `Status at t=${tick}: ${BONDS.size} bonds. Chain: ${mxl} Fe. Branches: ${brn}. Rings: ${rings}. Cx: ${cx.toFixed(3)}.`),
+      () => agentSay('ANALYST',
+        mxl >= 5
+          ? `Network growing. Chain length ${mxl} — ${brn > 0 ? 'branching confirmed' : 'unbranched'}. ${rings > 0 ? `${rings} cycle(s)` : 'No rings'}`
+          : `Network struggling. Max chain ${mxl}. ${interventions > 0 ? `${interventions} perturbation(s) applied` : 'No interventions yet'}`),
+      () => agentSay('NARRATOR',
+        tierAchieved[4]
+          ? 'Rings. The iron network closes on itself. The precondition of compartmentation. One day, metabolism will happen inside.'
+          : tierAchieved[3]
+            ? 'The branches grow. Each fork is a choice — which geometry does the hydrothermal gradient favor?'
+            : tierAchieved[2]
+              ? 'The chains persist. Iron and sulfur writing their story in the deep ocean.'
+              : 'Iron Veil is patient. Wächtershäuser knew this place would take time.'),
+    ];
+
+    PERIODIC[Math.floor(Math.random() * PERIODIC.length)]();
+  }
+}
+
+// ── Panel toggle ──────────────────────────────────────────────
+function togglePanel() {
+  document.getElementById('agent-panel').classList.toggle('collapsed');
+}
+
+// ── Speed control ─────────────────────────────────────────────
+let SPEED_VAL = 4;
+document.addEventListener('keydown', e => {
+  if (e.key === '+' || e.key === '=') SPEED_VAL = Math.min(30, SPEED_VAL + 1);
+  if (e.key === '-')                   SPEED_VAL = Math.max(1,  SPEED_VAL - 1);
+  if (e.key === '0')                   SPEED_VAL = 4;
+  SPEED = SPEED_VAL;
+});
+
+// ── Main loop ─────────────────────────────────────────────────
+let lastUITick = 0;
+const UI_INTERVAL = 12;
+
+function loop() {
+  requestAnimationFrame(loop);
+
+  for (let s = 0; s < SPEED_VAL; s++) update();
+
+  if (tick - lastUITick >= UI_INTERVAL) {
+    lastUITick = tick;
+    const { cx, mxl, brn, rings } = updateUI();
+    render(latestComps, brn, rings);
+    runAgentCheckpoints();
+  } else {
+    render(latestComps, countBranching(), countRings(latestComps));
+  }
+}
+
+init();
+loop();
+</script>
+</body>
+</html>
