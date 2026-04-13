@@ -573,23 +573,18 @@ function startLoop() {
       }
 
       // Periodic Firebase save
-      // Worker physics is simplified (capped T12). tierFloor = all-time peakTier.
-      // Never write a currentTier lower than the floor.
-      // If worker achieves a new high, update both floor and peakTier.
+      // Worker physics is simplified (capped T12). We deliberately DO NOT save
+      // currentTier here — that is the full simulation's responsibility and the
+      // worker cannot know the true all-time peak without a Firebase read.
+      // Writing a stale worker tier (≤T12) would silently overwrite a T17+
+      // value achieved by the full simulation. We only save physics-continuity
+      // fields so the full sim can resume from a decent checkpoint.
       if (db && now - (lastSave[bid] || 0) > SAVE_MS) {
-        const snap   = sim.getSnapshot();
-        const idStr  = String(bid);
-        const floor  = tierFloor[bid] || 0;
-        if (snap.currentTier < floor) {
-          snap.currentTier = floor;   // protect all-time peak
-        } else if (snap.currentTier > floor) {
-          tierFloor[bid] = snap.currentTier;
-          // Persist new peak at biome root (survives generation resets)
-          db.ref(`pandora/biomes/${idStr}/peakTier`)
-            .transaction(prev => snap.currentTier > (prev||0) ? snap.currentTier : undefined)
-            .catch(() => {});
-        }
-        db.ref(`pandora/biomes/${idStr}/state`).update(snap).catch(() => {});
+        const snap  = sim.getSnapshot();
+        const idStr = String(bid);
+        // Strip currentTier — never let the worker overwrite the full sim's tier
+        const { currentTier: _ignored, ...saveable } = snap;
+        db.ref(`pandora/biomes/${idStr}/state`).update(saveable).catch(() => {});
         lastSave[bid] = now;
       }
     }
