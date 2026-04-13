@@ -149,6 +149,12 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
   font-family:'Courier New',monospace;font-size:0.62rem;letter-spacing:.2em;
   color:rgba(80,150,200,0.55);text-transform:uppercase;z-index:20;
   pointer-events:none;transition:color 1.2s,text-shadow 1.2s;">◈ MOLECULAR</div>
+<div id="hover-popup" style="display:none;position:fixed;z-index:25;
+  font-family:'Courier New',monospace;font-size:10px;line-height:1.85;
+  background:rgba(2,10,22,0.95);border:1px solid rgba(50,200,150,0.30);
+  border-radius:6px;padding:12px 16px;pointer-events:none;
+  color:rgba(140,220,200,0.9);max-width:230px;
+  box-shadow:0 0 22px rgba(30,180,130,0.18);"></div>
 <div id="int-panel" style="display:none">
   <div class="int-label">⚗ Scientific Intervention</div>
   <div class="int-name" id="int-name">—</div>
@@ -333,6 +339,13 @@ window.addEventListener('resize',()=>{
   renderer.setSize(window.innerWidth,window.innerHeight);
   bondMat.resolution.set(window.innerWidth,window.innerHeight);
 });
+window.addEventListener('mousemove',e=>{
+  if(e.clientX>window.innerWidth-295)return; // skip agent panel
+  _hMouse.x=(e.clientX/window.innerWidth)*2-1;
+  _hMouse.y=-(e.clientY/window.innerHeight)*2+1;
+  _hMousePx=e.clientX;_hMousePy=e.clientY;
+});
+window.addEventListener('mouseleave',()=>_clearHover());
 
 // InstancedMesh — one mesh per particle type, all instances rendered in one draw call
 // Extra headroom for ion flushes (particles can exceed nBase by ~15%)
@@ -349,14 +362,20 @@ const _dummy=new THREE.Object3D();
 const _tCounts=new Int32Array(BC.types.length);
 function updateInstancedMeshes(){
   _tCounts.fill(0);
+  for(let ti=0;ti<BC.types.length;ti++){if(!_molTiMap[ti])_molTiMap[ti]=[];_molTiMap[ti].length=0;}
   for(let i=0;i<particles.length;i++){
     const p=particles[i];
+    const instId=_tCounts[p.type];
     _dummy.position.set(p.x,p.y,p.z);_dummy.updateMatrix();
-    iMeshes[p.type].setMatrixAt(_tCounts[p.type]++,_dummy.matrix);
+    iMeshes[p.type].setMatrixAt(instId,_dummy.matrix);
+    iMeshes[p.type].setColorAt(instId,(_hoverActive&&_hoverSet&&!_hoverSet.has(i))?_hDim:_hWhite);
+    _molTiMap[p.type][instId]=i;
+    _tCounts[p.type]++;
   }
   for(let ti=0;ti<BC.types.length;ti++){
     iMeshes[ti].count=_tCounts[ti];
     iMeshes[ti].instanceMatrix.needsUpdate=true;
+    if(iMeshes[ti].instanceColor)iMeshes[ti].instanceColor.needsUpdate=true;
   }
 }
 
@@ -375,16 +394,16 @@ function _clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
 // At T13 the molecular LJ world transitions to a cellular DPD world.
 // Each CG particle represents CG_EQUIV real molecules — the simulation
 // "zooms out" from atoms to proto-cells. ~800K equivalent atoms total.
-const CG_N     = 8000;   // CG particles after transition
-const CG_EQUIV = 100;    // molecular entities per CG particle
-const CG_RC    = 18.0;   // DPD interaction cutoff
-const CG_DT    = 0.05;   // integration timestep
-const CG_CELL  = 20;     // spatial hash cell size (covers CG_RC)
-const CG_GAMMA = 3.5;    // dissipative coefficient
-const CG_SIGMA = 2.65;   // random force: sqrt(2*GAMMA)
-const CG_A_SAME= 11.0;   // same-type soft repulsion (+ Gaussian attraction → clusters)
-const CG_A_DIFF= 40.0;   // cross-type repulsion (promotes demixing)
-const CG_INST  = Math.ceil(CG_N / BC.types.length * 1.6);
+const CG_N     = 2000;   // CG particles after transition
+const CG_EQUIV = 400;    // molecular entities per CG particle (~800K equiv total)
+const CG_RC    = 22.0;   // DPD interaction cutoff
+const CG_DT    = 0.06;   // integration timestep
+const CG_CELL  = 24;     // spatial hash cell size (covers CG_RC)
+const CG_GAMMA = 1.8;    // dissipative coefficient (low = more visible motion)
+const CG_SIGMA = 1.90;   // random force: sqrt(2*GAMMA)
+const CG_A_SAME= 5.0;    // same-type soft repulsion (+ Gaussian attraction → clusters)
+const CG_A_DIFF= 16.0;   // cross-type repulsion (promotes demixing)
+const CG_INST  = Math.ceil(CG_N / BC.types.length * 1.8);
 
 // ── COARSE-GRAIN STATE ───────────────────────────────────────
 let _cgMode    = false;
@@ -394,6 +413,17 @@ let _cgMeshes  = null;   // THREE.InstancedMesh[] per type, created at transitio
 let _cgGrid    = new Map();
 let _cgLastComps = [];
 let _cgLastMax   = 0;
+
+// ── HOVER / HIGHLIGHT STATE ───────────────────────────────────
+const _hRay    = new THREE.Raycaster();
+const _hMouse  = new THREE.Vector2(-999,-999);
+let _hMousePx=0,_hMousePy=0;
+let _hoverActive=false,_hoverTick=0;
+let _hoverSet=null; // Set of particle/cgP indices in hovered cluster
+const _molTiMap=[]; // _molTiMap[ti][instId] = particle index (rebuilt each frame)
+const _cgTiMap=[];  // _cgTiMap[ti][instId]  = cgP index
+const _hWhite=new THREE.Color(1,1,1);
+const _hDim  =new THREE.Color(0.10,0.10,0.10);
 
 // Spatial hash grid — O(n) neighbor lookup
 const CELL=38; // covers LJ cutoff (36) + buffer
@@ -645,8 +675,8 @@ function cgPhysicsStep(){
       }else if(same){
         // Weak repulsion + Gaussian attraction → same-type clusters form
         const repF=CG_A_SAME*wr*inv_r;
-        const sig2=effRC*effRC*0.09; // sigma=0.3*effRC
-        const attrF=-14.0*Math.exp(-r*r/(2.0*sig2))*inv_r;
+        const sig2=effRC*effRC*0.11; // sigma=0.33*effRC — wider well
+        const attrF=-18.0*Math.exp(-r*r/(2.0*sig2))*inv_r;
         fc=repF+attrF;
       }else{
         fc=CG_A_DIFF*wr*inv_r; // cross-type: strong repulsion → demixing
@@ -663,8 +693,8 @@ function cgPhysicsStep(){
       pj.fx-=fpx;pj.fy-=fpy;pj.fz-=fpz;
     }
   }
-  // Integrate + boundary
-  const wR=BC.worldR*1.3;
+  // Integrate + boundary — compact world keeps density high enough for DPD clustering
+  const wR=BC.worldR*0.65;
   for(let i=0;i<N;i++){
     const pi=ps[i];
     const inv_m=1.0/pi.mass;
@@ -709,7 +739,7 @@ function cgCompIsMixed(comp){
   return types.size>=2;
 }
 
-// CG tier detection — thresholds scaled to 8000-particle CG space
+// CG tier detection — thresholds scaled to 2000-particle CG space (~0.25× of 8K world)
 function checkCGTiers(){
   const comps=getCGComponents();
   const mx=comps.reduce((m,c)=>Math.max(m,c.length),0);
@@ -717,54 +747,54 @@ function checkCGTiers(){
   _lastMaxClus=mx;_lastComps=comps;
   _lastTotalBd=comps.reduce((s,c)=>s+Math.max(0,c.length-1),0);
   const t=currentTier;
-  const lg30 =comps.filter(c=>c.length>=30);
+  const lg8   =comps.filter(c=>c.length>=8);
+  const lg12m =comps.filter(c=>c.length>=12 &&cgCompIsMixed(c));
+  const lg25m =comps.filter(c=>c.length>=25 &&cgCompIsMixed(c));
   const lg50m =comps.filter(c=>c.length>=50 &&cgCompIsMixed(c));
-  const lg100m=comps.filter(c=>c.length>=100&&cgCompIsMixed(c));
+  const lg75m =comps.filter(c=>c.length>=75 &&cgCompIsMixed(c));
+  const lg125m=comps.filter(c=>c.length>=125&&cgCompIsMixed(c));
   const lg200m=comps.filter(c=>c.length>=200&&cgCompIsMixed(c));
-  const lg300m=comps.filter(c=>c.length>=300&&cgCompIsMixed(c));
-  const lg500m=comps.filter(c=>c.length>=500&&cgCompIsMixed(c));
-  const lg800m=comps.filter(c=>c.length>=800&&cgCompIsMixed(c));
   // T14-T20: cellular emergence
-  if(t<14&&lg30.length>=5)                                              _setTier(14);
-  if(t<15&&mx>=80&&lg50m.length>=3)                                     _setTier(15);
-  if(t<16&&lg50m.length>=5&&mx>=120)                                    _setTier(16);
-  if(t<17&&lg100m.length>=2&&mx>=150)                                   _setTier(17);
-  if(t<18&&lg100m.length>=3&&mx>=200)                                   _setTier(18);
-  if(t<19&&lg200m.length>=2&&mx>=250)                                   _setTier(19);
-  if(t<20&&lg200m.length>=3&&mx>=300&&_sustainedHigh20>200)             _setTier(20);
+  if(t<14&&lg8.length>=5)                                               _setTier(14);
+  if(t<15&&mx>=20&&lg12m.length>=2)                                     _setTier(15);
+  if(t<16&&lg12m.length>=4&&mx>=30)                                     _setTier(16);
+  if(t<17&&lg25m.length>=2&&mx>=38)                                     _setTier(17);
+  if(t<18&&lg25m.length>=3&&mx>=50)                                     _setTier(18);
+  if(t<19&&lg50m.length>=2&&mx>=63)                                     _setTier(19);
+  if(t<20&&lg50m.length>=3&&mx>=75&&_sustainedHigh20>200)               _setTier(20);
   // T21-T30
-  if(t<21&&mx>=350&&lg100m.length>=3&&_sustainedHigh20>500)             _setTier(21);
-  if(t<22&&lg100m.length>=4)                                            _setTier(22);
-  if(t<23&&mx>=400&&lg100m.length>=5)                                   _setTier(23);
-  if(t<24&&lg200m.length>=2&&_sustainedHigh29>200)                      _setTier(24);
-  if(t<25&&mx>=450&&lg100m.length>=6)                                   _setTier(25);
-  if(t<26&&lg200m.length>=3&&_sustainedHigh29>400)                      _setTier(26);
-  if(t<27&&mx>=500&&lg200m.length>=3)                                   _setTier(27);
-  if(t<28&&lg300m.length>=2&&_sustainedHigh29>600)                      _setTier(28);
-  if(t<29&&lg200m.length>=5)                                            _setTier(29);
-  if(t<30&&mx>=600&&lg200m.length>=5&&_sustainedHigh29>800)             _setTier(30);
+  if(t<21&&mx>=88&&lg25m.length>=3&&_sustainedHigh20>500)               _setTier(21);
+  if(t<22&&lg25m.length>=4)                                             _setTier(22);
+  if(t<23&&mx>=100&&lg25m.length>=5)                                    _setTier(23);
+  if(t<24&&lg50m.length>=2&&_sustainedHigh29>200)                       _setTier(24);
+  if(t<25&&mx>=113&&lg25m.length>=6)                                    _setTier(25);
+  if(t<26&&lg50m.length>=3&&_sustainedHigh29>400)                       _setTier(26);
+  if(t<27&&mx>=125&&lg50m.length>=3)                                    _setTier(27);
+  if(t<28&&lg75m.length>=2&&_sustainedHigh29>600)                       _setTier(28);
+  if(t<29&&lg50m.length>=5)                                             _setTier(29);
+  if(t<30&&mx>=150&&lg50m.length>=5&&_sustainedHigh29>800)              _setTier(30);
   // T31-T40
-  if(t<31&&lg300m.length>=3)                                            _setTier(31);
-  if(t<32&&mx>=700&&lg300m.length>=3)                                   _setTier(32);
-  if(t<33&&lg300m.length>=3&&_sustainedHigh39>200)                      _setTier(33);
-  if(t<34&&lg300m.length>=4&&mx>=750)                                   _setTier(34);
-  if(t<35&&mx>=800&&lg300m.length>=4&&_sustainedHigh39>400)             _setTier(35);
-  if(t<36&&lg500m.length>=1&&mx>=800)                                   _setTier(36);
-  if(t<37&&lg500m.length>=1&&_sustainedHigh39>600)                      _setTier(37);
-  if(t<38&&mx>=1000&&lg500m.length>=2)                                  _setTier(38);
-  if(t<39&&lg500m.length>=2&&mx>=1000&&_sustainedHigh39>800)            _setTier(39);
-  if(t<40&&mx>=1200&&lg500m.length>=2&&_sustainedHigh39>1200)           _setTier(40);
+  if(t<31&&lg75m.length>=3)                                             _setTier(31);
+  if(t<32&&mx>=175&&lg75m.length>=3)                                    _setTier(32);
+  if(t<33&&lg75m.length>=3&&_sustainedHigh39>200)                       _setTier(33);
+  if(t<34&&lg75m.length>=4&&mx>=188)                                    _setTier(34);
+  if(t<35&&mx>=200&&lg75m.length>=4&&_sustainedHigh39>400)              _setTier(35);
+  if(t<36&&lg125m.length>=1&&mx>=200)                                   _setTier(36);
+  if(t<37&&lg125m.length>=1&&_sustainedHigh39>600)                      _setTier(37);
+  if(t<38&&mx>=250&&lg125m.length>=2)                                   _setTier(38);
+  if(t<39&&lg125m.length>=2&&mx>=250&&_sustainedHigh39>800)             _setTier(39);
+  if(t<40&&mx>=300&&lg125m.length>=2&&_sustainedHigh39>1200)            _setTier(40);
   // T41-T50
-  if(t<41&&lg500m.length>=3)                                            _setTier(41);
-  if(t<42&&mx>=1500&&lg500m.length>=3)                                  _setTier(42);
-  if(t<43&&lg500m.length>=3&&_sustainedHigh49>200)                      _setTier(43);
-  if(t<44&&lg800m.length>=2)                                            _setTier(44);
-  if(t<45&&mx>=2000&&_sustainedHigh49>400)                              _setTier(45);
-  if(t<46&&lg800m.length>=2&&mx>=2000&&_sustainedHigh49>800)            _setTier(46);
-  if(t<47&&comps.filter(c=>c.length>=1000&&cgCompIsMixed(c)).length>=2) _setTier(47);
-  if(t<48&&mx>=3000&&_sustainedHigh49>1000)                             _setTier(48);
-  if(t<49&&comps.filter(c=>c.length>=1000&&cgCompIsMixed(c)).length>=2&&mx>=3000&&_sustainedHigh49>1500) _setTier(49);
-  if(t<50&&mx>=4000&&_sustainedHigh49>2000)                             _setTier(50);
+  if(t<41&&lg125m.length>=3)                                            _setTier(41);
+  if(t<42&&mx>=375&&lg125m.length>=3)                                   _setTier(42);
+  if(t<43&&lg125m.length>=3&&_sustainedHigh49>200)                      _setTier(43);
+  if(t<44&&lg200m.length>=2)                                            _setTier(44);
+  if(t<45&&mx>=500&&_sustainedHigh49>400)                               _setTier(45);
+  if(t<46&&lg200m.length>=2&&mx>=500&&_sustainedHigh49>800)             _setTier(46);
+  if(t<47&&comps.filter(c=>c.length>=250&&cgCompIsMixed(c)).length>=2)  _setTier(47);
+  if(t<48&&mx>=750&&_sustainedHigh49>1000)                              _setTier(48);
+  if(t<49&&comps.filter(c=>c.length>=250&&cgCompIsMixed(c)).length>=2&&mx>=750&&_sustainedHigh49>1500) _setTier(49);
+  if(t<50&&mx>=1000&&_sustainedHigh49>2000)                             _setTier(50);
 }
 
 // CG renderer — glowing semi-transparent blobs, one InstancedMesh per type
@@ -775,8 +805,8 @@ function _setupCGMeshes(){
       new THREE.SphereGeometry(1.0,10,7),
       new THREE.MeshPhongMaterial({
         color:t[1],
-        emissive:new THREE.Color(t[1]).multiplyScalar(0.5),
-        shininess:90,transparent:true,opacity:0.76,
+        emissive:new THREE.Color(t[1]).multiplyScalar(0.6),
+        shininess:100,transparent:true,opacity:0.88,
       }),
       CG_INST
     );
@@ -786,17 +816,23 @@ function _setupCGMeshes(){
 function _updateCGMeshes(){
   if(!_cgMeshes)return;
   const counts=new Int32Array(BC.types.length);
+  for(let ti=0;ti<BC.types.length;ti++){if(!_cgTiMap[ti])_cgTiMap[ti]=[];_cgTiMap[ti].length=0;}
   for(let i=0;i<_cgP.length;i++){
     const p=_cgP[i],ti=p.type;
     if(counts[ti]>=CG_INST)continue;
+    const instId=counts[ti];
     _dummy.position.set(p.x,p.y,p.z);
     _dummy.scale.set(p.r,p.r,p.r);
     _dummy.updateMatrix();
-    _cgMeshes[ti].setMatrixAt(counts[ti]++,_dummy.matrix);
+    _cgMeshes[ti].setMatrixAt(instId,_dummy.matrix);
+    _cgMeshes[ti].setColorAt(instId,(_hoverActive&&_hoverSet&&!_hoverSet.has(i))?_hDim:_hWhite);
+    _cgTiMap[ti][instId]=i;
+    counts[ti]++;
   }
   for(let ti=0;ti<BC.types.length;ti++){
     _cgMeshes[ti].count=counts[ti];
     _cgMeshes[ti].instanceMatrix.needsUpdate=true;
+    if(_cgMeshes[ti].instanceColor)_cgMeshes[ti].instanceColor.needsUpdate=true;
   }
 }
 
@@ -821,17 +857,38 @@ function _transitionToCG(){
       vx:(Math.random()-0.5)*0.4,vy:(Math.random()-0.5)*0.4,vz:(Math.random()-0.5)*0.2,
       fx:0,fy:0,fz:0,type,mass,r:radius});
   });
-  // Fill to CG_N with small monomers representing the free molecular sea
+  // Fill to CG_N with type-segregated clouds — each type gets its own starting domain.
+  // Clouds are densely packed (intra-cloud spacing < clustering threshold) so same-type
+  // blobs cluster immediately. Cloud-cloud separation + DPD cross-type repulsion then
+  // produces visible multi-structure interaction dynamics.
   const toAdd=Math.max(0,CG_N-_cgP.length);
-  const wR=BC.worldR*1.1;
-  for(let k=0;k<toAdd;k++){
-    const phi=Math.acos(2*Math.random()-1),th=Math.random()*Math.PI*2;
-    const r=wR*0.88*Math.cbrt(Math.random());
-    _cgP.push({
-      x:r*Math.sin(phi)*Math.cos(th),y:r*Math.sin(phi)*Math.sin(th),z:r*Math.cos(phi),
-      vx:(Math.random()-0.5)*1.2,vy:(Math.random()-0.5)*1.2,vz:(Math.random()-0.5)*0.6,
-      fx:0,fy:0,fz:0,type:Math.floor(Math.random()*BC.types.length),mass:1,r:1.5
-    });
+  const nTypes=BC.types.length;
+  const R_centers=BC.worldR*0.28; // cloud centres orbit at 28% worldR
+  const cloudR=BC.worldR*0.17;    // each cloud has 17% worldR radius → dense packing
+  const perType=Math.ceil(toAdd/nTypes);
+  for(let ti=0;ti<nTypes;ti++){
+    // Evenly distribute cloud centres on sphere (golden-angle spacing)
+    const phi_c=Math.acos(1-2*(ti+0.5)/nTypes);
+    const th_c=Math.PI*(1+Math.sqrt(5))*ti;
+    const cx=R_centers*Math.sin(phi_c)*Math.cos(th_c);
+    const cy=R_centers*Math.sin(phi_c)*Math.sin(th_c);
+    const cz=R_centers*Math.cos(phi_c);
+    for(let k=0;k<perType&&_cgP.length<CG_N;k++){
+      const pr=cloudR*Math.cbrt(Math.random());
+      const pphi=Math.acos(2*Math.random()-1),pth=Math.random()*Math.PI*2;
+      const px=cx+pr*Math.sin(pphi)*Math.cos(pth);
+      const py=cy+pr*Math.sin(pphi)*Math.sin(pth);
+      const pz=cz+pr*Math.cos(pphi);
+      // Slow inward drift + thermal kick: clouds converge and begin to mix at boundaries
+      const sp=2.0;
+      _cgP.push({
+        x:px,y:py,z:pz,
+        vx:-cx*0.004+(Math.random()-0.5)*sp,
+        vy:-cy*0.004+(Math.random()-0.5)*sp,
+        vz:-cz*0.004+(Math.random()-0.5)*sp,
+        fx:0,fy:0,fz:0,type:ti,mass:1,r:3.2
+      });
+    }
   }
   // Switch renderer: hide molecular, show CG
   iMeshes.forEach(im=>{im.visible=false;});
@@ -1506,7 +1563,7 @@ function checkVitality(){
 
 // ── DEATH / GENERATION ──────────────────────────────────────
 async function _runDeathCycle(reason){
-  if(_deathRunning)return;_deathRunning=true;_isDead=true;
+  if(_deathRunning)return;_deathRunning=true;_isDead=true;_clearHover();
   const ws=document.getElementById('world-state');
   ws.textContent='DEAD WORLD';ws.className='dead';
   const seed={positions:particles.map(p=>({x:p.x,y:p.y,z:p.z,type:p.type}))};
@@ -1599,6 +1656,101 @@ function drawTierGraph(){
   ctx.fillText(`T${tierHistory[tierHistory.length-1]}`,last.x+5,last.y+3);
 }
 
+// ── HOVER / CLUSTER HIGHLIGHT ────────────────────────────────
+function _clearHover(){
+  if(!_hoverActive)return;
+  _hoverActive=false;_hoverSet=null;
+  document.getElementById('hover-popup').style.display='none';
+}
+
+function _cgClassifyCluster(comp){
+  const n=comp.length,mix=cgCompIsMixed(comp);
+  if(n<5)return'Free Blob';
+  if(n<12)return'Micro-Domain';
+  if(n<25)return mix?'Mixed Domain':'Homotypic Domain';
+  if(n<50)return mix?'Proto-Colony':'Micro-Colony';
+  if(n<100)return mix?'Heterogeneous Colony':'Growing Colony';
+  if(n<200)return mix?'Cellular Assembly':'Dense Colony';
+  if(n<400)return mix?'Proto-Organelle':'Mega-Colony';
+  return mix?'Macro-Colony':'Unified Mass';
+}
+
+function _typeComp(indices,isCG){
+  const tc=new Array(BC.types.length).fill(0);
+  if(isCG)indices.forEach(i=>tc[_cgP[i].type]++);
+  else indices.forEach(i=>tc[particles[i].type]++);
+  const tot=indices.length;
+  return BC.types.map((t,ti)=>({sym:t[0],pct:Math.round(tc[ti]/tot*100),hex:'#'+t[1].toString(16).padStart(6,'0')}))
+    .filter(x=>x.pct>0).sort((a,b)=>b.pct-a.pct);
+}
+
+function _showHoverPopup(comp,isCG){
+  const n=comp.length;
+  const typeName=isCG?_cgClassifyCluster(comp):classifyComp(comp);
+  const composition=_typeComp(comp,isCG);
+  const compStr=composition.map(c=>`<span style="color:${c.hex}">${c.sym}</span>\u202f${c.pct}%`).join(' · ');
+  let detail='';
+  if(isCG){
+    const equiv=(n*CG_EQUIV).toLocaleString();
+    detail=`<div style="color:rgba(80,180,150,0.6);font-size:8.5px;letter-spacing:.1em">EQUIV. ATOMS</div>`+
+           `<div style="color:rgba(200,255,235,0.85);margin-bottom:6px">~${equiv}</div>`;
+  }else{
+    const info=discoveredStructures.get(typeName);
+    if(info)detail=`<div style="color:rgba(80,180,150,0.6);font-size:8.5px;letter-spacing:.1em">FIRST SEEN</div>`+
+                   `<div style="color:rgba(180,240,215,0.7);margin-bottom:6px">T${info.tier} · Gen ${info.gen}</div>`;
+  }
+  const popup=document.getElementById('hover-popup');
+  popup.innerHTML=
+    `<div style="color:rgba(50,210,160,0.85);letter-spacing:.14em;font-size:8.5px;margin-bottom:5px">◈ STRUCTURE</div>`+
+    `<div style="font-size:11.5px;color:rgba(220,255,245,1);letter-spacing:.04em;margin-bottom:8px;`+
+    `border-bottom:1px solid rgba(50,190,140,0.18);padding-bottom:6px">${typeName}</div>`+
+    `<div style="color:rgba(80,180,150,0.6);font-size:8.5px;letter-spacing:.1em">${isCG?'BLOBS':'PARTICLES'}</div>`+
+    `<div style="color:rgba(200,255,235,0.85);margin-bottom:6px">${n}</div>`+
+    detail+
+    `<div style="color:rgba(80,180,150,0.6);font-size:8.5px;letter-spacing:.1em">COMPOSITION</div>`+
+    `<div style="font-size:9.5px;line-height:2.0">${compStr}</div>`;
+  const pw=238,ph=170;
+  let px=_hMousePx+20,py=_hMousePy-14;
+  if(px+pw>window.innerWidth-300)px=_hMousePx-pw-12;
+  if(py+ph>window.innerHeight-20)py=window.innerHeight-ph-20;
+  if(py<8)py=8;
+  popup.style.left=px+'px';popup.style.top=py+'px';
+  popup.style.display='block';
+}
+
+function _detectHover(){
+  if(++_hoverTick%8!==0)return; // throttle to ~every 8 frames
+  _hRay.setFromCamera(_hMouse,camera);
+  const meshes=_cgMode?_cgMeshes:iMeshes;
+  if(!meshes)return;
+  let bestDist=Infinity,bestTi=-1,bestInstId=-1;
+  for(let ti=0;ti<meshes.length;ti++){
+    const im=meshes[ti];
+    if(!im||im.count===0)continue;
+    const hits=_hRay.intersectObject(im);
+    if(hits.length>0&&hits[0].distance<bestDist){
+      bestDist=hits[0].distance;bestTi=ti;bestInstId=hits[0].instanceId;
+    }
+  }
+  if(bestTi===-1||bestInstId===undefined||bestInstId===null){_clearHover();return;}
+  let cluster=null;
+  if(_cgMode){
+    const tiMap=_cgTiMap[bestTi];
+    const pIdx=tiMap&&tiMap[bestInstId];
+    if(pIdx===undefined){_clearHover();return;}
+    cluster=_cgLastComps.find(c=>c.includes(pIdx));
+  }else{
+    const tiMap=_molTiMap[bestTi];
+    const pIdx=tiMap&&tiMap[bestInstId];
+    if(pIdx===undefined){_clearHover();return;}
+    cluster=_lastComps.find(c=>c.includes(pIdx));
+  }
+  if(!cluster||cluster.length===0){_clearHover();return;}
+  _hoverSet=new Set(cluster);
+  _hoverActive=true;
+  _showHoverPopup(cluster,_cgMode);
+}
+
 // ── MAIN LOOP ───────────────────────────────────────────────
 // ── Firebase state sync ─────────────────────────────────────
 let _lastSavedTier=-1;
@@ -1640,8 +1792,8 @@ function animate(){
     if(uiTick%15===0){
       document.getElementById('v-tick').textContent=_cgTick;
       document.getElementById('v-np').textContent=_cgP.length;
-      document.getElementById('v-nb').textContent=_cgLastMax;
-      document.getElementById('v-mx').textContent=_cgLastMax;
+      document.getElementById('v-nb').textContent=_cgLastComps.length+' clusters';
+      document.getElementById('v-mx').textContent=_cgLastMax+' blobs';
       document.getElementById('v-temp').textContent='CG';
       document.getElementById('v-pres').textContent='cellular';
       document.getElementById('v-cx').textContent=(_cgLastMax/(_cgP.length||1)).toFixed(3);
@@ -1649,6 +1801,7 @@ function animate(){
     const ws=document.getElementById('world-state');
     if(_flashLabel&&uiTick-_flashTick<130){ws.textContent=_flashLabel;ws.className='flash';ws.style.opacity='1';}
     else if(_flashLabel){_flashLabel='';ws.className='';ws.textContent='';ws.style.opacity='0';}
+    _detectHover();
     controls.update();renderer.render(scene,camera);
     return;
   }
@@ -1681,6 +1834,7 @@ function animate(){
   const ws=document.getElementById('world-state');
   if(_flashLabel&&uiTick-_flashTick<130){ws.textContent=_flashLabel;ws.className='flash';ws.style.opacity='1';}
   else if(_flashLabel){_flashLabel='';ws.className='';ws.textContent='';ws.style.opacity='0';}
+  _detectHover();
   controls.update();renderer.render(scene,camera);
 }
 
