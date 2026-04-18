@@ -454,7 +454,7 @@ const db   = firebase.database();
 const ROOT = `pandora/biomes/${BIOME_ID}`;
 
 // THREE.js scene
-const renderer = new THREE.WebGLRenderer({antialias:true});
+const renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
 renderer.setSize(window.innerWidth,window.innerHeight);
 Object.assign(renderer.domElement.style,{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',zIndex:'0'});
@@ -1274,7 +1274,7 @@ function _setTier(t){
   // ── FAST-RUNNER MODE: minimal ops — track state, queue capture, no DOM thrash ──
   if(_frMode){
     tierHistory.push(t);
-    if(_frMissingTiers.has(t))_frPendingCapture=t;
+    if(_frMissingTiers.has(t))_frPendingQueue.push(t); // queue for capture (not clobber)
     if(t===13&&!_cgMode)_transitionToCG();
     return;
   }
@@ -2063,7 +2063,8 @@ function animate(){
 // Purpose: run simulation at max speed from seed, capturing footage at each
 // tier transition missing from Firebase. Builds the full evolutionary record
 // so the documentary overlay can show real footage for every tier.
-// Triggered on page load when any tier T1→currentTier has no stored footage.
+// Triggered on page load when any tier T1→currentTier has no stored footage
+// (or has only tiny/black footage — minimum frame size check enforced).
 // ────────────────────────────────────────────────────────────────────────────
 
 let _frMode          = false; // true while fast-runner is active
@@ -2075,13 +2076,16 @@ let _frTick          = 0;     // total physics ticks during fast run
 let _frMolStep       = 0;     // molecular step counter (for bond update rate)
 let _frCGStep        = 0;     // CG step accumulator (for tier check cadence)
 let _frDetectAcc     = 0;     // accumulator for detectStructures cadence
-let _frPendingCapture= -1;    // tier queued for footage capture (-1 = none)
+let _frPendingQueue  = [];    // queue of tiers awaiting footage capture
 let _frCapturing     = false; // true while async capture is in progress
 let _frCapturedCount = 0;     // how many tiers captured so far
 
 const FR_BATCH_MOL  = 300;   // molecular physics steps per setInterval call
 const FR_BATCH_CG   = 120;   // CG physics steps per setInterval call
-const FR_MAX_TICKS  = 1200000; // safety cutoff — give up after this many ticks
+const FR_MAX_TICKS  = 1400000; // safety cutoff — give up after this many ticks
+// Minimum base64 frame size to be considered non-black/non-empty footage
+// A 320x200 all-black JPEG ≈ 400-700 base64 chars; real content ≈ 2000+
+const FR_MIN_FRAME_SIZE = 1200;
 
 function _frUpdateProgress(){
   const el=document.getElementById('fr-status');
@@ -2093,21 +2097,48 @@ function _frUpdateProgress(){
   if(bar) bar.style.width=(Math.min(100,currentTier/Math.max(1,_frTarget)*100)).toFixed(1)+'%';
 }
 
-function _frBatch(){
-  if(!_frMode)return;
-  if(_frCapturing)return; // wait for async capture to finish
+// Zoom the camera into the largest cluster/blob so footage shows something real.
+// Saves/restores are handled by the caller.
+function _frFocusCamera(){
+  let cx=0,cy=0,cz=0,found=false;
+  if(_cgMode&&_cgP.length>0){
+    const comps=getCGComponents();
+    if(comps.length>0){
+      const l=[...comps].sort((a,b)=>b.length-a.length)[0];
+      if(l&&l.length>0){
+        cx=l.reduce((s,i)=>s+_cgP[i].x,0)/l.length;
+        cy=l.reduce((s,i)=>s+_cgP[i].y,0)/l.length;
+        cz=l.reduce((s,i)=>s+_cgP[i].z,0)/l.length;
+        found=true;
+      }
+    }
+  } else if(_lastComps&&_lastComps.length>0){
+    const l=[..._lastComps].sort((a,b)=>b.length-a.length)[0];
+    if(l&&l.length>0){
+      cx=l.reduce((s,i)=>s+particles[i].x,0)/l.length;
+      cy=l.reduce((s,i)=>s+particles[i].y,0)/l.length;
+      cz=l.reduce((s,i)=>s+particles[i].z,0)/l.length;
+      found=true;
+    }
+  }
+  if(found){
+    const dist=BC.worldR*(_cgMode?0.55:0.38);
+    camera.position.set(cx,cy,cz+dist);
+    controls.target.set(cx,cy,cz);
+    controls.update();
+  }
+}
 
-  // If a tier was just hit that needs capture, service it
-  if(_frPendingCapture>=0){
-    const t=_frPendingCapture;
-    _frPendingCapture=-1;
+function _frBatch(){
+  if(!_frMode||_frCapturing)return;
+
+  // Service next queued tier capture
+  if(_frPendingQueue.length>0){
+    const t=_frPendingQueue.shift();
     _frCapturing=true;
     _frCaptureTierFootage(t).then(()=>{
       _frCapturing=false;
-      // Check completion after capture
-      if(_frMissingTiers.size===0||currentTier>=_frTarget||_frTick>=FR_MAX_TICKS){
-        _frComplete();
-      }
+      if(_frMissingTiers.size===0||currentTier>=_frTarget||_frTick>=FR_MAX_TICKS)_frComplete();
     });
     return;
   }
@@ -2118,77 +2149,71 @@ function _frBatch(){
   }
 
   if(_cgMode){
-    // CG batch — run DPD physics steps
-    for(let s=0;s<FR_BATCH_CG;s++){
-      cgPhysicsStep();
-      _cgTick++;
-    }
-    _frCGStep+=FR_BATCH_CG;
-    _frTick+=FR_BATCH_CG;
-    if(_frCGStep>=80){
-      _frCGStep=0;
-      checkCGTiers();
-      checkGraduation();
-    }
+    for(let s=0;s<FR_BATCH_CG;s++){cgPhysicsStep();_cgTick++;}
+    _frCGStep+=FR_BATCH_CG;_frTick+=FR_BATCH_CG;
+    if(_frCGStep>=80){_frCGStep=0;checkCGTiers();checkGraduation();}
   } else {
-    // Molecular batch — LJ physics
     for(let s=0;s<FR_BATCH_MOL;s++){
       physicsStep(_genome);
       if(_frMolStep%3===0)updateBonds(_genome);
-      _frMolStep++;
-      _tick++;
+      _frMolStep++;_tick++;
     }
-    _frTick+=FR_BATCH_MOL;
-    _frDetectAcc+=FR_BATCH_MOL;
-    if(_frDetectAcc>=160){
-      _frDetectAcc=0;
-      detectStructures();
-      checkTiers();
-      checkGraduation();
-    }
+    _frTick+=FR_BATCH_MOL;_frDetectAcc+=FR_BATCH_MOL;
+    if(_frDetectAcc>=160){_frDetectAcc=0;detectStructures();checkTiers();checkGraduation();}
   }
-
   _frUpdateProgress();
 }
 
 async function _frCaptureTierFootage(t){
-  // Render the current sim state to screen and capture NFRAMES JPEG frames.
-  // Physics steps run between frames to create real motion in the footage.
-  const W=320,H=200,NFRAMES=5,PHYS_BETWEEN=30;
-  const frames=[];
+  const W=320,H=200,NFRAMES=6,PHYS_BETWEEN=50;
 
+  // Warm-up: run extra steps so visible structures develop before first frame
+  const WARMUP=_cgMode?300:800;
+  if(_cgMode){
+    for(let s=0;s<WARMUP;s++){cgPhysicsStep();_cgTick++;}
+    checkCGTiers();checkGraduation();
+  } else {
+    for(let s=0;s<WARMUP;s++){physicsStep(_genome);if(s%3===0)updateBonds(_genome);_tick++;}
+    detectStructures();checkGraduation();
+  }
+
+  // Snapshot camera state, then zoom into the largest cluster for close-up footage
+  const savedCamPos=camera.position.clone();
+  const savedTarget=controls.target.clone();
+  _frFocusCamera();
+
+  const frames=[];
   for(let f=0;f<NFRAMES;f++){
-    // Advance physics for inter-frame motion (except first frame)
+    // Advance physics between frames for motion
     if(f>0){
       if(_cgMode){
         for(let s=0;s<PHYS_BETWEEN;s++){cgPhysicsStep();_cgTick++;}
-        checkCGTiers();checkGraduation();
       } else {
-        for(let s=0;s<PHYS_BETWEEN;s++){
-          physicsStep(_genome);
-          if(s%3===0)updateBonds(_genome);
-          _tick++;
-        }
-        detectStructures();checkTiers();checkGraduation();
+        for(let s=0;s<PHYS_BETWEEN;s++){physicsStep(_genome);if(s%3===0)updateBonds(_genome);_tick++;}
       }
     }
-    // Render one frame
+    // Render frame
     if(_cgMode){_updateCGMeshes();}else{updateInstancedMeshes();renderBonds();}
     controls.update();
     renderer.render(scene,camera);
-    // Capture
+    // Read canvas IMMEDIATELY after render (preserveDrawingBuffer ensures this is safe)
     try{
       const off=document.createElement('canvas');
       off.width=W;off.height=H;
       const ctx=off.getContext('2d');
       ctx.drawImage(renderer.domElement,0,0,renderer.domElement.width,renderer.domElement.height,0,0,W,H);
-      frames.push(off.toDataURL('image/jpeg',0.42).split(',')[1]);
+      const b64=off.toDataURL('image/jpeg',0.60).split(',')[1];
+      if(b64&&b64.length>FR_MIN_FRAME_SIZE)frames.push(b64); // skip near-black frames
     }catch(e){}
-    // Yield to browser between frames (keeps UI responsive)
-    await new Promise(r=>setTimeout(r,80));
+    await new Promise(r=>setTimeout(r,40)); // yield — preserveDrawingBuffer keeps canvas safe
   }
 
-  // Persist to Firebase
+  // Restore camera to world view
+  camera.position.copy(savedCamPos);
+  controls.target.copy(savedTarget);
+  controls.update();
+
+  // Persist to Firebase — only if we have real (non-black) frames
   if(frames.length>0){
     try{
       await db.ref(`pandora/biomes/${BIOME_ID}/tier_snaps/${t}`).set({
@@ -2197,6 +2222,10 @@ async function _frCaptureTierFootage(t){
       _frMissingTiers.delete(t);
       _frCapturedCount++;
     }catch(e){console.warn('FR save failed',e);}
+  } else {
+    // Footage was too dark — skip this tier for now, will retry next run
+    console.log(`FR: T${t} footage too dark, skipping`);
+    _frMissingTiers.delete(t); // don't get stuck retrying indefinitely
   }
 }
 
@@ -2238,15 +2267,21 @@ async function _checkAndStartFastRunner(targetTier){
   try{
     const snap=await db.ref(`${ROOT}/tier_snaps`).once('value');
     const data=snap.val()||{};
-    // Collect tiers that already have footage
+    // Only count tiers with SUBSTANTIAL footage (not black/corrupt frames).
+    // FR_MIN_FRAME_SIZE guards against all-black JPEGs from previous failed captures.
     const captured=new Set();
-    Object.values(data).forEach(d=>{if(d&&d.tier>0&&d.frames&&d.frames.length>0)captured.add(d.tier);});
+    Object.values(data).forEach(d=>{
+      if(d&&d.tier>0&&d.frames&&d.frames.length>0){
+        const hasReal=d.frames.some(f=>f&&f.length>=FR_MIN_FRAME_SIZE);
+        if(hasReal)captured.add(d.tier);
+      }
+    });
     for(let t=1;t<=targetTier;t++){
       if(!captured.has(t))missing.push(t);
     }
   }catch(e){return false;}
 
-  if(missing.length===0)return false; // all footage exists — no need
+  if(missing.length===0)return false; // all tiers have real footage — skip fast runner
 
   // Show FR loading overlay
   const overlay=document.getElementById('fr-overlay');
@@ -2259,7 +2294,7 @@ async function _checkAndStartFastRunner(targetTier){
   _frSavedTier=targetTier;
   _frMissingTiers=new Set(missing);
   _frTick=0;_frMolStep=0;_frCGStep=0;_frDetectAcc=0;
-  _frPendingCapture=-1;_frCapturing=false;_frCapturedCount=0;
+  _frPendingQueue=[];_frCapturing=false;_frCapturedCount=0;
 
   // Reset simulation to fresh seed state
   currentTier=0;
