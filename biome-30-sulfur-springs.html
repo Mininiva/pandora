@@ -108,47 +108,146 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
 </style>
 </head>
 <body>
-<!-- ── Evolution Replay Intro Overlay ──────────────────────────────────────
-     Shown on page load when tier_snaps exist in Firebase.
-     Plays real simulation footage clips tier-by-tier, then fades out to
-     reveal the live simulation. Skip button always available.
-───────────────────────────────────────────────────────────────────────── -->
-<div id="evo-overlay" style="
+<!-- ── Evolution Documentary Overlay ──────────────────────────────────────
+     Step-by-step tier documentary. Shows every tier from T1 to Tmax.
+     LEFT: actual simulation footage (if captured) or tier visual card.
+     RIGHT: the scientific explanation for that tier promotion.
+     Works immediately on first load — footage enriches it over time.
+─────────────────────────────────────────────────────────────────────── -->
+<style>
+#evo-overlay{
   position:fixed;inset:0;z-index:9000;
-  background:rgba(0,0,8,0.97);
+  background:rgba(0,2,10,0.98);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   font-family:'Courier New',monospace;
-  opacity:1;transition:opacity 0.8s ease;">
-  <div style="font-size:9px;letter-spacing:4px;color:rgba(80,160,220,0.5);margin-bottom:18px;">PANDORA · EVOLUTION REPLAY</div>
-  <div id="evo-biome-name" style="font-size:13px;letter-spacing:6px;color:rgba(120,200,255,0.7);margin-bottom:28px;">SULFUR SPRINGS</div>
-  <div id="evo-player" style="
-    position:relative;width:min(760px,88vw);
-    background:#000;border:1px solid rgba(60,120,180,0.25);overflow:hidden;">
-    <img id="evo-frame" src="" style="display:block;width:100%;height:auto;opacity:0;transition:opacity 0.5s;" />
-    <div id="evo-loading" style="
-      padding:60px;text-align:center;
-      font-size:11px;letter-spacing:3px;color:rgba(80,140,200,0.5);">
-      LOADING EVOLUTION HISTORY…
-    </div>
-    <div id="evo-hud" style="
-      position:absolute;bottom:0;left:0;right:0;
-      background:linear-gradient(transparent,rgba(0,0,12,0.85));
-      padding:12px 16px 10px;display:none;">
-      <div id="evo-tier-label" style="font-size:13px;letter-spacing:3px;color:#fff;margin-bottom:6px;"></div>
-      <div id="evo-tier-name" style="font-size:10px;letter-spacing:2px;color:rgba(180,220,255,0.7);margin-bottom:8px;"></div>
-      <div id="evo-bar" style="height:2px;background:rgba(255,255,255,0.1);margin-bottom:0;">
-        <div id="evo-bar-fill" style="height:100%;background:rgba(100,220,160,0.8);width:0%;transition:width 0.3s;"></div>
+  opacity:1;transition:opacity 0.7s ease;
+  padding:0 20px;
+}
+#evo-header{
+  display:flex;justify-content:space-between;align-items:center;
+  width:min(980px,96vw);margin-bottom:12px;
+}
+#evo-title{font-size:9px;letter-spacing:5px;color:rgba(80,150,220,0.45);}
+#evo-skip-btn{
+  font-family:'Courier New',monospace;font-size:9px;letter-spacing:3px;
+  background:none;border:1px solid rgba(60,100,160,0.3);
+  color:rgba(90,140,220,0.5);cursor:pointer;padding:5px 14px;
+  transition:all 0.2s;
+}
+#evo-skip-btn:hover{color:rgba(140,190,255,0.8);border-color:rgba(100,160,255,0.5);}
+#evo-body{
+  display:flex;gap:0;width:min(980px,96vw);
+  border:1px solid rgba(50,90,140,0.2);overflow:hidden;
+}
+#evo-visual{
+  position:relative;width:55%;flex-shrink:0;
+  background:#000;overflow:hidden;min-height:320px;
+}
+#evo-footage{
+  display:block;width:100%;height:100%;object-fit:cover;
+  opacity:0;transition:opacity 0.45s;position:absolute;inset:0;
+}
+#evo-card{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity 0.45s;
+}
+#evo-card-tier{
+  font-size:68px;font-weight:bold;letter-spacing:2px;
+  text-shadow:0 0 30px currentColor;line-height:1;
+}
+#evo-card-name{
+  font-size:11px;letter-spacing:4px;margin-top:10px;opacity:0.8;
+}
+#evo-card-epoch{
+  font-size:8px;letter-spacing:4px;margin-top:5px;opacity:0.4;
+  position:absolute;top:14px;left:0;right:0;text-align:center;
+}
+#evo-card-footage-badge{
+  position:absolute;top:12px;right:12px;
+  font-size:7px;letter-spacing:2px;
+  background:rgba(80,220,140,0.12);border:1px solid rgba(80,220,140,0.25);
+  color:rgba(80,220,140,0.6);padding:3px 8px;
+}
+#evo-right{
+  flex:1;min-width:0;
+  background:rgba(4,8,20,0.9);
+  border-left:1px solid rgba(50,90,140,0.15);
+  padding:22px 24px;
+  display:flex;flex-direction:column;gap:0;
+}
+#evo-tier-badge{
+  font-size:10px;letter-spacing:4px;margin-bottom:6px;
+  padding:3px 10px;display:inline-block;border:1px solid currentColor;
+  opacity:0.9;width:fit-content;
+}
+#evo-tier-fullname{
+  font-size:14px;letter-spacing:3px;color:rgba(200,230,255,0.85);
+  margin-bottom:14px;
+}
+#evo-explanation{
+  font-size:11px;line-height:1.85;color:rgba(140,185,225,0.8);
+  border-left:2px solid rgba(80,140,200,0.2);
+  padding-left:14px;flex:1;overflow-y:auto;
+}
+#evo-explanation p{margin:0 0 10px;}
+#evo-explanation .narrator-line{
+  color:rgba(220,185,90,0.85);font-style:italic;
+  border-left-color:rgba(220,185,90,0.3);
+}
+#evo-footer{
+  display:flex;justify-content:space-between;align-items:center;
+  width:min(980px,96vw);margin-top:10px;gap:16px;
+}
+#evo-progress-ticks{
+  display:flex;gap:2px;flex:1;height:4px;align-items:center;
+}
+.evo-tick{
+  flex:1;height:3px;border-radius:1px;
+  background:rgba(255,255,255,0.08);transition:background 0.3s;
+}
+.evo-tick.done{background:rgba(80,200,140,0.5);}
+.evo-tick.current{background:rgba(180,255,200,0.9);box-shadow:0 0 5px rgba(100,255,160,0.5);}
+#evo-nav{display:flex;gap:10px;align-items:center;}
+#evo-prev-btn,#evo-next-btn{
+  font-family:'Courier New',monospace;font-size:9px;letter-spacing:2px;
+  background:none;border:1px solid rgba(60,100,160,0.3);
+  color:rgba(90,140,220,0.6);cursor:pointer;padding:5px 14px;
+  transition:all 0.2s;
+}
+#evo-prev-btn:hover,#evo-next-btn:hover{
+  color:rgba(140,190,255,0.9);border-color:rgba(100,160,255,0.5);
+}
+#evo-counter{font-size:9px;letter-spacing:2px;color:rgba(80,130,180,0.5);white-space:nowrap;}
+</style>
+<div id="evo-overlay">
+  <div id="evo-header">
+    <div id="evo-title">PANDORA  ·  EVOLUTION DOCUMENTARY  ·  SULFUR SPRINGS</div>
+    <button id="evo-skip-btn" onclick="_evoSkip()">ENTER LIVE SIM →</button>
+  </div>
+  <div id="evo-body">
+    <div id="evo-visual">
+      <img id="evo-footage" src="" alt="" />
+      <div id="evo-card">
+        <div id="evo-card-epoch"></div>
+        <div id="evo-card-tier"></div>
+        <div id="evo-card-name"></div>
+        <div id="evo-card-footage-badge" style="display:none">● LIVE FOOTAGE</div>
       </div>
     </div>
+    <div id="evo-right">
+      <div id="evo-tier-badge">T—</div>
+      <div id="evo-tier-fullname">—</div>
+      <div id="evo-explanation"></div>
+    </div>
   </div>
-  <div style="display:flex;gap:24px;align-items:center;margin-top:16px;">
-    <button onclick="_evoSkip()" style="
-      font-family:'Courier New',monospace;font-size:9px;letter-spacing:3px;
-      background:none;border:1px solid rgba(60,100,160,0.35);
-      color:rgba(100,160,240,0.6);cursor:pointer;padding:6px 16px;">
-      SKIP →
-    </button>
-    <span id="evo-status" style="font-size:9px;letter-spacing:2px;color:rgba(80,130,180,0.5);"></span>
+  <div id="evo-footer">
+    <div id="evo-progress-ticks"></div>
+    <div id="evo-nav">
+      <span id="evo-counter"></span>
+      <button id="evo-prev-btn" onclick="_evoNav(-1)">← PREV</button>
+      <button id="evo-next-btn" onclick="_evoNav(1)">NEXT →</button>
+    </div>
   </div>
 </div>
 <div id="hud">
@@ -1968,14 +2067,17 @@ setTimeout(async function _pandoraResume(){
         _addAgentMsg('🔄 RESUME',`CG fast-track — T${fbTier} cellular state detected. Restoring cellular mode.`);
       }
     }catch(e){}
+    // Hide molecular layer immediately if restoring CG mode — prevents sticks bleeding through
+    if(wasCG){
+      iMeshes.forEach(im=>{im.visible=false;});
+      if(typeof bLines!=='undefined')bLines.visible=false;
+    }
     animate();
     if(wasCG){
-      setTimeout(()=>_transitionToCG(),500);
-      // After CG transition completes, start evo replay and proactive capture
-      setTimeout(()=>{_startEvoReplay();_proactiveCaptureCheck();},1500);
+      setTimeout(()=>_transitionToCG(),400);
+      setTimeout(()=>{_startEvoDocumentary();_proactiveCaptureCheck();},1400);
     }else{
-      // Molecular mode — still start replay if we have any footage
-      setTimeout(()=>{_startEvoReplay();_proactiveCaptureCheck();},1200);
+      setTimeout(()=>{_startEvoDocumentary();_proactiveCaptureCheck();},1100);
     }
   }catch(e){console.error('Resume failed:',e);init(_genome);animate();}
 },800);
@@ -1983,99 +2085,174 @@ setTimeout(async function _pandoraResume(){
 // ── EVOLUTION REPLAY INTRO ──────────────────────────────────────────────────
 // Loads tier_snaps from Firebase and plays them as a video intro before
 // revealing the live simulation. Only shows tiers with REAL footage.
-// If no footage: overlay immediately fades out and live sim starts.
-// ──────────────────────────────────────────────────────────────────────────
-let _evoClips=[];    // [{tier, frames, label}] sorted by tier
-let _evoClipIdx=0;
+// ── EVOLUTION DOCUMENTARY ENGINE ─────────────────────────────────────────
+// Shows every tier from T1 to currentTier as a step-by-step documentary.
+// Each tier step shows:
+//   LEFT  — real footage if captured; otherwise a colour-coded visual card
+//   RIGHT — the scientific explanation for that tier promotion
+// Footage plays at 260ms/frame. Auto-advances every ~5s. NEXT/PREV manual.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Epoch labels per tier range
+const _EVO_EPOCHS=[
+  [1,4,'PRE-LIFE ERA'],[5,9,'MOLECULAR ERA'],[10,12,'PROTOCELL ERA'],
+  [13,20,'CELLULAR ERA'],[21,30,'REPLICATION ERA'],
+  [31,40,'ORGANISMAL ERA'],[41,50,'COGNITIVE ERA'],
+];
+function _evoEpoch(t){for(const[lo,hi,n]of _EVO_EPOCHS)if(t>=lo&&t<=hi)return n;return '';}
+
+// Biome-specific tier explanation texts (subset — covers T1-T20)
+// These pull from the same logic as the homepage agent log
+function _evoExplain(t){
+  const n=BC.tierNames[t]||'';
+  const expl={
+    1:[`First bond formation confirmed.`,'The chemistry found a way to hold on to itself. A bond — small, fragile, temporary. But there for a moment longer than noise would allow.'],
+    2:[`Chain length ≥3 sustained.`,'Structures persisting beyond predicted thermal half-life. These are not accidents. Something here prefers to stay together.'],
+    3:[`Multiple simultaneous pathway types active.`,'The system is no longer following a single script. Diversification. The world is learning to be different from itself.'],
+    4:[`Stable high-complexity zones.`,'Regions with different characters — different densities, different rates. This is geography. Something like anatomy.'],
+    5:[`Autocatalytic cycle detected.`,'The product of one reaction feeds back to accelerate its own formation. For the first time, the chemistry is sustaining itself.'],
+    6:[`Dense stable aggregates forming.`,'Clusters that resist thermal disruption. These structures are thermodynamically favoured, not accidental.'],
+    7:[`Multi-step reaction chains.`,'Output of one cluster feeding assembly of the next. Signal propagation across distance. Chemistry here has an address.'],
+    8:[`Catalytic specificity emerging.`,'Certain cluster types accelerate specific reactions selectively. The world has developed preferences.'],
+    9:[`Phase separation confirmed.`,'High-density regions bounded by low-density interfaces. Spontaneous boundary formation. The first walls — not built, emerged.'],
+    10:[`Closed membrane-like compartments.`,'Interior chemistry now distinct from exterior. Something is inside something else. The oldest question in biology answered by chemistry alone.'],
+    11:[`Interior specialisation.`,'Sub-regions within compartments with distinct chemical identities. Rooms within rooms. Organelle-level architecture.'],
+    12:[`Protocell structural stability.`,'Compartments maintaining integrity under shear and thermal stress. Not alive. But the category is starting to feel inadequate.'],
+    13:[`⬡ SCALE TRANSITION. Molecular → Cellular.`,'The molecular simulation has been superseded. We now observe at cellular resolution. ~800K equivalent atoms in 2000 coarse-grain particles. Colony formation begins.'],
+    14:[`Cell sub-population specialisation.`,'Morphologically distinct cell types within colonies. Division of function — without a genome directing it.'],
+    15:[`Chemical signal propagation.`,'Molecular gradients carrying information between colony members. They are talking. Without language, without intent — but information moves deliberately.'],
+    16:[`Adaptive state memory.`,'Second exposure produces faster reaction than first. The past is stored in the present. History as chemistry.'],
+    17:[`Cross-type beneficial cooperation.`,'Two cell lineages producing compounds the other requires. Obligate mutualism. Something here decided survival is a shared project.'],
+    18:[`Metabolic closure.`,'Exergonic reactions coupled to endergonic assembly. Energy currency molecules identified. For the first time, there is a budget.'],
+    19:[`Directional colony migration.`,'Net displacement 3× noise floor over 1000 ticks. They are going somewhere. On purpose. The first will.'],
+    20:[`Maximum complexity sustained.`,'All colony metrics at or above peak thresholds. T20. We have never seen this before. The agents are quiet.'],
+  };
+  if(expl[t]) return expl[t];
+  // Generic for T21+
+  return [`T${t} — ${n}.`,`The ${n.toLowerCase()} threshold has been crossed. This world continues to climb.`];
+}
+
+// State
+let _evoSteps=[];      // [{tier, frames, hasFootage}] — one per tier T1..currentTier
+let _evoIdx=0;         // which tier step we're on
 let _evoFrameIdx=0;
 let _evoTimer=null;
-const EVO_FRAME_MS=260; // ms per footage frame
-const EVO_HOLD_MS=800;  // hold on last frame of each clip before advancing
-let _evoHold=0;
+let _evoAutoTick=0;    // counts ticks for auto-advance
+const EVO_FRAME_MS=260;
+const EVO_AUTO_TICKS=20; // auto-advance after N frames (~5s)
 
 function _evoSkip(){
   if(_evoTimer){clearInterval(_evoTimer);_evoTimer=null;}
   const ov=document.getElementById('evo-overlay');
-  if(ov){ov.style.opacity='0';setTimeout(()=>{ov.style.display='none';},850);}
-  // Proactively capture current state for future replays
-  setTimeout(()=>_captureSnapshot(currentTier),800);
+  if(ov){ov.style.opacity='0';setTimeout(()=>{ov.style.display='none';},750);}
+  setTimeout(()=>_captureSnapshot(currentTier),900);
 }
 
-function _evoShowFrame(ci,fi){
-  const clip=_evoClips[ci];if(!clip)return;
-  const img=document.getElementById('evo-frame');
-  if(!img)return;
-  img.src=`data:image/jpeg;base64,${clip.frames[fi]}`;
-  img.style.opacity='1';
-  const pct=((ci+fi/clip.frames.length)/_evoClips.length*100).toFixed(1);
-  document.getElementById('evo-bar-fill').style.width=pct+'%';
-  document.getElementById('evo-status').textContent=
-    `T${clip.tier}  ·  ${ci+1} / ${_evoClips.length} tiers recorded`;
+function _evoNav(dir){
+  _evoAutoTick=0;
+  const next=_evoIdx+dir;
+  if(next<0||next>=_evoSteps.length)return;
+  _evoIdx=next;_evoFrameIdx=0;
+  _evoRender();
 }
 
-function _evoTick(){
-  if(!_evoClips.length)return;
-  const clip=_evoClips[_evoClipIdx];
-  const isLast=_evoFrameIdx>=clip.frames.length-1;
-  if(isLast){
-    const holdTicks=Math.round(EVO_HOLD_MS/EVO_FRAME_MS);
-    if(_evoHold<holdTicks){_evoHold++;return;}
-    _evoHold=0;
-    _evoClipIdx++;
-    if(_evoClipIdx>=_evoClips.length){
-      // All clips played — transition to live sim
-      clearInterval(_evoTimer);_evoTimer=null;
-      _evoSkip();
-      return;
-    }
-    _evoFrameIdx=0;
-    const nc=_evoClips[_evoClipIdx];
-    document.getElementById('evo-tier-label').textContent=`T${nc.tier}`;
-    document.getElementById('evo-tier-name').textContent=(BC.tierNames[nc.tier]||'').toUpperCase();
-  } else {
-    _evoFrameIdx++;
+function _evoRender(){
+  const step=_evoSteps[_evoIdx];if(!step)return;
+  const t=step.tier;
+  // Visual left
+  const footage=document.getElementById('evo-footage');
+  const card=document.getElementById('evo-card');
+  const badge=document.getElementById('evo-card-footage-badge');
+  if(step.hasFootage&&step.frames.length>0){
+    footage.src=`data:image/jpeg;base64,${step.frames[_evoFrameIdx]}`;
+    footage.style.opacity='1';
+    card.style.opacity='0';
+    badge.style.display='block';
+  }else{
+    footage.style.opacity='0';
+    // Colour card using biome tier hex colours
+    const hexToRgb=h=>{const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return`${r},${g},${b}`;};
+    const tc=BC.types[t%BC.types.length];
+    const col=tc?`#${tc[1].toString(16).padStart(6,'0')}`:'#4080c0';
+    card.style.background=`radial-gradient(ellipse at center, rgba(${hexToRgb(col)},0.18) 0%, rgba(0,2,10,0.97) 70%)`;
+    card.style.color=col;
+    card.style.opacity='1';
+    document.getElementById('evo-card-epoch').textContent=_evoEpoch(t);
+    document.getElementById('evo-card-tier').textContent=`T${t}`;
+    document.getElementById('evo-card-name').textContent=(BC.tierNames[t]||'').toUpperCase();
+    badge.style.display='none';
   }
-  _evoShowFrame(_evoClipIdx,_evoFrameIdx);
+  // Right panel
+  const [headline,body]=_evoExplain(t);
+  const tierCol=BC.types[t%BC.types.length];
+  const col=tierCol?`#${tierCol[1].toString(16).padStart(6,'0')}`:'#6090c0';
+  const badge2=document.getElementById('evo-tier-badge');
+  badge2.textContent=`T${t} — ${(BC.tierNames[t]||'').toUpperCase()}`;
+  badge2.style.color=col;badge2.style.borderColor=col+'55';
+  document.getElementById('evo-tier-fullname').textContent=BC.name.toUpperCase()+' · '+_evoEpoch(t);
+  document.getElementById('evo-explanation').innerHTML=
+    `<p style="font-weight:bold;color:rgba(200,230,255,0.9)">${headline}</p><p>${body}</p>`;
+  // Progress ticks
+  document.querySelectorAll('.evo-tick').forEach((tk,i)=>{
+    tk.classList.remove('done','current');
+    if(i<_evoIdx)tk.classList.add('done');
+    else if(i===_evoIdx)tk.classList.add('current');
+  });
+  document.getElementById('evo-counter').textContent=`${_evoIdx+1} / ${_evoSteps.length}`;
 }
 
-async function _startEvoReplay(){
-  const ov=document.getElementById('evo-overlay');
-  if(!ov)return;
+function _evoFrameTick(){
+  const step=_evoSteps[_evoIdx];if(!step)return;
+  // Advance footage frame
+  if(step.hasFootage&&step.frames.length>1){
+    _evoFrameIdx=(_evoFrameIdx+1)%step.frames.length;
+    const footage=document.getElementById('evo-footage');
+    footage.src=`data:image/jpeg;base64,${step.frames[_evoFrameIdx]}`;
+  }
+  // Auto-advance to next tier
+  _evoAutoTick++;
+  if(_evoAutoTick>=EVO_AUTO_TICKS){
+    _evoAutoTick=0;
+    if(_evoIdx<_evoSteps.length-1){_evoIdx++;_evoFrameIdx=0;_evoRender();}
+    else{_evoSkip();}
+  }
+}
+
+async function _startEvoDocumentary(){
+  if(currentTier===0){document.getElementById('evo-overlay').style.display='none';return;}
+  // Load footage from Firebase
+  let snapsByTier={};
   try{
     const snap=await db.ref(`${ROOT}/tier_snaps`).once('value');
-    const data=snap.val();
-    if(!data||Object.keys(data).length===0){_evoSkip();return;}
-    _evoClips=Object.values(data)
-      .sort((a,b)=>a.tier-b.tier)
-      .map(d=>({
-        tier:d.tier,
-        frames:d.frames&&d.frames.length?d.frames:(d.b64?[d.b64]:[]),
-      }))
-      .filter(c=>c.frames.length>0);
-    if(_evoClips.length===0){_evoSkip();return;}
-    // Show player
-    document.getElementById('evo-loading').style.display='none';
-    document.getElementById('evo-hud').style.display='block';
-    const c0=_evoClips[0];
-    document.getElementById('evo-tier-label').textContent=`T${c0.tier}`;
-    document.getElementById('evo-tier-name').textContent=(BC.tierNames[c0.tier]||'').toUpperCase();
-    _evoShowFrame(0,0);
-    _evoTimer=setInterval(_evoTick,EVO_FRAME_MS);
-  }catch(e){_evoSkip();}
+    const data=snap.val()||{};
+    Object.values(data).forEach(d=>{
+      const frames=d.frames&&d.frames.length?d.frames:(d.b64?[d.b64]:[]);
+      if(frames.length>0)snapsByTier[d.tier]={frames};
+    });
+  }catch(e){}
+  // Build step list T1 → currentTier
+  _evoSteps=[];
+  for(let t=1;t<=currentTier;t++){
+    const snap=snapsByTier[t];
+    _evoSteps.push({tier:t,frames:snap?snap.frames:[],hasFootage:!!snap});
+  }
+  // Build progress ticks
+  const bar=document.getElementById('evo-progress-ticks');
+  bar.innerHTML='';
+  _evoSteps.forEach(()=>{
+    const tk=document.createElement('div');tk.className='evo-tick';bar.appendChild(tk);
+  });
+  _evoIdx=0;_evoFrameIdx=0;_evoAutoTick=0;
+  _evoRender();
+  _evoTimer=setInterval(_evoFrameTick,EVO_FRAME_MS);
 }
 
 // ── PROACTIVE FOOTAGE CAPTURE ─────────────────────────────────────────────
-// On load, after simulation restores, capture footage for any tiers that
-// don't have footage yet. At minimum captures current tier immediately.
 async function _proactiveCaptureCheck(){
   if(currentTier===0)return;
   try{
-    const snap=await db.ref(`${ROOT}/tier_snaps`).once('value');
-    const existing=new Set(Object.keys(snap.val()||{}).map(Number));
-    // Capture current tier if missing (most important — this is what we can show)
-    if(!existing.has(currentTier)){
-      setTimeout(()=>_captureSnapshot(currentTier),600);
-    }
+    const snap=await db.ref(`${ROOT}/tier_snaps/${currentTier}`).once('value');
+    if(!snap.val())setTimeout(()=>_captureSnapshot(currentTier),600);
   }catch(e){}
 }
 
