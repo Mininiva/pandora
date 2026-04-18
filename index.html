@@ -1083,68 +1083,7 @@ let _replayHoldCount = 0;
 let _replayTimer   = null;
 let _replayPlaying = false;
 
-// Tier epoch descriptions for synthetic cards
-const R_EPOCHS = [
-  [0,  4,  'PRE-LIFE ERA'],
-  [5,  9,  'MOLECULAR STRUCTURE ERA'],
-  [10, 12, 'PROTOCELL ERA'],
-  [13, 20, 'CELLULAR ERA'],
-  [21, 30, 'REPLICATION ERA'],
-  [31, 40, 'ORGANISMAL ERA'],
-  [41, 50, 'COGNITIVE ERA'],
-];
-function _epochLabel(t) {
-  for(const [lo,hi,name] of R_EPOCHS) if(t>=lo&&t<=hi) return name;
-  return '';
-}
-
-// Generate a synthetic tier card as a base64 JPEG using an offscreen canvas
-function _makeSynthFrame(tier) {
-  const W=320,H=200;
-  const off = document.createElement('canvas');
-  off.width=W; off.height=H;
-  const ctx = off.getContext('2d');
-  const tStyle = ts(tier);
-  // Background: dark gradient in tier colour
-  const bg = ctx.createLinearGradient(0,0,W,H);
-  bg.addColorStop(0, tStyle[0]+'cc');
-  bg.addColorStop(1, 'rgba(0,0,0,0.96)');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0,0,W,H);
-  // Subtle grid lines
-  ctx.strokeStyle = tStyle[2]+'18';
-  ctx.lineWidth = 0.5;
-  for(let x=0;x<W;x+=24){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
-  for(let y=0;y<H;y+=24){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
-  // Epoch label (top)
-  ctx.fillStyle = tStyle[2]+'88';
-  ctx.font = '600 9px monospace';
-  ctx.letterSpacing = '3px';
-  ctx.textAlign = 'center';
-  ctx.fillText(_epochLabel(tier), W/2, 28);
-  // Tier number (large)
-  ctx.fillStyle = tStyle[2];
-  ctx.font = 'bold 52px monospace';
-  ctx.shadowColor = tStyle[2];
-  ctx.shadowBlur = 18;
-  ctx.fillText(`T${tier}`, W/2, H/2+4);
-  ctx.shadowBlur = 0;
-  // Tier name (below)
-  ctx.fillStyle = tStyle[2]+'cc';
-  ctx.font = '500 11px monospace';
-  ctx.letterSpacing = '2px';
-  ctx.fillText((TIER_NAMES[tier]||'').toUpperCase(), W/2, H/2+30);
-  // Bottom rule
-  ctx.strokeStyle = tStyle[2]+'44';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(32,H-22); ctx.lineTo(W-32,H-22); ctx.stroke();
-  // "AWAITING FOOTAGE" note
-  ctx.fillStyle = tStyle[2]+'55';
-  ctx.font = '9px monospace';
-  ctx.letterSpacing = '1px';
-  ctx.fillText('SIMULATION FOOTAGE PENDING', W/2, H-10);
-  return off.toDataURL('image/jpeg',0.55).split(',')[1];
-}
+// No synthetic cards — only real simulation footage is shown in the modal replay.
 
 function _replayStop() {
   if(_replayTimer){clearInterval(_replayTimer);_replayTimer=null;}
@@ -1168,34 +1107,28 @@ function _replayLoadSnaps(biomId) {
   player.style.display='block';
   _replayClips=[]; _replayClipIdx=0; _replayFrameIdx=0; _replayHoldCount=0;
 
-  if(maxTier === 0) {
-    // Nothing to show yet
-    noData.textContent = 'World at T0 — no tier history to replay yet.';
-    noData.style.display='block'; player.style.display='none'; return;
-  }
-
-  // Build the complete sequence from Firebase snaps, then fill gaps with synthetic cards
+  // Build sequence from REAL Firebase footage only — no synthetic cards
   const _buildSequence = (snapData) => {
-    const snapByTier = {};
-    if(snapData) {
-      Object.values(snapData).forEach(d => {
-        const frames = d.frames && d.frames.length ? d.frames : (d.b64 ? [d.b64] : []);
-        if(frames.length > 0) snapByTier[d.tier] = frames;
-      });
-    }
-
     _replayClips = [];
-    for(let t = 0; t <= maxTier; t++) {
-      const tStyle = ts(t);
-      const label  = `T${t}  ·  ${(TIER_NAMES[t]||'').toUpperCase()}`;
-      if(snapByTier[t]) {
-        _replayClips.push({ tier:t, frames:snapByTier[t], isSynth:false, label, color:tStyle[2] });
-      } else {
-        _replayClips.push({ tier:t, frames:[_makeSynthFrame(t)], isSynth:true, label, color:tStyle[2] });
-      }
+    if(snapData) {
+      Object.values(snapData)
+        .sort((a,b) => a.tier - b.tier)
+        .forEach(d => {
+          const frames = d.frames && d.frames.length ? d.frames : (d.b64 ? [d.b64] : []);
+          if(frames.length === 0) return;
+          const tStyle = ts(d.tier);
+          _replayClips.push({
+            tier: d.tier,
+            frames,
+            isSynth: false,
+            label: `T${d.tier}  ·  ${(TIER_NAMES[d.tier]||'').toUpperCase()}`,
+            color: tStyle[2],
+          });
+        });
     }
 
     if(_replayClips.length === 0) {
+      noData.textContent = 'Footage is being recorded — visit this world as it advances to build its visual history.';
       noData.style.display='block'; player.style.display='none'; return;
     }
 
@@ -1204,13 +1137,11 @@ function _replayLoadSnaps(biomId) {
     img.className='r-frame active'; img.id='r-main-frame';
     player.insertBefore(img, document.getElementById('m-replay-overlay'));
 
-    // Build progress ticks — one per tier
+    // Build progress ticks — one per recorded tier
     _replayClips.forEach((c,i) => {
       const tick = document.createElement('div');
       tick.className = 'r-tick' + (i===0?' current':'');
       tick.title = c.label;
-      // Mark real-footage ticks with a subtle indicator
-      if(!c.isSynth) tick.style.background = 'rgba(100,220,160,0.4)';
       bar.appendChild(tick);
     });
 
@@ -1222,14 +1153,16 @@ function _replayLoadSnaps(biomId) {
     _replayTimer=setInterval(_replayTick, R_REAL_MS);
   };
 
-  // Try loading from Firebase; synthetic-only fallback if unavailable
   if(typeof firebase === 'undefined' || !firebase.apps.length){
-    _buildSequence(null);
-  } else {
-    firebase.database().ref(`pandora/biomes/${biomId}/tier_snaps`).once('value')
-      .then(snap => _buildSequence(snap.val()))
-      .catch(() => _buildSequence(null));
+    noData.textContent = 'Firebase unavailable — footage cannot be loaded.';
+    noData.style.display='block'; player.style.display='none'; return;
   }
+  firebase.database().ref(`pandora/biomes/${biomId}/tier_snaps`).once('value')
+    .then(snap => _buildSequence(snap.val()))
+    .catch(() => {
+      noData.textContent = 'Footage is being recorded — visit this world as it advances to build its visual history.';
+      noData.style.display='block'; player.style.display='none';
+    });
 }
 
 // Show a specific clip/frame
@@ -1254,8 +1187,7 @@ function _replayUpdateTicks(ci) {
 function _replayUpdateStatus() {
   const c = _replayClips[_replayClipIdx];
   const el = document.getElementById('m-replay-status');
-  if(el && c) el.textContent =
-    `T${c.tier} · ${_replayClipIdx+1} / ${_replayClips.length}${c.isSynth?' · awaiting footage':''}`;
+  if(el && c) el.textContent = `T${c.tier}  ·  ${_replayClipIdx+1} / ${_replayClips.length} tiers recorded`;
 }
 
 // Main tick — handles both real-footage pace and synthetic-card hold

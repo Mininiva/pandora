@@ -108,6 +108,49 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
 </style>
 </head>
 <body>
+<!-- ── Evolution Replay Intro Overlay ──────────────────────────────────────
+     Shown on page load when tier_snaps exist in Firebase.
+     Plays real simulation footage clips tier-by-tier, then fades out to
+     reveal the live simulation. Skip button always available.
+───────────────────────────────────────────────────────────────────────── -->
+<div id="evo-overlay" style="
+  position:fixed;inset:0;z-index:9000;
+  background:rgba(0,0,8,0.97);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:'Courier New',monospace;
+  opacity:1;transition:opacity 0.8s ease;">
+  <div style="font-size:9px;letter-spacing:4px;color:rgba(80,160,220,0.5);margin-bottom:18px;">PANDORA · EVOLUTION REPLAY</div>
+  <div id="evo-biome-name" style="font-size:13px;letter-spacing:6px;color:rgba(120,200,255,0.7);margin-bottom:28px;">METHANE CLOUD</div>
+  <div id="evo-player" style="
+    position:relative;width:min(760px,88vw);
+    background:#000;border:1px solid rgba(60,120,180,0.25);overflow:hidden;">
+    <img id="evo-frame" src="" style="display:block;width:100%;height:auto;opacity:0;transition:opacity 0.5s;" />
+    <div id="evo-loading" style="
+      padding:60px;text-align:center;
+      font-size:11px;letter-spacing:3px;color:rgba(80,140,200,0.5);">
+      LOADING EVOLUTION HISTORY…
+    </div>
+    <div id="evo-hud" style="
+      position:absolute;bottom:0;left:0;right:0;
+      background:linear-gradient(transparent,rgba(0,0,12,0.85));
+      padding:12px 16px 10px;display:none;">
+      <div id="evo-tier-label" style="font-size:13px;letter-spacing:3px;color:#fff;margin-bottom:6px;"></div>
+      <div id="evo-tier-name" style="font-size:10px;letter-spacing:2px;color:rgba(180,220,255,0.7);margin-bottom:8px;"></div>
+      <div id="evo-bar" style="height:2px;background:rgba(255,255,255,0.1);margin-bottom:0;">
+        <div id="evo-bar-fill" style="height:100%;background:rgba(100,220,160,0.8);width:0%;transition:width 0.3s;"></div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center;margin-top:16px;">
+    <button onclick="_evoSkip()" style="
+      font-family:'Courier New',monospace;font-size:9px;letter-spacing:3px;
+      background:none;border:1px solid rgba(60,100,160,0.35);
+      color:rgba(100,160,240,0.6);cursor:pointer;padding:6px 16px;">
+      SKIP →
+    </button>
+    <span id="evo-status" style="font-size:9px;letter-spacing:2px;color:rgba(80,130,180,0.5);"></span>
+  </div>
+</div>
 <div id="hud">
   <div><span class="hk">BIOME</span><span class="hv">METHANE CLOUD</span></div>
   <div><span class="hk">TIER</span><span class="hv" id="v-tier">T0 — Void</span></div>
@@ -1926,9 +1969,115 @@ setTimeout(async function _pandoraResume(){
       }
     }catch(e){}
     animate();
-    if(wasCG)setTimeout(()=>_transitionToCG(),500);
+    if(wasCG){
+      setTimeout(()=>_transitionToCG(),500);
+      // After CG transition completes, start evo replay and proactive capture
+      setTimeout(()=>{_startEvoReplay();_proactiveCaptureCheck();},1500);
+    }else{
+      // Molecular mode — still start replay if we have any footage
+      setTimeout(()=>{_startEvoReplay();_proactiveCaptureCheck();},1200);
+    }
   }catch(e){console.error('Resume failed:',e);init(_genome);animate();}
 },800);
+
+// ── EVOLUTION REPLAY INTRO ──────────────────────────────────────────────────
+// Loads tier_snaps from Firebase and plays them as a video intro before
+// revealing the live simulation. Only shows tiers with REAL footage.
+// If no footage: overlay immediately fades out and live sim starts.
+// ──────────────────────────────────────────────────────────────────────────
+let _evoClips=[];    // [{tier, frames, label}] sorted by tier
+let _evoClipIdx=0;
+let _evoFrameIdx=0;
+let _evoTimer=null;
+const EVO_FRAME_MS=260; // ms per footage frame
+const EVO_HOLD_MS=800;  // hold on last frame of each clip before advancing
+let _evoHold=0;
+
+function _evoSkip(){
+  if(_evoTimer){clearInterval(_evoTimer);_evoTimer=null;}
+  const ov=document.getElementById('evo-overlay');
+  if(ov){ov.style.opacity='0';setTimeout(()=>{ov.style.display='none';},850);}
+  // Proactively capture current state for future replays
+  setTimeout(()=>_captureSnapshot(currentTier),800);
+}
+
+function _evoShowFrame(ci,fi){
+  const clip=_evoClips[ci];if(!clip)return;
+  const img=document.getElementById('evo-frame');
+  if(!img)return;
+  img.src=`data:image/jpeg;base64,${clip.frames[fi]}`;
+  img.style.opacity='1';
+  const pct=((ci+fi/clip.frames.length)/_evoClips.length*100).toFixed(1);
+  document.getElementById('evo-bar-fill').style.width=pct+'%';
+  document.getElementById('evo-status').textContent=
+    `T${clip.tier}  ·  ${ci+1} / ${_evoClips.length} tiers recorded`;
+}
+
+function _evoTick(){
+  if(!_evoClips.length)return;
+  const clip=_evoClips[_evoClipIdx];
+  const isLast=_evoFrameIdx>=clip.frames.length-1;
+  if(isLast){
+    const holdTicks=Math.round(EVO_HOLD_MS/EVO_FRAME_MS);
+    if(_evoHold<holdTicks){_evoHold++;return;}
+    _evoHold=0;
+    _evoClipIdx++;
+    if(_evoClipIdx>=_evoClips.length){
+      // All clips played — transition to live sim
+      clearInterval(_evoTimer);_evoTimer=null;
+      _evoSkip();
+      return;
+    }
+    _evoFrameIdx=0;
+    const nc=_evoClips[_evoClipIdx];
+    document.getElementById('evo-tier-label').textContent=`T${nc.tier}`;
+    document.getElementById('evo-tier-name').textContent=(BC.tierNames[nc.tier]||'').toUpperCase();
+  } else {
+    _evoFrameIdx++;
+  }
+  _evoShowFrame(_evoClipIdx,_evoFrameIdx);
+}
+
+async function _startEvoReplay(){
+  const ov=document.getElementById('evo-overlay');
+  if(!ov)return;
+  try{
+    const snap=await db.ref(`${ROOT}/tier_snaps`).once('value');
+    const data=snap.val();
+    if(!data||Object.keys(data).length===0){_evoSkip();return;}
+    _evoClips=Object.values(data)
+      .sort((a,b)=>a.tier-b.tier)
+      .map(d=>({
+        tier:d.tier,
+        frames:d.frames&&d.frames.length?d.frames:(d.b64?[d.b64]:[]),
+      }))
+      .filter(c=>c.frames.length>0);
+    if(_evoClips.length===0){_evoSkip();return;}
+    // Show player
+    document.getElementById('evo-loading').style.display='none';
+    document.getElementById('evo-hud').style.display='block';
+    const c0=_evoClips[0];
+    document.getElementById('evo-tier-label').textContent=`T${c0.tier}`;
+    document.getElementById('evo-tier-name').textContent=(BC.tierNames[c0.tier]||'').toUpperCase();
+    _evoShowFrame(0,0);
+    _evoTimer=setInterval(_evoTick,EVO_FRAME_MS);
+  }catch(e){_evoSkip();}
+}
+
+// ── PROACTIVE FOOTAGE CAPTURE ─────────────────────────────────────────────
+// On load, after simulation restores, capture footage for any tiers that
+// don't have footage yet. At minimum captures current tier immediately.
+async function _proactiveCaptureCheck(){
+  if(currentTier===0)return;
+  try{
+    const snap=await db.ref(`${ROOT}/tier_snaps`).once('value');
+    const existing=new Set(Object.keys(snap.val()||{}).map(Number));
+    // Capture current tier if missing (most important — this is what we can show)
+    if(!existing.has(currentTier)){
+      setTimeout(()=>_captureSnapshot(currentTier),600);
+    }
+  }catch(e){}
+}
 
 setTimeout(async function _loadScientistMemory(){
   if(currentGen<2)return;
