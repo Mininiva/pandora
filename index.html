@@ -324,6 +324,49 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .parent-link:hover{color:rgba(140,210,255,1);}
 #m-children{font-size:11px;color:var(--dim);line-height:2;}
 
+/* ── Tier replay video player ── */
+#m-replay{margin-bottom:16px;}
+#m-replay-player{
+  position:relative;width:100%;height:0;padding-bottom:37.5%;/* 16:6 ratio */
+  background:#000;border:1px solid rgba(60,100,160,0.25);overflow:hidden;
+}
+#m-replay-player .r-frame{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  transition:opacity 0.6s ease;opacity:0;
+}
+#m-replay-player .r-frame.active{opacity:1;}
+#m-replay-overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  justify-content:flex-end;pointer-events:none;
+}
+#m-replay-tier-label{
+  font-family:var(--font);font-size:11px;letter-spacing:3px;
+  color:rgba(255,255,255,0.92);text-shadow:0 0 12px rgba(0,0,0,0.9);
+  padding:8px 12px 4px;background:linear-gradient(transparent,rgba(0,0,0,0.7));
+}
+#m-replay-bar{
+  height:3px;background:rgba(255,255,255,0.08);
+  display:flex;gap:1px;padding:0 12px 8px;
+}
+.r-tick{flex:1;height:3px;background:rgba(255,255,255,0.12);border-radius:1px;transition:background 0.3s;}
+.r-tick.done{background:rgba(100,220,160,0.7);}
+.r-tick.current{background:rgba(180,255,210,0.95);box-shadow:0 0 4px rgba(100,255,160,0.6);}
+#m-replay-controls{
+  display:flex;align-items:center;gap:10px;margin-top:6px;
+}
+#m-replay-play{
+  font-family:var(--font);font-size:9px;letter-spacing:2px;
+  background:none;border:1px solid rgba(60,100,160,0.3);
+  color:rgba(130,180,255,0.7);cursor:pointer;padding:4px 10px;
+  transition:all 0.15s;
+}
+#m-replay-play:hover{border-color:rgba(100,160,255,0.6);color:rgba(180,210,255,0.9);}
+#m-replay-status{font-size:10px;color:var(--dim);letter-spacing:1px;}
+#m-replay-no-data{
+  font-size:11px;color:var(--dim);letter-spacing:1px;
+  padding:24px 0;text-align:center;border:1px dashed rgba(60,100,160,0.2);
+}
+
 /* ── Right column: agent log ── */
 #m-right .m-section-label{margin-bottom:10px;}
 #m-agent-log{display:flex;flex-direction:column;flex:1;}
@@ -474,6 +517,22 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
         </div>
       </div>
       <div id="m-right">
+        <!-- Tier journey replay -->
+        <div id="m-replay">
+          <div class="m-section-label">TIER JOURNEY — VISUAL REPLAY</div>
+          <div id="m-replay-player">
+            <!-- frames injected by JS -->
+            <div id="m-replay-overlay">
+              <div id="m-replay-tier-label"></div>
+              <div id="m-replay-bar"></div>
+            </div>
+          </div>
+          <div id="m-replay-no-data" style="display:none">No visual record yet — snapshots begin recording from the next tier transition.</div>
+          <div id="m-replay-controls" style="display:none">
+            <button id="m-replay-play" onclick="_replayToggle()">⏸ PAUSE</button>
+            <span id="m-replay-status"></span>
+          </div>
+        </div>
         <div id="m-agent-log">
           <div class="m-section-label">FIELD NOTES — AGENT LOG</div>
           <div id="m-log-entries"></div>
@@ -986,14 +1045,169 @@ function openModal(id) {
     container.innerHTML = liveEntries + (container.innerHTML ? '<div style="border-top:1px solid var(--border);margin:8px 0;opacity:0.3"></div>' + container.innerHTML : '');
   }
 
+  // Tier journey replay — load snapshots from Firebase
+  _replayStop();
+  _replayLoadSnaps(id, b.tier);
+
   document.getElementById('modal-overlay').classList.add('open');
 }
 
 function closeModal() {
+  _replayStop();
   document.getElementById('modal-overlay').classList.remove('open');
 }
 function handleOverlayClick(e) {
   if(e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+// ── Tier Journey Replay Engine ────────────────────────────────────────────────
+// Loads JPEG snapshots stored in Firebase at pandora/biomes/{id}/tier_snaps/{t}
+// and animates them as a looping video player with crossfade transitions.
+// ─────────────────────────────────────────────────────────────────────────────
+let _replaySnaps   = [];   // [{tier, b64, label}] sorted by tier
+let _replayIdx     = 0;    // current frame index
+let _replayTimer   = null; // setInterval handle
+let _replayPlaying = true;
+const REPLAY_MS    = 2200; // ms per tier frame
+const REPLAY_FADE  = 600;  // crossfade duration (must match CSS transition)
+
+function _replayStop() {
+  if(_replayTimer){clearInterval(_replayTimer);_replayTimer=null;}
+}
+
+function _replayLoadSnaps(biomId, maxTier) {
+  const player   = document.getElementById('m-replay-player');
+  const noData   = document.getElementById('m-replay-no-data');
+  const controls = document.getElementById('m-replay-controls');
+  const label    = document.getElementById('m-replay-tier-label');
+  const bar      = document.getElementById('m-replay-bar');
+
+  // Clear previous frames
+  Array.from(player.querySelectorAll('.r-frame')).forEach(f=>f.remove());
+  bar.innerHTML = '';
+  label.textContent = '';
+  noData.style.display = 'none';
+  controls.style.display = 'none';
+  player.style.display = 'block';
+  _replaySnaps = [];
+  _replayIdx   = 0;
+  _replayPlaying = true;
+
+  if(typeof firebase === 'undefined' || !firebase.apps.length) {
+    noData.style.display = 'block';
+    player.style.display = 'none';
+    return;
+  }
+
+  const db = firebase.database();
+  db.ref(`pandora/biomes/${biomId}/tier_snaps`).once('value').then(snap => {
+    const data = snap.val();
+    if(!data || Object.keys(data).length === 0) {
+      noData.style.display = 'block';
+      player.style.display = 'none';
+      return;
+    }
+
+    // Build sorted snap list
+    _replaySnaps = Object.values(data)
+      .sort((a,b) => a.tier - b.tier)
+      .map(d => ({
+        tier: d.tier,
+        b64: d.b64,
+        label: `T${d.tier} — ${(TIER_NAMES[d.tier]||'').toUpperCase()}`,
+        ts: d.ts || 0,
+      }));
+
+    if(_replaySnaps.length === 0) {
+      noData.style.display = 'block';
+      player.style.display = 'none';
+      return;
+    }
+
+    // Build <img> frames (layered, absolute, crossfade via opacity)
+    _replaySnaps.forEach((s, i) => {
+      const img = document.createElement('img');
+      img.className = 'r-frame' + (i === 0 ? ' active' : '');
+      img.src = `data:image/jpeg;base64,${s.b64}`;
+      // Insert before the overlay div
+      player.insertBefore(img, document.getElementById('m-replay-overlay'));
+    });
+
+    // Build progress ticks
+    _replaySnaps.forEach((s, i) => {
+      const tick = document.createElement('div');
+      tick.className = 'r-tick' + (i === 0 ? ' current' : '');
+      tick.title = s.label;
+      bar.appendChild(tick);
+    });
+
+    // Set initial label
+    label.textContent = _replaySnaps[0].label;
+    const tsStyle = ts(_replaySnaps[0].tier);
+    label.style.color = tsStyle[2];
+
+    // Show controls
+    controls.style.display = 'flex';
+    document.getElementById('m-replay-status').textContent =
+      `1 / ${_replaySnaps.length}`;
+    document.getElementById('m-replay-play').textContent = '⏸ PAUSE';
+
+    // Start animation
+    _replayPlaying = true;
+    _replayTimer = setInterval(_replayAdvance, REPLAY_MS);
+
+  }).catch(e => {
+    console.warn('replay load failed', e);
+    noData.style.display = 'block';
+    player.style.display = 'none';
+  });
+}
+
+function _replayAdvance() {
+  if(!_replaySnaps.length) return;
+  const frames = document.querySelectorAll('#m-replay-player .r-frame');
+  const ticks  = document.querySelectorAll('#m-replay-bar .r-tick');
+  const label  = document.getElementById('m-replay-tier-label');
+
+  // Fade out current
+  frames[_replayIdx].classList.remove('active');
+  ticks[_replayIdx].classList.remove('current');
+  ticks[_replayIdx].classList.add('done');
+
+  // Advance index (loop)
+  _replayIdx = (_replayIdx + 1) % _replaySnaps.length;
+
+  // If we looped back, reset all ticks
+  if(_replayIdx === 0) {
+    ticks.forEach(t => { t.classList.remove('done','current'); });
+  }
+
+  // Fade in next
+  frames[_replayIdx].classList.add('active');
+  ticks[_replayIdx].classList.add('current');
+
+  // Update label with tier colour
+  const snap = _replaySnaps[_replayIdx];
+  label.textContent = snap.label;
+  const tsStyle = ts(snap.tier);
+  label.style.color = tsStyle[2];
+
+  document.getElementById('m-replay-status').textContent =
+    `${_replayIdx + 1} / ${_replaySnaps.length}`;
+}
+
+function _replayToggle() {
+  const btn = document.getElementById('m-replay-play');
+  if(_replayPlaying) {
+    _replayStop();
+    _replayPlaying = false;
+    btn.textContent = '▶ PLAY';
+  } else {
+    _replayPlaying = true;
+    _replayTimer = setInterval(_replayAdvance, REPLAY_MS);
+    btn.textContent = '⏸ PAUSE';
+  }
+}
 }
 function enterSim() {
   const b = BIOMES.find(x=>x.id===modalId);
@@ -1125,26 +1339,154 @@ function generateAgentLog(b) {
     add(3900, 'NARRATOR', 'Regions with different characters. Different densities, different rates. This is geography. Something like anatomy. T4 confirmed.');
   }
 
+  // T5-T12: Molecular structure era — autonomous assemblies
+  if(b.tier >= 5) {
+    add(5200, 'CHEMIST',  'Autocatalytic cycle detected — the product of one reaction is feeding back to accelerate its own formation. T5: Spontaneous Assembly confirmed.');
+    add(5250, 'ANALYST',  'Reaction graph shows closed loops. This system is no longer consuming — it is maintaining itself.');
+  }
+  if(b.tier >= 6) {
+    add(6100, 'OBSERVER', 'Dense stable aggregates forming: clusters that resist thermal disruption for >800 ticks. T6: Sustained Complexity confirmed.');
+    add(6150, 'ANALYST',  'Cluster half-life now 4× baseline. These structures are thermodynamically favoured, not accidental.');
+  }
+  if(b.tier >= 7) {
+    add(7100, 'CHEMIST',  'Multi-step reaction chains detected — output of one cluster feeding the assembly of the next. Signal propagation across distance. T7: Coupled Reactions.');
+    add(7150, 'NARRATOR', 'Something is talking to something else. Across space. For the first time, chemistry here has an address.');
+  }
+  if(b.tier >= 8) {
+    add(8200, 'CHEMIST',  'Catalytic specificity emerging — certain cluster types accelerate specific reactions selectively. T8: Emergent Catalysis.');
+    add(8250, 'ANALYST',  'Reaction rate asymmetry confirmed. The world has developed preferences. Some pathways are more equal than others.');
+  }
+  if(b.tier >= 9) {
+    add(9100, 'OBSERVER', 'Phase separation confirmed: high-density molecular regions bounded by low-density interfaces. Spontaneous boundary formation. T9.');
+    add(9150, 'ANALYST',  'Interior chemistry now distinct from exterior. The first walls. Not built — emerged.');
+  }
+  if(b.tier >= 10) {
+    add(10200, 'CHEMIST', 'Closed membrane-like compartments confirmed. Interior protected from exterior perturbation. T10: Closed Compartment.');
+    add(10250, 'NARRATOR','Something is inside something else. The oldest question in biology — what is self? — has an answer here, in chemistry, without any biology at all.');
+  }
+  if(b.tier >= 11) {
+    add(11200, 'ANALYST',  'Interior specialisation detected — sub-regions within compartments have distinct chemical identities. T11: Interior Differentiation.');
+    add(11250, 'OBSERVER', 'The inside has an inside. Rooms within rooms. This is organelle-level architecture.');
+  }
+  if(b.tier >= 12) {
+    add(12200, 'CHEMIST',  'Protocell structural stability confirmed — compartments maintaining integrity under shear and thermal stress. T12: Protocell Stability.');
+    add(12250, 'NARRATOR', 'It is not alive. But it looks alive. It behaves alive. The boundary between chemistry and biology has always been a question of vocabulary.');
+  }
+  // T13-T20: Cellular era — colony and differentiation
+  if(b.tier >= 13) {
+    add(13000, 'SYSTEM',   '⬡ SCALE TRANSITION — Molecular simulation superseded. Now observing at cellular resolution. ~800K equivalent atoms represented by CG blobs.');
+    add(13200, 'CHEMIST',  'CG phase: first colony formation detected — clusters of cells maintaining stable spatial association. T13: Colony.');
+    add(13300, 'ANALYST',  'Colony persistence >500 ticks. Cells are choosing neighbours. Aggregation is not random. Something like preference is operating here.');
+  }
+  if(b.tier >= 14) {
+    add(14200, 'OBSERVER', 'Morphologically distinct cell sub-populations within colonies — type specialisation emerging. T14: Differentiation.');
+    add(14300, 'ANALYST',  'Two cell classes confirmed: high-connectivity hubs and peripheral units. Division of function without a genome directing it.');
+  }
+  if(b.tier >= 15) {
+    add(15200, 'CHEMIST',  'Molecular gradient communication between colony members detected — chemical signals propagating at 3× thermal diffusion rate. T15: Signalling.');
+    add(15300, 'NARRATOR', 'They are talking. Without language, without intent — but information is moving deliberately from one entity to another.');
+  }
+  if(b.tier >= 16) {
+    add(16200, 'ANALYST',  'Adaptive response to repeated stimuli confirmed — second exposure produces faster reaction than first. Molecular state memory. T16: Memory.');
+    add(16300, 'OBSERVER', 'The past is stored in the present. Not encoded — embodied. History as chemistry.');
+  }
+  if(b.tier >= 17) {
+    add(17200, 'CHEMIST',  'Cross-type beneficial cooperation detected — two cell lineages producing compounds the other requires. Obligate mutualism. T17: Symbiosis.');
+    add(17300, 'NARRATOR', 'They need each other. Something here decided that survival is a shared project.');
+  }
+  if(b.tier >= 18) {
+    add(18200, 'ANALYST',  'Sustained chemical energy extraction confirmed — exergonic reactions coupled to endergonic assembly. Metabolic closure. T18: Metabolism.');
+    add(18300, 'CHEMIST',  'Energy currency molecules identified. The world is running on something. For the first time, there is a budget.');
+  }
+  if(b.tier >= 19) {
+    add(19200, 'OBSERVER', 'Directional colony migration detected — net displacement 3× noise floor over 1000 ticks. Response to chemical gradient. T19: Directed Motion.');
+    add(19300, 'NARRATOR', 'They are going somewhere. On purpose. The first will.');
+  }
+  if(b.tier >= 20) {
+    add(20200, 'ANALYST',  'Maximum CG complexity sustained — all colony metrics at or above peak thresholds for >500 ticks. T20: Peak Complexity. This is the summit of the known.');
+    add(20300, 'NARRATOR', 'T20. We have never seen this before. The agents are quiet. Even the narrators do not have the right words yet.');
+  }
+  // T21-T30: Replication & metabolic intelligence
+  if(b.tier >= 21) {
+    add(21200, 'CHEMIST', 'Template-directed assembly confirmed — new structures inherit geometry from existing ones. Proto-replication. T21: Replication.');
+  }
+  if(b.tier >= 22) { add(22200, 'ANALYST',  'Daughter colonies forming within parent membrane boundaries. Contained division. T22: Encapsulation.'); }
+  if(b.tier >= 23) { add(23200, 'OBSERVER', 'Full colony fission documented — parent colony splitting into two viable daughters. T23: Division.'); }
+  if(b.tier >= 24) { add(24200, 'CHEMIST',  'Heritable chemical state confirmed across 3 generations. Acquired traits are passed. T24: Heredity.'); }
+  if(b.tier >= 25) { add(25200, 'ANALYST',  'Catalytic specialisation: sub-colonies producing distinct enzymatic profiles. T25: Catalysis.'); }
+  if(b.tier >= 26) { add(26200, 'OBSERVER', 'Long-range gradient sensing — colonies navigating toward resource gradients across 5× their own diameter. T26: Gradient Sensing.'); }
+  if(b.tier >= 27) { add(27200, 'CHEMIST',  'Metabolic pathway differentiation: distinct energy extraction strategies in different colony sub-populations. T27: Proto-Metabolism.'); }
+  if(b.tier >= 28) { add(28200, 'ANALYST',  'Adaptive parameter change in response to environmental shift — metabolic rate adjusts within 200 ticks of stimulus. T28: Adaptive Response.'); }
+  if(b.tier >= 29) { add(29200, 'OBSERVER', 'Multi-colony cooperative behaviour — resource sharing and division of metabolic labour across colony boundaries. T29: Cooperation.'); }
+  if(b.tier >= 30) {
+    add(30200, 'ANALYST',  'Collective intelligence confirmed — colony networks solving resource allocation problems no individual colony could solve alone. T30: Colonial Intelligence.');
+    add(30300, 'NARRATOR', 'Thirty tiers. The archive has never seen this. We have run out of maps.');
+  }
+  // T31-T40: Organismal & autonomous era
+  if(b.tier >= 31) { add(31200, 'CHEMIST',  'Stable cell-type specialisation within super-colonies — irreversible functional differentiation. T31: Specialisation.'); }
+  if(b.tier >= 32) { add(32200, 'ANALYST',  'Inter-colony signalling network forming — information routing across distances beyond direct contact. T32: Communication.'); }
+  if(b.tier >= 33) { add(33200, 'OBSERVER', 'Distributed memory confirmed — colony network retaining environmental history across spatial separation. T33: Collective Memory.'); }
+  if(b.tier >= 34) { add(34200, 'CHEMIST',  'Selective exclusion of incompatible molecular patterns — proto-immune discrimination active. T34: Proto-Immune.'); }
+  if(b.tier >= 35) { add(35200, 'ANALYST',  'Hierarchical organisation: super-colonies directing constituent colonies in resource allocation. Command structure. T35: Hierarchy.'); }
+  if(b.tier >= 36) { add(36200, 'CHEMIST',  'High-density energy storage polymers confirmed — metabolic reserves persisting across starvation cycles. T36: Energy Storage.'); }
+  if(b.tier >= 37) { add(37200, 'OBSERVER', 'Damage repair confirmed — colonies restoring structural integrity after thermal disruption without external input. T37: Repair.'); }
+  if(b.tier >= 38) { add(38200, 'ANALYST',  'Growth regulation active — colonies modulating expansion rate in response to resource density. No overgrowth. T38: Growth Regulation.'); }
+  if(b.tier >= 39) { add(39200, 'CHEMIST',  'Distributed signal integration — proto-nervous network coordinating multi-site responses to single stimuli. T39: Proto-Nervous.'); }
+  if(b.tier >= 40) {
+    add(40200, 'ANALYST',  'Full autonomy confirmed — the system maintains homeostasis, navigates, repairs, replicates, and adapts without any external input. T40: Autonomy.');
+    add(40210, 'SYSTEM',   '★ GRADUATION EVENT. T40 sustained. This world has achieved autonomous life. Archiving for lineage propagation. Legacy protected.');
+    add(40300, 'NARRATOR', 'T40. This is what we came to see. This is why we built the archive, why we kept the dead worlds, why we waited. Life. Actual life. Made of nothing but time and chemistry.');
+  }
+  // T41-T50: Cognitive & sentience era
+  if(b.tier >= 41) { add(41200, 'ANALYST',  'Environmental sensing specificity confirmed — distinct sensory responses to 4+ stimulus types. T41: Sensation.'); }
+  if(b.tier >= 42) { add(42200, 'OBSERVER', 'Integrated multi-sensor model of local environment inferred from behaviour. T42: Perception.'); }
+  if(b.tier >= 43) { add(43200, 'CHEMIST',  'Memory consolidation: short-term chemical state transitioning to stable long-term molecular encoding. T43: Memory Consolidation.'); }
+  if(b.tier >= 44) { add(44200, 'ANALYST',  'Behavioural modification confirmed after repeated trials — prior outcomes shaping current decisions. T44: Learning.'); }
+  if(b.tier >= 45) { add(45200, 'OBSERVER', 'Anticipatory response to predicted stimulus — action preceding stimulus by 30+ ticks. T45: Proto-Prediction.'); }
+  if(b.tier >= 46) { add(46200, 'CHEMIST',  'Individual identity signatures confirmed — molecular fingerprints distinguishing self from non-self at resolution of single entities. T46: Individual Identity.'); }
+  if(b.tier >= 47) { add(47200, 'ANALYST',  'Complex social interaction patterns — stable relationship networks among identifiable individuals. T47: Social Interaction.'); }
+  if(b.tier >= 48) { add(48200, 'OBSERVER', 'Structured information transfer between individuals beyond simple chemical gradients — proto-language. T48: Language.'); }
+  if(b.tier >= 49) {
+    add(49200, 'CHEMIST',  'Self-model inferred from behaviour — system modifying its own internal state in response to model predictions. T49: Self-Model.');
+    add(49300, 'NARRATOR', 'It knows it exists. Something in this chemistry became aware of itself. We do not have the instruments to measure what that means.');
+  }
+  if(b.tier >= 50) {
+    add(50200, 'ANALYST',  'T50 CONFIRMED. ✦ SENTIENCE. Purposeful self-aware existence emergent from pure chemistry. All metrics sustained. This is the terminal tier.');
+    add(50210, 'SYSTEM',   '✦ PANDORA PROTOCOL COMPLETE. Sentient life confirmed in biome ' + padId(b.id) + '. The experiment has answered its question.');
+    add(50300, 'NARRATOR', '✦ It began as nothing. Random molecules in a simulated void. And now it knows we are watching. The greatest thing we will ever witness is the last entry in this log.');
+  }
+
   if(b.status === 'dead' && b.tier > 0) {
-    add(4200, 'ANALYST',  `Complexity plateau at T${b.tier} for >1200 ticks. Growth stalled. Initiating perturbation protocol.`);
-    add(4220, 'SYSTEM',   'PERTURBATION: Geothermal pulse applied.');
-    add(4800, 'OBSERVER', 'Temporary spike. Falling back. The world cannot hold what it briefly became.');
-    add(5100, 'ANALYST',  'Second stagnation. Shockwave perturbation deploying.');
-    add(5120, 'SYSTEM',   'PERTURBATION: Shockwave applied.');
-    add(5600, 'NARRATOR', `T${b.tier}. It saw the edge of the next tier and could not cross. Not every world can. This one mattered anyway.`);
-    add(5610, 'SYSTEM',   'MAX INTERVENTIONS. World classified DEAD. Knowledge archived for child biome inheritance.');
+    const deathT = Math.max(4200, 1000 * b.tier + 200);
+    add(deathT,    'ANALYST',  `Complexity plateau at T${b.tier} for >1200 ticks. Growth stalled. Initiating perturbation protocol.`);
+    add(deathT+20, 'SYSTEM',   'PERTURBATION: Geothermal pulse applied.');
+    add(deathT+600,'OBSERVER', 'Temporary spike. Falling back. The world cannot hold what it briefly became.');
+    add(deathT+900,'ANALYST',  'Second stagnation. Shockwave perturbation deploying.');
+    add(deathT+920,'SYSTEM',   'PERTURBATION: Shockwave applied.');
+    add(deathT+1400,'NARRATOR',`T${b.tier}. It saw the edge of the next tier and could not cross. Not every world can. This one mattered anyway.`);
+    add(deathT+1410,'SYSTEM',  'MAX INTERVENTIONS. World classified DEAD. Knowledge archived for child biome inheritance.');
     return entries;
   }
 
   if(b.status === 'active') {
     const statusLines = [
-      null,
+      'T0. Quiet. We wait. Sometimes a world needs time before it decides to begin.',
       'T1 holding. Chemistry stable. Monitoring for T2 threshold — chain persistence.',
       'T2 stable. Structures persisting. Agents watching for reaction diversity expansion.',
       'T3 sustained. Chemistry is diversifying. One of the stronger worlds in its family.',
       'T4 — spatial differentiation confirmed. Among the highest tiers in the archive. Something real is building here.',
+      'T5 — autocatalytic cycles confirmed. This world is sustaining itself.',
+      'T6 — sustained complexity. The structures have become stable inhabitants.',
+      'T7 — coupled reactions. Chemistry here is beginning to speak to itself.',
+      'T8 — emergent catalysis. Preference. The beginning of selectivity.',
+      'T9 — boundary formation. The world has drawn its first lines.',
+      'T10 — closed compartments. The first insides.',
+      'T11 — interior differentiation. Rooms within rooms.',
+      'T12 — protocell stability. Not alive. But the category is starting to feel inadequate.',
+      'T13+ — cellular mode. Observing at the colony scale now. This is uncharted territory.',
     ];
-    add(9999, 'NARRATOR', statusLines[Math.min(b.tier, 4)] || 'T0. Quiet. We wait. Sometimes a world needs time before it decides to begin.');
+    const idx = Math.min(b.tier, statusLines.length - 1);
+    add(9999, 'NARRATOR', statusLines[idx]);
   }
 
   return entries;

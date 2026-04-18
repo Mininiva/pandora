@@ -356,6 +356,9 @@ const iMeshes=BC.types.map((t,ti)=>{
     new THREE.MeshPhongMaterial({color:t[1],emissive:new THREE.Color(t[1]).multiplyScalar(0.12),shininess:60}),
     INST_CAP
   );
+  // Pre-init instanceColor so USE_INSTANCING_COLOR is compiled into shader from frame 1.
+  // Without this, setColorAt calls later have no visible effect (shader already compiled without it).
+  im.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(INST_CAP*3).fill(1),3);
   im.count=0;scene.add(im);return im;
 });
 const _dummy=new THREE.Object3D();
@@ -810,6 +813,8 @@ function _setupCGMeshes(){
       }),
       CG_INST
     );
+    // Pre-init instanceColor so USE_INSTANCING_COLOR is compiled into shader from frame 1.
+    im.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(CG_INST*3).fill(1),3);
     im.count=0;im.visible=false;scene.add(im);return im;
   });
 }
@@ -857,37 +862,45 @@ function _transitionToCG(){
       vx:(Math.random()-0.5)*0.4,vy:(Math.random()-0.5)*0.4,vz:(Math.random()-0.5)*0.2,
       fx:0,fy:0,fz:0,type,mass,r:radius});
   });
-  // Fill to CG_N with type-segregated clouds — each type gets its own starting domain.
-  // Clouds are densely packed (intra-cloud spacing < clustering threshold) so same-type
-  // blobs cluster immediately. Cloud-cloud separation + DPD cross-type repulsion then
-  // produces visible multi-structure interaction dynamics.
+  // Fill to CG_N with type-segregated clouds — 3 clouds per type = 12 total clouds.
+  // Multiple clouds per type → many independent same-type assemblies instead of one giant blob.
+  // Cloud centres placed on sphere at R_centers=0.45*worldR, cloudR=0.08*worldR so clouds
+  // don't overlap. Each ~167-particle cloud self-assembles while cross-type DPD repulsion
+  // keeps blobs distinct → rich multi-structure interaction dynamics.
   const toAdd=Math.max(0,CG_N-_cgP.length);
   const nTypes=BC.types.length;
-  const R_centers=BC.worldR*0.28; // cloud centres orbit at 28% worldR
-  const cloudR=BC.worldR*0.17;    // each cloud has 17% worldR radius → dense packing
-  const perType=Math.ceil(toAdd/nTypes);
+  const CLOUDS_PER_TYPE=3;
+  const nClouds=nTypes*CLOUDS_PER_TYPE;
+  const R_centers=BC.worldR*0.45; // cloud centres at 45% worldR — non-overlapping spread
+  const cloudR=BC.worldR*0.08;    // tight cloud radius → dense packing within each cloud
+  const perCloud=Math.ceil(toAdd/nClouds);
+  let cloudIdx=0;
   for(let ti=0;ti<nTypes;ti++){
-    // Evenly distribute cloud centres on sphere (golden-angle spacing)
-    const phi_c=Math.acos(1-2*(ti+0.5)/nTypes);
-    const th_c=Math.PI*(1+Math.sqrt(5))*ti;
-    const cx=R_centers*Math.sin(phi_c)*Math.cos(th_c);
-    const cy=R_centers*Math.sin(phi_c)*Math.sin(th_c);
-    const cz=R_centers*Math.cos(phi_c);
-    for(let k=0;k<perType&&_cgP.length<CG_N;k++){
-      const pr=cloudR*Math.cbrt(Math.random());
-      const pphi=Math.acos(2*Math.random()-1),pth=Math.random()*Math.PI*2;
-      const px=cx+pr*Math.sin(pphi)*Math.cos(pth);
-      const py=cy+pr*Math.sin(pphi)*Math.sin(pth);
-      const pz=cz+pr*Math.cos(pphi);
-      // Slow inward drift + thermal kick: clouds converge and begin to mix at boundaries
-      const sp=2.0;
-      _cgP.push({
-        x:px,y:py,z:pz,
-        vx:-cx*0.004+(Math.random()-0.5)*sp,
-        vy:-cy*0.004+(Math.random()-0.5)*sp,
-        vz:-cz*0.004+(Math.random()-0.5)*sp,
-        fx:0,fy:0,fz:0,type:ti,mass:1,r:3.2
-      });
+    for(let ci=0;ci<CLOUDS_PER_TYPE;ci++){
+      // Golden-angle distribution of all cloud centres on sphere
+      const idx=ti*CLOUDS_PER_TYPE+ci;
+      const phi_c=Math.acos(1-2*(idx+0.5)/nClouds);
+      const th_c=Math.PI*(1+Math.sqrt(5))*idx;
+      const cx=R_centers*Math.sin(phi_c)*Math.cos(th_c);
+      const cy=R_centers*Math.sin(phi_c)*Math.sin(th_c);
+      const cz=R_centers*Math.cos(phi_c);
+      for(let k=0;k<perCloud&&_cgP.length<CG_N;k++){
+        const pr=cloudR*Math.cbrt(Math.random());
+        const pphi=Math.acos(2*Math.random()-1),pth=Math.random()*Math.PI*2;
+        const px=cx+pr*Math.sin(pphi)*Math.cos(pth);
+        const py=cy+pr*Math.sin(pphi)*Math.sin(pth);
+        const pz=cz+pr*Math.cos(pphi);
+        // Gentle inward drift + thermal kick
+        const sp=1.6;
+        _cgP.push({
+          x:px,y:py,z:pz,
+          vx:-cx*0.003+(Math.random()-0.5)*sp,
+          vy:-cy*0.003+(Math.random()-0.5)*sp,
+          vz:-cz*0.003+(Math.random()-0.5)*sp,
+          fx:0,fy:0,fz:0,type:ti,mass:1,r:3.2
+        });
+      }
+      cloudIdx++;
     }
   }
   // Switch renderer: hide molecular, show CG
@@ -1059,6 +1072,22 @@ function checkTiers(){
     if(t<50&&mx>=650&&bd_n>3.0&&l250m.length>=3&&_sustainedHigh49>2000)                            _setTier(50);
   }
 }
+// Capture a 240×150 JPEG thumbnail of the current canvas and store it in Firebase.
+// Called ~300ms after each tier transition so the renderer has drawn the new state.
+function _captureSnapshot(t){
+  try{
+    const W=240,H=150;
+    const offscreen=document.createElement('canvas');
+    offscreen.width=W;offscreen.height=H;
+    const ctx=offscreen.getContext('2d');
+    ctx.drawImage(renderer.domElement,0,0,renderer.domElement.width,renderer.domElement.height,0,0,W,H);
+    const dataUrl=offscreen.toDataURL('image/jpeg',0.40);
+    // Store as base64 string (strip data:image/jpeg;base64, prefix for compactness)
+    const b64=dataUrl.split(',')[1];
+    db.ref(`pandora/biomes/${BIOME_ID}/tier_snaps/${t}`).set({b64,ts:Date.now(),tier:t,gen:currentGen});
+  }catch(e){console.warn('snapshot failed',e);}
+}
+
 function _setTier(t){
   if(tierAchieved[t])return;tierAchieved[t]=true;currentTier=t;
   _flashLabel=`T${t} — ${BC.tierNames[t].toUpperCase()}`;_flashTick=uiTick;
@@ -1073,6 +1102,8 @@ function _setTier(t){
       return t > p ? t : undefined;
     });
   }catch(e){}
+  // Capture canvas snapshot 300ms later (renderer will have drawn the new state by then)
+  setTimeout(()=>_captureSnapshot(t),300);
   // T13 → trigger molecular-to-cellular scale transition
   if(t===13&&!_cgMode){setTimeout(()=>_transitionToCG(),700);}
 }
@@ -1860,7 +1891,26 @@ setTimeout(async function _pandoraResume(){
       _addAgentMsg('🌱 GENESIS',`Gen ${currentGen} initialized — ${particles.length} molecules seeded. The experiment begins.`);
     }
     document.getElementById('v-gen').textContent=`GEN ${currentGen}`;
+    // CG fast-track: if this biome was last saved in cellular mode, jump straight to CG
+    // rather than waiting for molecular evolution to re-reach T13 (which takes minutes).
+    let wasCG=false;
+    try{
+      const stSnap=await db.ref(`${ROOT}/state`).once('value');
+      const fbSt=stSnap.val()||{};
+      const fbTier=fbSt.currentTier||0;
+      if(fbSt.cgMode===true&&fbTier>=13){
+        wasCG=true;
+        for(let i=1;i<=fbTier;i++)tierAchieved[i]=true;
+        currentTier=fbTier;
+        tierHistory=Array.from({length:fbTier},(_,i)=>i+1);
+        document.getElementById('v-tier').textContent=`T${fbTier} — ${BC.tierNames[fbTier]||''}`;
+        updateTierExplanation(fbTier);
+        drawTierGraph();
+        _addAgentMsg('🔄 RESUME',`CG fast-track — T${fbTier} cellular state detected. Restoring cellular mode.`);
+      }
+    }catch(e){}
     animate();
+    if(wasCG)setTimeout(()=>_transitionToCG(),500);
   }catch(e){console.error('Resume failed:',e);init(_genome);animate();}
 },800);
 
