@@ -1074,18 +1074,34 @@ function checkTiers(){
 }
 // Capture a 240×150 JPEG thumbnail of the current canvas and store it in Firebase.
 // Called ~300ms after each tier transition so the renderer has drawn the new state.
+// Record a burst of 8 frames at 400ms intervals (~3.2 seconds of live simulation).
+// Stored as {frames:[b64,...], tier, gen, ts} — gives genuine motion in the replay player.
 function _captureSnapshot(t){
-  try{
-    const W=240,H=150;
-    const offscreen=document.createElement('canvas');
-    offscreen.width=W;offscreen.height=H;
-    const ctx=offscreen.getContext('2d');
-    ctx.drawImage(renderer.domElement,0,0,renderer.domElement.width,renderer.domElement.height,0,0,W,H);
-    const dataUrl=offscreen.toDataURL('image/jpeg',0.40);
-    // Store as base64 string (strip data:image/jpeg;base64, prefix for compactness)
-    const b64=dataUrl.split(',')[1];
-    db.ref(`pandora/biomes/${BIOME_ID}/tier_snaps/${t}`).set({b64,ts:Date.now(),tier:t,gen:currentGen});
-  }catch(e){console.warn('snapshot failed',e);}
+  const W=320,H=200;
+  const frames=[];
+  let collected=0;
+  const NFRAMES=8, INTERVAL=400;
+  function grabFrame(){
+    try{
+      const off=document.createElement('canvas');
+      off.width=W;off.height=H;
+      const ctx=off.getContext('2d');
+      ctx.drawImage(renderer.domElement,0,0,renderer.domElement.width,renderer.domElement.height,0,0,W,H);
+      frames.push(off.toDataURL('image/jpeg',0.42).split(',')[1]);
+    }catch(e){}
+    collected++;
+    if(collected<NFRAMES){
+      setTimeout(grabFrame,INTERVAL);
+    }else{
+      // All frames collected — push to Firebase
+      try{
+        db.ref(`pandora/biomes/${BIOME_ID}/tier_snaps/${t}`).set({
+          frames,tier:t,gen:currentGen,ts:Date.now()
+        });
+      }catch(e){console.warn('snap save failed',e);}
+    }
+  }
+  setTimeout(grabFrame,200); // first frame after 200ms (renderer has drawn new state)
 }
 
 function _setTier(t){
