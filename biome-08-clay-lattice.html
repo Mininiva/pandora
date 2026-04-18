@@ -1274,6 +1274,7 @@ function _setTier(t){
   // ── FAST-RUNNER MODE: minimal ops — track state, queue capture, no DOM thrash ──
   if(_frMode){
     tierHistory.push(t);
+    _frLastTierTick=_frTick; // reset stagnation clock whenever a tier is hit
     if(_frMissingTiers.has(t))_frPendingQueue.push(t); // queue for capture (not clobber)
     if(t===13&&!_cgMode)_transitionToCG();
     return;
@@ -2079,10 +2080,13 @@ let _frDetectAcc     = 0;     // accumulator for detectStructures cadence
 let _frPendingQueue  = [];    // queue of tiers awaiting footage capture
 let _frCapturing     = false; // true while async capture is in progress
 let _frCapturedCount = 0;     // how many tiers captured so far
+let _frLastTierTick  = 0;     // _frTick value when last tier was promoted
 
-const FR_BATCH_MOL  = 300;   // molecular physics steps per setInterval call
-const FR_BATCH_CG   = 120;   // CG physics steps per setInterval call
-const FR_MAX_TICKS  = 1400000; // safety cutoff — give up after this many ticks
+const FR_BATCH_MOL    = 300;    // molecular physics steps per setInterval call
+const FR_BATCH_CG     = 120;    // CG physics steps per setInterval call
+const FR_MAX_TICKS    = 2000000; // absolute hard limit
+const FR_STAG_LIMIT   = 500000;  // complete if no tier progress for this many ticks
+//   500K CG ticks ≈ 500K/120 batches × 4ms ≈ ~17 real seconds without advancement
 // Minimum base64 frame size to be considered non-black/non-empty footage
 // A 320x200 all-black JPEG ≈ 400-700 base64 chars; real content ≈ 2000+
 const FR_MIN_FRAME_SIZE = 1200;
@@ -2092,7 +2096,10 @@ function _frUpdateProgress(){
   if(!el)return;
   const captured=_frSavedTier-_frMissingTiers.size;
   const mode=_cgMode?'CELLULAR':'MOLECULAR';
-  el.textContent=`${mode} · T${currentTier}/${_frTarget} · ${captured}/${_frSavedTier} CAPTURED`;
+  const stagnatedFor=_frTick-_frLastTierTick;
+  const stagPct=Math.min(100,Math.round(stagnatedFor/FR_STAG_LIMIT*100));
+  const stagNote=stagnatedFor>100000?` · WAITING FOR T${currentTier+1} [${stagPct}%]`:'';
+  el.textContent=`${mode} · T${currentTier}/${_frTarget} · ${captured}/${_frSavedTier} CAPTURED${stagNote}`;
   const bar=document.getElementById('fr-bar-inner');
   if(bar) bar.style.width=(Math.min(100,currentTier/Math.max(1,_frTarget)*100)).toFixed(1)+'%';
 }
@@ -2143,8 +2150,10 @@ function _frBatch(){
     return;
   }
 
-  // Completion check
-  if(_frMissingTiers.size===0||currentTier>=_frTarget||_frTick>=FR_MAX_TICKS){
+  // Completion check — done, hit hard limit, or stagnated too long without tier progress
+  const stagnated=(_frTick-_frLastTierTick)>FR_STAG_LIMIT;
+  if(_frMissingTiers.size===0||currentTier>=_frTarget||_frTick>=FR_MAX_TICKS||stagnated){
+    if(stagnated)console.log(`FR: stagnated at T${currentTier} for ${_frTick-_frLastTierTick} ticks — completing`);
     _frComplete();return;
   }
 
@@ -2294,7 +2303,7 @@ async function _checkAndStartFastRunner(targetTier){
   _frSavedTier=targetTier;
   _frMissingTiers=new Set(missing);
   _frTick=0;_frMolStep=0;_frCGStep=0;_frDetectAcc=0;
-  _frPendingQueue=[];_frCapturing=false;_frCapturedCount=0;
+  _frPendingQueue=[];_frCapturing=false;_frCapturedCount=0;_frLastTierTick=0;
 
   // Reset simulation to fresh seed state
   currentTier=0;
