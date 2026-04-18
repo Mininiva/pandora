@@ -2104,36 +2104,38 @@ function _frUpdateProgress(){
   if(bar) bar.style.width=(Math.min(100,currentTier/Math.max(1,_frTarget)*100)).toFixed(1)+'%';
 }
 
-// Zoom the camera into the largest cluster/blob so footage shows something real.
-// Saves/restores are handled by the caller.
-function _frFocusCamera(){
-  let cx=0,cy=0,cz=0,found=false;
+// Point camera directly at the largest cluster/blob for close-up footage.
+// Returns {cx,cy,cz} centroid or null. Caller must NOT call controls.update()
+// after this — OrbitControls.update() overwrites manual camera position
+// with its internal spherical coords, defeating the zoom.
+function _frPointCameraAt(cx,cy,cz){
+  const dist=BC.worldR*(_cgMode?0.50:0.35);
+  camera.position.set(cx,cy,cz+dist);
+  camera.lookAt(cx,cy,cz); // direct quaternion set — bypasses OrbitControls
+}
+
+function _frFindLargestCluster(){
   if(_cgMode&&_cgP.length>0){
     const comps=getCGComponents();
-    if(comps.length>0){
-      const l=[...comps].sort((a,b)=>b.length-a.length)[0];
-      if(l&&l.length>0){
-        cx=l.reduce((s,i)=>s+_cgP[i].x,0)/l.length;
-        cy=l.reduce((s,i)=>s+_cgP[i].y,0)/l.length;
-        cz=l.reduce((s,i)=>s+_cgP[i].z,0)/l.length;
-        found=true;
-      }
-    }
-  } else if(_lastComps&&_lastComps.length>0){
+    if(!comps.length)return null;
+    const l=[...comps].sort((a,b)=>b.length-a.length)[0];
+    if(!l||!l.length)return null;
+    return{
+      cx:l.reduce((s,i)=>s+_cgP[i].x,0)/l.length,
+      cy:l.reduce((s,i)=>s+_cgP[i].y,0)/l.length,
+      cz:l.reduce((s,i)=>s+_cgP[i].z,0)/l.length
+    };
+  }
+  if(_lastComps&&_lastComps.length>0){
     const l=[..._lastComps].sort((a,b)=>b.length-a.length)[0];
-    if(l&&l.length>0){
-      cx=l.reduce((s,i)=>s+particles[i].x,0)/l.length;
-      cy=l.reduce((s,i)=>s+particles[i].y,0)/l.length;
-      cz=l.reduce((s,i)=>s+particles[i].z,0)/l.length;
-      found=true;
-    }
+    if(!l||!l.length)return null;
+    return{
+      cx:l.reduce((s,i)=>s+particles[i].x,0)/l.length,
+      cy:l.reduce((s,i)=>s+particles[i].y,0)/l.length,
+      cz:l.reduce((s,i)=>s+particles[i].z,0)/l.length
+    };
   }
-  if(found){
-    const dist=BC.worldR*(_cgMode?0.55:0.38);
-    camera.position.set(cx,cy,cz+dist);
-    controls.target.set(cx,cy,cz);
-    controls.update();
-  }
+  return null;
 }
 
 function _frBatch(){
@@ -2174,10 +2176,10 @@ function _frBatch(){
 }
 
 async function _frCaptureTierFootage(t){
-  const W=320,H=200,NFRAMES=6,PHYS_BETWEEN=50;
+  const W=320,H=200,NFRAMES=6,PHYS_BETWEEN=60;
 
-  // Warm-up: run extra steps so visible structures develop before first frame
-  const WARMUP=_cgMode?300:800;
+  // Warm-up: let structures develop before snapping the first frame
+  const WARMUP=_cgMode?400:1200;
   if(_cgMode){
     for(let s=0;s<WARMUP;s++){cgPhysicsStep();_cgTick++;}
     checkCGTiers();checkGraduation();
@@ -2186,43 +2188,51 @@ async function _frCaptureTierFootage(t){
     detectStructures();checkGraduation();
   }
 
-  // Snapshot camera state, then zoom into the largest cluster for close-up footage
-  const savedCamPos=camera.position.clone();
-  const savedTarget=controls.target.clone();
-  _frFocusCamera();
+  // Find the largest cluster to zoom into
+  const clust=_frFindLargestCluster();
+
+  // Save camera quaternion — we'll bypass OrbitControls entirely during capture.
+  // controls.update() resets camera.position to its internal spherical coords,
+  // which undoes any manual camera movement. By not calling controls.update()
+  // during capture, our manual camera.lookAt() is preserved.
+  const savedPos=camera.position.clone();
+  const savedQuat=camera.quaternion.clone();
+  controls.enabled=false; // disable user input AND internal update side-effects
+
+  if(clust){_frPointCameraAt(clust.cx,clust.cy,clust.cz);}
 
   const frames=[];
   for(let f=0;f<NFRAMES;f++){
-    // Advance physics between frames for motion
     if(f>0){
+      // Advance physics for inter-frame motion
       if(_cgMode){
         for(let s=0;s<PHYS_BETWEEN;s++){cgPhysicsStep();_cgTick++;}
       } else {
         for(let s=0;s<PHYS_BETWEEN;s++){physicsStep(_genome);if(s%3===0)updateBonds(_genome);_tick++;}
       }
+      // Re-lock camera on cluster centroid (particles drift during physics)
+      if(clust){_frPointCameraAt(clust.cx,clust.cy,clust.cz);}
     }
-    // Render frame
+    // Update meshes and render — NO controls.update()
     if(_cgMode){_updateCGMeshes();}else{updateInstancedMeshes();renderBonds();}
-    controls.update();
     renderer.render(scene,camera);
-    // Read canvas IMMEDIATELY after render (preserveDrawingBuffer ensures this is safe)
+    // Capture immediately (preserveDrawingBuffer:true keeps canvas safe across yields)
     try{
       const off=document.createElement('canvas');
       off.width=W;off.height=H;
       const ctx=off.getContext('2d');
       ctx.drawImage(renderer.domElement,0,0,renderer.domElement.width,renderer.domElement.height,0,0,W,H);
-      const b64=off.toDataURL('image/jpeg',0.60).split(',')[1];
-      if(b64&&b64.length>FR_MIN_FRAME_SIZE)frames.push(b64); // skip near-black frames
+      const b64=off.toDataURL('image/jpeg',0.65).split(',')[1];
+      if(b64&&b64.length>FR_MIN_FRAME_SIZE)frames.push(b64);
     }catch(e){}
-    await new Promise(r=>setTimeout(r,40)); // yield — preserveDrawingBuffer keeps canvas safe
+    await new Promise(r=>setTimeout(r,40));
   }
 
-  // Restore camera to world view
-  camera.position.copy(savedCamPos);
-  controls.target.copy(savedTarget);
-  controls.update();
+  // Restore camera and controls
+  controls.enabled=true;
+  camera.position.copy(savedPos);
+  camera.quaternion.copy(savedQuat);
 
-  // Persist to Firebase — only if we have real (non-black) frames
   if(frames.length>0){
     try{
       await db.ref(`pandora/biomes/${BIOME_ID}/tier_snaps/${t}`).set({
@@ -2232,9 +2242,9 @@ async function _frCaptureTierFootage(t){
       _frCapturedCount++;
     }catch(e){console.warn('FR save failed',e);}
   } else {
-    // Footage was too dark — skip this tier for now, will retry next run
-    console.log(`FR: T${t} footage too dark, skipping`);
-    _frMissingTiers.delete(t); // don't get stuck retrying indefinitely
+    // Footage still too dark (very sparse molecular state) — mark done, retry next load
+    console.log(`FR: T${t} no usable footage, skipping tier`);
+    _frMissingTiers.delete(t);
   }
 }
 
