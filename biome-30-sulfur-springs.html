@@ -303,6 +303,28 @@ body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
   <div class="int-desc" id="int-desc">—</div>
   <div class="int-bar"><div class="int-fill" id="int-fill" style="width:100%"></div></div>
 </div>
+
+<!-- ── Fast Simulation Runner overlay — shown while rebuilding evolution record ── -->
+<div id="fr-overlay" style="display:none;position:fixed;inset:0;z-index:9500;
+  background:rgba(0,2,10,0.97);font-family:'Courier New',monospace;
+  flex-direction:column;align-items:center;justify-content:center;
+  opacity:1;transition:opacity 0.7s ease;">
+  <div style="color:rgba(80,220,180,0.9);font-size:13px;letter-spacing:.28em;margin-bottom:18px">
+    ◈ BUILDING EVOLUTION RECORD
+  </div>
+  <div id="fr-status" style="color:rgba(120,180,220,0.7);font-size:10px;letter-spacing:.16em;margin-bottom:22px;text-align:center">
+    INITIALIZING…
+  </div>
+  <div style="width:340px;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden">
+    <div id="fr-bar-inner" style="height:100%;width:0%;background:rgba(80,220,180,0.85);
+      transition:width 0.5s;border-radius:2px"></div>
+  </div>
+  <div style="color:rgba(60,100,140,0.45);font-size:9px;margin-top:22px;letter-spacing:.12em;text-align:center">
+    RE-RUNNING EVOLUTIONARY PATHWAY · CAPTURING FOOTAGE AT EACH TIER<br>
+    <span style="font-size:8px;opacity:0.7">THIS HAPPENS ONCE PER BIOME · SUBSEQUENT LOADS ARE INSTANT</span>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
@@ -1248,6 +1270,16 @@ function _captureSnapshot(t){
 
 function _setTier(t){
   if(tierAchieved[t])return;tierAchieved[t]=true;currentTier=t;
+
+  // ── FAST-RUNNER MODE: minimal ops — track state, queue capture, no DOM thrash ──
+  if(_frMode){
+    tierHistory.push(t);
+    if(_frMissingTiers.has(t))_frPendingCapture=t;
+    if(t===13&&!_cgMode)_transitionToCG();
+    return;
+  }
+
+  // ── NORMAL MODE ──
   _flashLabel=`T${t} — ${BC.tierNames[t].toUpperCase()}`;_flashTick=uiTick;
   document.getElementById('v-tier').textContent=`T${t} — ${BC.tierNames[t]}`;
   tierHistory.push(t);drawTierGraph();logE(`▲ TIER ${t} — ${BC.tierNames[t]}`);
@@ -2027,6 +2059,233 @@ function animate(){
   controls.update();renderer.render(scene,camera);
 }
 
+// ── FAST SIMULATION RUNNER ───────────────────────────────────────────────────
+// Purpose: run simulation at max speed from seed, capturing footage at each
+// tier transition missing from Firebase. Builds the full evolutionary record
+// so the documentary overlay can show real footage for every tier.
+// Triggered on page load when any tier T1→currentTier has no stored footage.
+// ────────────────────────────────────────────────────────────────────────────
+
+let _frMode          = false; // true while fast-runner is active
+let _frTarget        = 0;     // tier to run to (= biome's current Firebase tier)
+let _frSavedTier     = 0;     // same as _frTarget — kept for restore after run
+let _frMissingTiers  = new Set(); // tiers still needing footage
+let _frInterval      = null;  // setInterval handle for batch loop
+let _frTick          = 0;     // total physics ticks during fast run
+let _frMolStep       = 0;     // molecular step counter (for bond update rate)
+let _frCGStep        = 0;     // CG step accumulator (for tier check cadence)
+let _frDetectAcc     = 0;     // accumulator for detectStructures cadence
+let _frPendingCapture= -1;    // tier queued for footage capture (-1 = none)
+let _frCapturing     = false; // true while async capture is in progress
+let _frCapturedCount = 0;     // how many tiers captured so far
+
+const FR_BATCH_MOL  = 300;   // molecular physics steps per setInterval call
+const FR_BATCH_CG   = 120;   // CG physics steps per setInterval call
+const FR_MAX_TICKS  = 1200000; // safety cutoff — give up after this many ticks
+
+function _frUpdateProgress(){
+  const el=document.getElementById('fr-status');
+  if(!el)return;
+  const captured=_frSavedTier-_frMissingTiers.size;
+  const mode=_cgMode?'CELLULAR':'MOLECULAR';
+  el.textContent=`${mode} · T${currentTier}/${_frTarget} · ${captured}/${_frSavedTier} CAPTURED`;
+  const bar=document.getElementById('fr-bar-inner');
+  if(bar) bar.style.width=(Math.min(100,currentTier/Math.max(1,_frTarget)*100)).toFixed(1)+'%';
+}
+
+function _frBatch(){
+  if(!_frMode)return;
+  if(_frCapturing)return; // wait for async capture to finish
+
+  // If a tier was just hit that needs capture, service it
+  if(_frPendingCapture>=0){
+    const t=_frPendingCapture;
+    _frPendingCapture=-1;
+    _frCapturing=true;
+    _frCaptureTierFootage(t).then(()=>{
+      _frCapturing=false;
+      // Check completion after capture
+      if(_frMissingTiers.size===0||currentTier>=_frTarget||_frTick>=FR_MAX_TICKS){
+        _frComplete();
+      }
+    });
+    return;
+  }
+
+  // Completion check
+  if(_frMissingTiers.size===0||currentTier>=_frTarget||_frTick>=FR_MAX_TICKS){
+    _frComplete();return;
+  }
+
+  if(_cgMode){
+    // CG batch — run DPD physics steps
+    for(let s=0;s<FR_BATCH_CG;s++){
+      cgPhysicsStep();
+      _cgTick++;
+    }
+    _frCGStep+=FR_BATCH_CG;
+    _frTick+=FR_BATCH_CG;
+    if(_frCGStep>=80){
+      _frCGStep=0;
+      checkCGTiers();
+      checkGraduation();
+    }
+  } else {
+    // Molecular batch — LJ physics
+    for(let s=0;s<FR_BATCH_MOL;s++){
+      physicsStep(_genome);
+      if(_frMolStep%3===0)updateBonds(_genome);
+      _frMolStep++;
+      _tick++;
+    }
+    _frTick+=FR_BATCH_MOL;
+    _frDetectAcc+=FR_BATCH_MOL;
+    if(_frDetectAcc>=160){
+      _frDetectAcc=0;
+      detectStructures();
+      checkTiers();
+      checkGraduation();
+    }
+  }
+
+  _frUpdateProgress();
+}
+
+async function _frCaptureTierFootage(t){
+  // Render the current sim state to screen and capture NFRAMES JPEG frames.
+  // Physics steps run between frames to create real motion in the footage.
+  const W=320,H=200,NFRAMES=5,PHYS_BETWEEN=30;
+  const frames=[];
+
+  for(let f=0;f<NFRAMES;f++){
+    // Advance physics for inter-frame motion (except first frame)
+    if(f>0){
+      if(_cgMode){
+        for(let s=0;s<PHYS_BETWEEN;s++){cgPhysicsStep();_cgTick++;}
+        checkCGTiers();checkGraduation();
+      } else {
+        for(let s=0;s<PHYS_BETWEEN;s++){
+          physicsStep(_genome);
+          if(s%3===0)updateBonds(_genome);
+          _tick++;
+        }
+        detectStructures();checkTiers();checkGraduation();
+      }
+    }
+    // Render one frame
+    if(_cgMode){_updateCGMeshes();}else{updateInstancedMeshes();renderBonds();}
+    controls.update();
+    renderer.render(scene,camera);
+    // Capture
+    try{
+      const off=document.createElement('canvas');
+      off.width=W;off.height=H;
+      const ctx=off.getContext('2d');
+      ctx.drawImage(renderer.domElement,0,0,renderer.domElement.width,renderer.domElement.height,0,0,W,H);
+      frames.push(off.toDataURL('image/jpeg',0.42).split(',')[1]);
+    }catch(e){}
+    // Yield to browser between frames (keeps UI responsive)
+    await new Promise(r=>setTimeout(r,80));
+  }
+
+  // Persist to Firebase
+  if(frames.length>0){
+    try{
+      await db.ref(`pandora/biomes/${BIOME_ID}/tier_snaps/${t}`).set({
+        frames,tier:t,gen:currentGen,ts:Date.now()
+      });
+      _frMissingTiers.delete(t);
+      _frCapturedCount++;
+    }catch(e){console.warn('FR save failed',e);}
+  }
+}
+
+function _frComplete(){
+  if(!_frMode)return;
+  _frMode=false;
+  if(_frInterval){clearInterval(_frInterval);_frInterval=null;}
+
+  // Restore real biome tier state
+  const restoreTier=Math.max(currentTier,_frSavedTier);
+  currentTier=restoreTier;
+  tierAchieved=new Array(51).fill(false);
+  for(let i=1;i<=restoreTier;i++)tierAchieved[i]=true;
+  tierHistory=Array.from({length:restoreTier},(_,i)=>i+1);
+  document.getElementById('v-tier').textContent=`T${restoreTier} — ${BC.tierNames[restoreTier]||''}`;
+  updateTierExplanation(restoreTier);
+  drawTierGraph();
+
+  // Fade out FR overlay
+  const overlay=document.getElementById('fr-overlay');
+  if(overlay){overlay.style.opacity='0';setTimeout(()=>{overlay.style.display='none';},700);}
+
+  // Start normal simulation with CG fast-track if needed
+  if(restoreTier>=13){
+    iMeshes.forEach(im=>{im.visible=false;});
+    if(typeof bLines!=='undefined')bLines.visible=false;
+    animate();
+    setTimeout(()=>_transitionToCG(),400);
+    setTimeout(()=>_startEvoDocumentary(),1400);
+  } else {
+    animate();
+    setTimeout(()=>_startEvoDocumentary(),800);
+  }
+}
+
+async function _checkAndStartFastRunner(targetTier){
+  if(targetTier===0)return false;
+  let missing=[];
+  try{
+    const snap=await db.ref(`${ROOT}/tier_snaps`).once('value');
+    const data=snap.val()||{};
+    // Collect tiers that already have footage
+    const captured=new Set();
+    Object.values(data).forEach(d=>{if(d&&d.tier>0&&d.frames&&d.frames.length>0)captured.add(d.tier);});
+    for(let t=1;t<=targetTier;t++){
+      if(!captured.has(t))missing.push(t);
+    }
+  }catch(e){return false;}
+
+  if(missing.length===0)return false; // all footage exists — no need
+
+  // Show FR loading overlay
+  const overlay=document.getElementById('fr-overlay');
+  if(overlay){overlay.style.display='flex';overlay.style.opacity='1';}
+  document.getElementById('v-tier').textContent=`T0 — ${BC.tierNames[0]||''}`;
+
+  // Initialise fast-runner state
+  _frMode=true;
+  _frTarget=targetTier;
+  _frSavedTier=targetTier;
+  _frMissingTiers=new Set(missing);
+  _frTick=0;_frMolStep=0;_frCGStep=0;_frDetectAcc=0;
+  _frPendingCapture=-1;_frCapturing=false;_frCapturedCount=0;
+
+  // Reset simulation to fresh seed state
+  currentTier=0;
+  tierAchieved=new Array(51).fill(false);
+  tierHistory=[];
+  _lastComps=[];_lastMaxClus=0;_lastTotalBd=0;_lastClosed=false;
+  _sustainedHigh20=0;_sustainedHigh29=0;_sustainedHigh39=0;_sustainedHigh49=0;
+  _tick=0;uiTick=0;_stagnTicks=0;_lastTierVal=0;
+  _cgMode=false;_cgP=[];_cgTick=0;_cgLastComps=[];_cgLastMax=0;
+  if(_cgMeshes)_cgMeshes.forEach(m=>{m.visible=false;m.count=0;});
+  iMeshes.forEach(im=>{im.visible=true;im.count=0;im.instanceMatrix.needsUpdate=true;});
+  bLines.visible=false;
+  // Add thermal velocity to seed particles (they were loaded at vx=vy=vz=0)
+  const ns=BC.thermalNoise;
+  particles.forEach(p=>{
+    p.bonds=new Set();
+    p.vx=(Math.random()-0.5)*ns*2.5;
+    p.vy=(Math.random()-0.5)*ns*2.5;
+    p.vz=(Math.random()-0.5)*ns*2.5;
+  });
+
+  // Kick off batch loop
+  _frInterval=setInterval(_frBatch,4);
+  return true;
+}
+
 // ── FIREBASE RESUME ─────────────────────────────────────────
 const _sciLoad={done:false};
 setTimeout(async function _pandoraResume(){
@@ -2049,26 +2308,34 @@ setTimeout(async function _pandoraResume(){
       _addAgentMsg('🌱 GENESIS',`Gen ${currentGen} initialized — ${particles.length} molecules seeded. The experiment begins.`);
     }
     document.getElementById('v-gen').textContent=`GEN ${currentGen}`;
-    // CG fast-track: if this biome was last saved in cellular mode, jump straight to CG
-    // rather than waiting for molecular evolution to re-reach T13 (which takes minutes).
-    let wasCG=false;
+
+    // Read saved state to get current tier and CG mode flag
+    let wasCG=false,fbTier=0;
     try{
       const stSnap=await db.ref(`${ROOT}/state`).once('value');
       const fbSt=stSnap.val()||{};
-      const fbTier=fbSt.currentTier||0;
+      fbTier=fbSt.currentTier||0;
       if(fbSt.cgMode===true&&fbTier>=13){
         wasCG=true;
-        for(let i=1;i<=fbTier;i++)tierAchieved[i]=true;
-        currentTier=fbTier;
-        tierHistory=Array.from({length:fbTier},(_,i)=>i+1);
-        document.getElementById('v-tier').textContent=`T${fbTier} — ${BC.tierNames[fbTier]||''}`;
-        updateTierExplanation(fbTier);
-        drawTierGraph();
-        _addAgentMsg('🔄 RESUME',`CG fast-track — T${fbTier} cellular state detected. Restoring cellular mode.`);
+        _addAgentMsg('🔄 RESUME',`CG fast-track — T${fbTier} cellular state detected.`);
       }
     }catch(e){}
-    // Hide molecular layer immediately if restoring CG mode — prevents sticks bleeding through
+
+    // ── Fast runner: rebuild evolution record if any footage is missing ──
+    // This re-runs the simulation from seed at max speed, capturing footage
+    // at each tier transition. When done, starts the normal simulation + documentary.
+    const frStarted=await _checkAndStartFastRunner(fbTier);
+    if(frStarted)return; // fast runner takes over; will call animate() + _startEvoDocumentary()
+
+    // ── Normal path: all footage exists — restore state and start ──
     if(wasCG){
+      for(let i=1;i<=fbTier;i++)tierAchieved[i]=true;
+      currentTier=fbTier;
+      tierHistory=Array.from({length:fbTier},(_,i)=>i+1);
+      document.getElementById('v-tier').textContent=`T${fbTier} — ${BC.tierNames[fbTier]||''}`;
+      updateTierExplanation(fbTier);
+      drawTierGraph();
+      // Hide molecular layer — prevents sticks bleeding through in CG mode
       iMeshes.forEach(im=>{im.visible=false;});
       if(typeof bLines!=='undefined')bLines.visible=false;
     }
