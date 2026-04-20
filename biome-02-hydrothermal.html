@@ -1245,7 +1245,7 @@ function _captureSnapshot(t){
   const frames=[];
   let collected=0;
   const NFRAMES=8, INTERVAL=400;
-  function grabFrame(){
+  async function grabFrame(){
     try{
       const off=document.createElement('canvas');
       off.width=W;off.height=H;
@@ -1257,8 +1257,14 @@ function _captureSnapshot(t){
     if(collected<NFRAMES){
       setTimeout(grabFrame,INTERVAL);
     }else{
-      // All frames collected — push to Firebase
+      // Only save if we have real content (not all-black) AND don't overwrite better existing footage
+      const hasContent=frames.some(f=>f&&f.length>600);
+      if(!hasContent)return; // skip saving — frames are blank
       try{
+        const existing=await db.ref(`pandora/biomes/${BIOME_ID}/tier_snaps/${t}`).once('value');
+        const ex=existing.val();
+        // Keep existing footage if it already has good content (don't overwrite good with potentially worse)
+        if(ex&&ex.frames&&ex.frames.some(f=>f&&f.length>600))return;
         db.ref(`pandora/biomes/${BIOME_ID}/tier_snaps/${t}`).set({
           frames,tier:t,gen:currentGen,ts:Date.now()
         });
@@ -1647,12 +1653,62 @@ function updateTierExplanation(t){
 let _origPositions=null;
 let _pausePhysics=false;
 let _explodeFactor=0;
+let _origCGPositions=null; // CG-mode position snapshot for explode restore
 
 function setExplodeFactor(v){
   _explodeFactor=parseFloat(v)||0;
   const lbl=document.getElementById('explode-val');
   if(lbl) lbl.textContent=_explodeFactor>0?_explodeFactor.toFixed(1)+'×':'—';
 
+  // ── CG MODE ──
+  if(_cgMode){
+    if(_explodeFactor<=0){
+      // Restore CG particle positions
+      if(_origCGPositions){
+        _cgP.forEach((p,i)=>{if(_origCGPositions[i]){p.x=_origCGPositions[i][0];p.y=_origCGPositions[i][1];p.z=_origCGPositions[i][2];}});
+        _origCGPositions=null;
+      }
+      _pausePhysics=false;
+      // Always enforce correct mesh visibility in CG mode
+      iMeshes.forEach(im=>{im.visible=false;im.count=0;im.instanceMatrix.needsUpdate=true;});
+      if(_cgMeshes)_cgMeshes.forEach(m=>{m.visible=true;});
+      _updateCGMeshes();
+      return;
+    }
+    _pausePhysics=true;
+    // Enforce mesh visibility — iMeshes must be hidden in CG mode
+    iMeshes.forEach(im=>{im.visible=false;im.count=0;im.instanceMatrix.needsUpdate=true;});
+    if(_cgMeshes)_cgMeshes.forEach(m=>{m.visible=true;});
+    // Snapshot CG positions once
+    if(!_origCGPositions) _origCGPositions=_cgP.map(p=>[p.x,p.y,p.z]);
+    // Global centroid
+    let gcx=0,gcy=0,gcz=0;
+    _origCGPositions.forEach(([x,y,z])=>{gcx+=x;gcy+=y;gcz+=z;});
+    const nc=_origCGPositions.length||1;
+    gcx/=nc;gcy/=nc;gcz/=nc;
+    const comps=getCGComponents();
+    const cf=_explodeFactor*1.6;
+    const pf=_explodeFactor*0.4;
+    comps.forEach(comp=>{
+      if(!comp.length)return;
+      let ccx=0,ccy=0,ccz=0;
+      comp.forEach(i=>{ccx+=_origCGPositions[i][0];ccy+=_origCGPositions[i][1];ccz+=_origCGPositions[i][2];});
+      ccx/=comp.length;ccy/=comp.length;ccz/=comp.length;
+      const ncx=gcx+(ccx-gcx)*(1+cf);
+      const ncy=gcy+(ccy-gcy)*(1+cf);
+      const ncz=gcz+(ccz-gcz)*(1+cf);
+      comp.forEach(i=>{
+        const ox=_origCGPositions[i][0],oy=_origCGPositions[i][1],oz=_origCGPositions[i][2];
+        _cgP[i].x=ncx+(ox-ccx)*(1+pf);
+        _cgP[i].y=ncy+(oy-ccy)*(1+pf);
+        _cgP[i].z=ncz+(oz-ccz)*(1+pf);
+      });
+    });
+    _updateCGMeshes();
+    return;
+  }
+
+  // ── MOLECULAR MODE ──
   if(_explodeFactor<=0){
     // Restore physics positions
     if(_origPositions){
@@ -2090,7 +2146,7 @@ const FR_STAG_MS      = 30000;  // complete if no tier progress for 30 real seco
 //   500K CG ticks could mean 3-7 minutes of wall time. Time-based is consistent.
 // Minimum base64 frame size to be considered non-black/non-empty footage
 // A 320x200 all-black JPEG ≈ 400-700 base64 chars; real content ≈ 2000+
-const FR_MIN_FRAME_SIZE = 1200;
+const FR_MIN_FRAME_SIZE = 500; // close-up frames of small clusters can be ~600-800 chars; 500 filters only true all-black
 
 function _frUpdateProgress(){
   const el=document.getElementById('fr-status');
@@ -2110,7 +2166,10 @@ function _frUpdateProgress(){
 // after this — OrbitControls.update() overwrites manual camera position
 // with its internal spherical coords, defeating the zoom.
 function _frPointCameraAt(cx,cy,cz){
-  const dist=BC.worldR*(_cgMode?0.50:0.35);
+  // Zoom tight: CG blobs are large, mol particles are small — use different scales.
+  // worldR*0.35 was too far: a 3-atom T3 chain fills only ~6% of 320px → black JPEG.
+  // worldR*0.10 for molecular puts a 3-atom chain at ~25% of frame → visible content.
+  const dist=BC.worldR*(_cgMode?0.22:0.10);
   camera.position.set(cx,cy,cz+dist);
   camera.lookAt(cx,cy,cz); // direct quaternion set — bypasses OrbitControls
 }
